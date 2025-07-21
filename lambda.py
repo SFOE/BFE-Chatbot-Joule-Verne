@@ -1,14 +1,19 @@
-from dotenv import load_dotenv
+import os
 import streamlit as st
 import boto3
 import logging
 from botocore.exceptions import ClientError
 
-load_dotenv()
+AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY")
+AWS_SECRET_KEY_ID = os.getenv("AWS_SECRET_ACCESS_KEY")
 
 logging.basicConfig(level=logging.INFO)
 
-client = boto3.client('bedrock-agent-runtime', region_name='eu-central-1')
+client = boto3.client('bedrock-agent-runtime',
+                      region_name='eu-central-1',
+                      aws_access_key_id = AWS_ACCESS_KEY_ID,
+                      aws_secret_access_key=AWS_SECRET_KEY_ID,
+                      verify=False)
 
 def query_agent(prompt):
       response = client.invoke_agent(
