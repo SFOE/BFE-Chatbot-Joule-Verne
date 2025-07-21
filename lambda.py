@@ -2,6 +2,7 @@ import os
 import streamlit as st
 import boto3
 import logging
+import uuid
 from botocore.exceptions import ClientError
 
 AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY")
@@ -15,15 +16,18 @@ client = boto3.client('bedrock-agent-runtime',
                       aws_secret_access_key=AWS_SECRET_KEY_ID,
                       verify=False)
 
-def query_agent(prompt):
+def query_agent(prompt, session_id):
       response = client.invoke_agent(
             agentAliasId='KOKOM4FTJF',
             agentId='VHRROSBR5W',
             enableTrace=True,
-            sessionId='114',
+            sessionId=session_id,
             inputText=prompt
       )
       return response
+
+session_id = st.session_state.get("session_id", str(uuid.uuid4()))
+st.session_state["session_id"] = session_id
 
 st.title("Demo BFE - Chatbot")
 
@@ -33,8 +37,10 @@ with st.form("my-form"):
             "Type your question here..."
       )
       submitted = st.form_submit_button("Submit")
+      
       if submitted:
-            response = query_agent(text)
+             
+            response = query_agent(text, st.session_state["session_id"])
             for event in response.get("completion"):
                   
                   #Collect agent output.
@@ -48,3 +54,6 @@ with st.form("my-form"):
                         trace = trace_event['trace']
                         for key, value in trace.items():
                               logging.info("%s: %s",key,value)
+
+if st.button("Clear chat"):
+      st.session_state["session_id"] = str(uuid.uuid4())
