@@ -29,7 +29,7 @@ def query_agent(prompt, session_id):
 session_id = st.session_state.get("session_id", str(uuid.uuid4()))
 st.session_state["session_id"] = session_id
 
-st.title("Demo BFE - Chatbot")
+st.title(":zap: Demo BFE - Chatbot")
 
 with st.form("my-form"):
       text = st.text_area(
@@ -37,23 +37,27 @@ with st.form("my-form"):
             "Type your question here..."
       )
       submitted = st.form_submit_button("Submit")
+      text = text.strip()
       
-      if submitted:
+      if submitted :
+            if not text or text=="Type your question here...":
+                  st.write("Please enter your question before submitting")
              
-            response = query_agent(text, st.session_state["session_id"])
-            for event in response.get("completion"):
-                  
-                  #Collect agent output.
-                  if 'chunk' in event:
-                        chunk = event["chunk"]
-                        st.write(chunk["bytes"].decode())
-                  
-                  # Log trace output.
-                  if 'trace' in event:
-                        trace_event = event.get("trace")
-                        trace = trace_event['trace']
-                        for key, value in trace.items():
-                              logging.info("%s: %s",key,value)
+            else:
+                  response = query_agent(text, st.session_state["session_id"])
+                  for event in response.get("completion"):
+                        
+                        #Collect agent output.
+                        if 'chunk' in event:
+                              chunk = event["chunk"]
+                              st.write(chunk["bytes"].decode())
+                        
+                        # Log trace output.
+                        if 'trace' in event:
+                              trace_event = event.get("trace")
+                              trace = trace_event['trace']
+                              for key, value in trace.items():
+                                    logging.info("%s: %s",key,value)
 
 if st.button("Clear chat"):
       st.session_state["session_id"] = str(uuid.uuid4())
