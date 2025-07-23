@@ -14,7 +14,8 @@ client = boto3.client('bedrock-agent-runtime',
                       region_name='eu-central-1',
                       aws_access_key_id = AWS_ACCESS_KEY_ID,
                       aws_secret_access_key=AWS_SECRET_KEY_ID,
-                      verify=False)
+                      verify=False #"custom_bundle.pem"
+                      )
 
 def query_agent(prompt, session_id):
       response = client.invoke_agent(

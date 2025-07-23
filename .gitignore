@@ -16,3 +16,10 @@ Thumbs.db
 
 # Ignore all .pyc files
 *.pyc
+
+#files loaded for batch processing
+batches/
+
+#certificates
+*.pem
+.cert
