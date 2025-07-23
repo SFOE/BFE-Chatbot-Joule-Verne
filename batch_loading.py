@@ -33,3 +33,4 @@ for _, row in tqdm(metadata_df.iterrows()):
       
       with open(f"./data/batches/batch_1/{title}.pdf", 'wb') as f:
            f.write(response.content)
+
