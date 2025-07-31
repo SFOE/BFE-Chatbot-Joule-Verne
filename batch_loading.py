@@ -2,16 +2,14 @@ import os
 import logging
 import asyncio
 import boto3
+import aioboto3
 from botocore.exceptions import ClientError
 import pandas as pd
 import io
-import requests
-import re
 from tqdm import tqdm
 from dotenv import load_dotenv
 from llama_index.core import SimpleDirectoryReader
 from llama_parse import LlamaParse
-from s3fs import S3FileSystem
 
 load_dotenv()
 
@@ -38,30 +36,26 @@ metadata_df = pd.read_csv(io.StringIO(content))
 
 base_url  ="https://www.bfe.admin.ch"
 bucket = "bfe-public-data-pdf"
-obj = "pdfs-batch/"
+# obj = "pdfs-batch/"
 local_path = "./data/batches/batch_1/"
 
 
 def fetch_metadata():
       documents =  SimpleDirectoryReader(local_path).load_data(num_workers=3, show_progress=True)
       return documents
-      
-           
-async def main():
-      docs = fetch_metadata()
-      
-      for doc in docs:
-            filename = getattr(doc, 'filename', '') 
-            doc_filename = os.path.splitext(os.path.basename(filename))[0].strip().lower()
+
+async def parsing_document(doc):
+      filename = getattr(doc, 'filename', '') 
+      doc_filename = os.path.splitext(os.path.basename(filename))[0].strip().lower()
             
-            for _, row in metadata_df.iterrows():
-                  if row['title'] == doc_filename:
-                        doc.metadata['language'] = row['lan']
-                        doc.metadata['title'] = row['title']
-                        doc.metadata['publication_date'] = row['pub_date']
-                        doc.metadata['data_type'] = row['date_type']
-                        break
-      
+      for _, row in metadata_df.iterrows():
+            if row['title'].strip().lower() == doc_filename:
+                  doc.metadata['language'] = row['lan']
+                  doc.metadata['title'] = row['title']
+                  doc.metadata['publication_date'] = row['pub_date']
+                  doc.metadata['data_type'] = row['date_type']
+                  break
+
       parser = LlamaParse(
             api_key=LLAMA_API_KEY,
             custom_client=client,
@@ -69,12 +63,41 @@ async def main():
             show_progress=True
       )
       
-      parsed_docs = await parser.aparse(docs)
-      
-      tasks
+      parsed_result = await parser.aparse(doc)
+      return parsed_result
 
+async def uploading_to_s3(doc):
+      s3_key = f"parsed-pdf-batch/{doc.metadata['title']}_parsed.txt"
       
+      if hasattr(doc, "get_text_documents"):
+            doc_texts = doc.get_text_documents(split_by_page=False)
+            doc_text = "\n".join([t.text for t in doc_texts])
+      else:
+            doc_text = str(doc)
+      
+      session = aioboto3.Session()
+      async with session.client(
+            's3',
+            region_name='eu-central-1',
+            aws_access_key_id=AWS_ACCESS_KEY,
+            aws_secret_access_key=AWS_SECRET_KEY
+            ) as client:
+            
+            await client.put_object(
+                  Bucket=bucket,
+                  Key=s3_key,
+                  Body=doc_text.encode("utf-8")
+            )
+            print(f"Uploaded parsed doc to s3://{bucket}/{s3_key}")
+            
+           
+async def main():
+      docs = fetch_metadata()
+      parsed_results = [await parsing_document(doc) for doc in docs]
+      tasks = [uploading_to_s3(res) for res in parsed_results]
+      await asyncio.gather(*tasks)
+           
+
 
 if __name__=='__main__':
       asyncio.run(main())
-
