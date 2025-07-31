@@ -6,7 +6,7 @@ import aioboto3
 from botocore.exceptions import ClientError
 import pandas as pd
 import io
-from tqdm import tqdm
+from tqdm.asyncio import tqdm_asyncio
 from dotenv import load_dotenv
 from llama_index.core import SimpleDirectoryReader
 from llama_parse import LlamaParse
@@ -75,28 +75,38 @@ async def uploading_to_s3(doc):
       else:
             doc_text = str(doc)
       
-      session = aioboto3.Session()
-      async with session.client(
-            's3',
-            region_name='eu-central-1',
-            aws_access_key_id=AWS_ACCESS_KEY,
-            aws_secret_access_key=AWS_SECRET_KEY
-            ) as client:
+      try:
+            session = aioboto3.Session()
+            async with session.client(
+                  's3',
+                  region_name='eu-central-1',
+                  aws_access_key_id=AWS_ACCESS_KEY,
+                  aws_secret_access_key=AWS_SECRET_KEY
+                  ) as client:
+                  
+                  await client.put_object(
+                        Bucket=bucket,
+                        Key=s3_key,
+                        Body=doc_text.encode("utf-8")
+                  )
+                  logging.info(f"Uploaded parsed doc successfully to s3://{bucket}/{s3_key}")
+      except ClientError as e:
+            logging.error(f"Failed to upload {s3_key} to S3: {e.response['Error']['Message']}")
             
-            await client.put_object(
-                  Bucket=bucket,
-                  Key=s3_key,
-                  Body=doc_text.encode("utf-8")
-            )
-            print(f"Uploaded parsed doc to s3://{bucket}/{s3_key}")
             
            
 async def main():
       docs = fetch_metadata()
-      parsed_results = [await parsing_document(doc) for doc in docs]
-      tasks = [uploading_to_s3(res) for res in parsed_results]
-      await asyncio.gather(*tasks)
-           
+      
+      print("Parsing documents:")
+      parsed_results = await tqdm_asyncio.gather(
+            *(parsing_document(doc) for doc in docs), desc="Parsing", unit="doc"
+      )
+
+      print("Uploading to S3:")
+      await tqdm_asyncio.gather(
+            *(uploading_to_s3(doc) for doc in parsed_results), desc="Uploading", unit="file"
+      )
 
 
 if __name__=='__main__':
