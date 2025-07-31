@@ -1,6 +1,8 @@
 import os
 import logging
+import urllib
 import asyncio
+import httpx
 import boto3
 import aioboto3
 from botocore.exceptions import ClientError
@@ -11,9 +13,17 @@ from dotenv import load_dotenv
 from llama_index.core import SimpleDirectoryReader
 from llama_parse import LlamaParse
 
+
 load_dotenv()
 
 logging.basicConfig(level=logging.INFO)
+
+proxies = urllib.request.getproxies()
+proxies_dict = {}
+if 'https' in proxies:
+      proxies_dict["https://"] = proxies['https']
+if 'http' in proxies:
+      proxies_dict["http://"] = proxies['http']
 
 AWS_ACCESS_KEY = os.getenv("AWS_ACCESS_KEY_ID")
 AWS_SECRET_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
@@ -40,11 +50,12 @@ bucket = "bfe-public-data-pdf"
 local_path = "./data/batches/batch_1/"
 
 
-def fetch_metadata():
-      documents =  SimpleDirectoryReader(local_path).load_data(num_workers=3, show_progress=True)
+async def fetch_metadata():
+      documents =  await SimpleDirectoryReader(local_path).aload_data(num_workers=2, show_progress=True)
+      logging.info("All documents have been retrieved")
       return documents
 
-async def parsing_document(doc):
+async def parsing_document(http_client, doc):
       filename = getattr(doc, 'filename', '') 
       doc_filename = os.path.splitext(os.path.basename(filename))[0].strip().lower()
             
@@ -58,13 +69,23 @@ async def parsing_document(doc):
 
       parser = LlamaParse(
             api_key=LLAMA_API_KEY,
-            custom_client=client,
+            custom_client=http_client,
             num_workers=3,
-            show_progress=True
+            show_progress=True,
+            verbose=True
       )
       
       parsed_result = await parser.aparse(doc)
       return parsed_result
+
+async def get_parsed_doc(doc):
+      async with httpx.AsyncClient(verify=False) as http_client:
+            client.proxies = proxies_dict
+            results = await parsing_document(http_client, doc)
+      if results:
+            return results
+      else:
+            raise Exception(" No documents were correctly parsed and returned")
 
 async def uploading_to_s3(doc):
       s3_key = f"parsed-pdf-batch/{doc.metadata['title']}_parsed.txt"
@@ -96,11 +117,11 @@ async def uploading_to_s3(doc):
             
            
 async def main():
-      docs = fetch_metadata()
+      docs = await fetch_metadata()
       
       print("Parsing documents:")
       parsed_results = await tqdm_asyncio.gather(
-            *(parsing_document(doc) for doc in docs), desc="Parsing", unit="doc"
+            *(get_parsed_doc(doc) for doc in docs), desc="Parsing", unit="doc"
       )
 
       print("Uploading to S3:")
