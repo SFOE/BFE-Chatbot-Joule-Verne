@@ -2,21 +2,25 @@ import os
 import logging
 import urllib
 import asyncio
+from asyncio import Semaphore
 import httpx
 import boto3
 import aioboto3
 from botocore.exceptions import ClientError
 import pandas as pd
 import io
+from unidecode import unidecode
 from tqdm.asyncio import tqdm_asyncio
 from dotenv import load_dotenv
-from llama_index.core import SimpleDirectoryReader
+from collections import defaultdict
+from llama_index.core import Document
 from llama_parse import LlamaParse
+from dataclasses import dataclass
 
 
 load_dotenv()
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.WARNING)
 
 proxies = urllib.request.getproxies()
 proxies_dict = {}
@@ -49,46 +53,52 @@ bucket = "bfe-public-data-pdf"
 # obj = "pdfs-batch/"
 local_path = "./data/batches/batch_1/"
 
+@dataclass
+class File:
+      filename: str
+      filepath: str
+      metadata: dict
 
-async def fetch_metadata():
-      documents =  await SimpleDirectoryReader(local_path).aload_data(num_workers=2, show_progress=True)
-      logging.info("All documents have been retrieved")
-      return documents
+def load_data_from_directory(directory:str, input_files:list=None):
+      files = []
+      if input_files:
+            for file in input_files:
+                  filepath = os.path.join(directory, file)
+                  files.append(File(file, filepath, get_metadata(file)))
+      else:
+            for file in os.listdir(directory):
+                  filepath = os.path.join(directory, file)
+                  files.append(File(file, filepath, get_metadata(file)))
+      return files
+                  
 
 async def parsing_document(http_client, doc):
-      filename = getattr(doc, 'filename', '') 
-      doc_filename = os.path.splitext(os.path.basename(filename))[0].strip().lower()
-            
-      for _, row in metadata_df.iterrows():
-            if row['title'].strip().lower() == doc_filename:
-                  doc.metadata['language'] = row['lan']
-                  doc.metadata['title'] = row['title']
-                  doc.metadata['publication_date'] = row['pub_date']
-                  doc.metadata['data_type'] = row['date_type']
-                  break
 
       parser = LlamaParse(
             api_key=LLAMA_API_KEY,
             custom_client=http_client,
-            num_workers=3,
+            num_workers=2,
             show_progress=True,
             verbose=True
       )
-      
       parsed_result = await parser.aparse(doc)
       return parsed_result
 
+semaphore = Semaphore(2)
 async def get_parsed_doc(doc):
-      async with httpx.AsyncClient(verify=False) as http_client:
-            client.proxies = proxies_dict
-            results = await parsing_document(http_client, doc)
-      if results:
-            return results
-      else:
-            raise Exception(" No documents were correctly parsed and returned")
+
+      async with semaphore:
+            async with httpx.AsyncClient(verify=False) as http_client:
+                  client.proxies = proxies_dict
+                  results = await parsing_document(http_client, doc)
+            if results:
+                  return results
+            else:
+                  raise Exception("No documents were correctly parsed and returned")
 
 async def uploading_to_s3(doc):
-      s3_key = f"parsed-pdf-batch/{doc.metadata['title']}_parsed.txt"
+      title = doc.metadata['title'].strip().lower().replace(' ', '-')
+      s3_key = f"parsed-pdf-batch/{title}_parsed.txt"
       
       if hasattr(doc, "get_text_documents"):
             doc_texts = doc.get_text_documents(split_by_page=False)
@@ -96,6 +106,7 @@ async def uploading_to_s3(doc):
       else:
             doc_text = str(doc)
       
+      metadata = {str(k): unidecode(str(v).strip().lower().replace(' ', '-')) for k,v in doc.metadata.items()}
       try:
             session = aioboto3.Session()
             async with session.client(
@@ -108,25 +119,48 @@ async def uploading_to_s3(doc):
                   await client.put_object(
                         Bucket=bucket,
                         Key=s3_key,
-                        Body=doc_text.encode("utf-8")
+                        Body=doc_text.encode("utf-8"),
+                        Metadata=metadata
                   )
                   logging.info(f"Uploaded parsed doc successfully to s3://{bucket}/{s3_key}")
       except ClientError as e:
             logging.error(f"Failed to upload {s3_key} to S3: {e.response['Error']['Message']}")
+
+def sanitize_filename(filename: str) -> str:
+    forbidden_chars = r'\/:*?"<>|'
+    text = ''.join(c for c in filename if c not in forbidden_chars)
+    return text.replace(' ', '')
+
+def get_metadata(filename):
+      doc_filename = filename.strip().lower().strip('.pdf')
+      metadata =  defaultdict()
+      for _, row in metadata_df.iterrows():
             
-            
+            title = sanitize_filename(row['title']).strip().lower()
+            if title == doc_filename:
+
+                  metadata['language'] = row['lan']
+                  metadata['title'] = row['title']
+                  metadata['publication_date'] = row['pub_date']
+                  metadata['data_type'] = row['date_type']
+                  break
+
+      return metadata  
            
 async def main():
-      docs = await fetch_metadata()
+      data = load_data_from_directory(local_path)
+      docs = [d.filepath for d in data]
+      metadata = [d.metadata for d in data]
       
       print("Parsing documents:")
       parsed_results = await tqdm_asyncio.gather(
             *(get_parsed_doc(doc) for doc in docs), desc="Parsing", unit="doc"
       )
+      documents = [Document(text="\n\n".join(page.text for page in result.pages), metadata= meta) for result, meta in zip(parsed_results, metadata)]
 
       print("Uploading to S3:")
       await tqdm_asyncio.gather(
-            *(uploading_to_s3(doc) for doc in parsed_results), desc="Uploading", unit="file"
+            *(uploading_to_s3(doc) for doc in documents), desc="Uploading", unit="file"
       )
 
 

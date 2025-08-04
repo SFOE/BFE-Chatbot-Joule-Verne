@@ -45,20 +45,21 @@ with st.form("my-form"):
                   st.write("Please enter your question before submitting")
              
             else:
-                  response = query_agent(text, st.session_state["session_id"])
-                  for event in response.get("completion"):
-                        
-                        #Collect agent output.
-                        if 'chunk' in event:
-                              chunk = event["chunk"]
-                              st.write(chunk["bytes"].decode())
-                        
-                        # Log trace output.
-                        if 'trace' in event:
-                              trace_event = event.get("trace")
-                              trace = trace_event['trace']
-                              for key, value in trace.items():
-                                    logging.info("%s: %s",key,value)
+                  with st.spinner('Your question is being processed'):
+                        response = query_agent(text, st.session_state["session_id"])
+                        for event in response.get("completion"):
+                              
+                              #Collect agent output.
+                              if 'chunk' in event:
+                                    chunk = event["chunk"]
+                                    st.write(chunk["bytes"].decode())
+                              
+                              # Log trace output.
+                              if 'trace' in event:
+                                    trace_event = event.get("trace")
+                                    trace = trace_event['trace']
+                                    for key, value in trace.items():
+                                          logging.info("%s: %s",key,value)
 
 if st.button("Clear chat"):
       st.session_state["session_id"] = str(uuid.uuid4())
