@@ -4,8 +4,11 @@ import boto3
 import logging
 import uuid
 from botocore.exceptions import ClientError
+from dotenv import load_dotenv
 
-AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY")
+load_dotenv()
+
+AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
 AWS_SECRET_KEY_ID = os.getenv("AWS_SECRET_ACCESS_KEY")
 
 logging.basicConfig(level=logging.INFO)

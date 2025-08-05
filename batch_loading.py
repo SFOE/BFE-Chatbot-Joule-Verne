@@ -77,14 +77,14 @@ async def parsing_document(http_client, doc):
       parser = LlamaParse(
             api_key=LLAMA_API_KEY,
             custom_client=http_client,
-            num_workers=2,
+            num_workers=1,
             show_progress=True,
             verbose=True
       )
       parsed_result = await parser.aparse(doc)
       return parsed_result
 
-semaphore = Semaphore(2)
+semaphore = Semaphore(1)
 async def get_parsed_doc(doc):
       async with semaphore:
             async with httpx.AsyncClient(verify=False) as http_client:
@@ -96,14 +96,11 @@ async def get_parsed_doc(doc):
                   raise Exception("No documents were correctly parsed and returned")
 
 async def uploading_to_s3(doc):
-      title = doc.metadata['title'].strip().lower().replace(' ', '-').replace('---', '-').replace("'", "-")
+      title = doc.metadata['title'].strip().lower().replace(' ', '-')
+      title = title.replace('---', '-').replace("'", "-")
       s3_key = f"parsed-pdf-batch/{title}-parsed.txt"
       
-      if hasattr(doc, "get_text_documents"):
-            doc_texts = doc.get_text_documents(split_by_page=False)
-            doc_text = "\n".join([t.text for t in doc_texts])
-      else:
-            doc_text = str(doc)
+      doc_text = doc.text
       
       metadata = {str(k): unidecode(str(v).strip().lower().replace(' ', '-')) for k,v in doc.metadata.items()}
       try:
@@ -126,7 +123,7 @@ async def uploading_to_s3(doc):
             logging.error(f"Failed to upload {s3_key} to S3: {e.response['Error']['Message']}")
 
 def sanitize_filename(filename: str) -> str:
-    forbidden_chars = r'\.\/:*?"“”<>«»|,'
+    forbidden_chars = r'\.\/:*?"“”<>«»|’,'
     text = ''.join(c for c in filename if c not in forbidden_chars)
     return text
 
@@ -151,15 +148,15 @@ def get_metadata(filename):
            
 async def main():
       data = load_data_from_directory(local_path)
-      docs = [d.filepath for d in data[:100]]
-      metadata = [d.metadata for d in data[:100]]
+      docs = [d.filepath for d in data[1:100]]
+      metadata = [d.metadata for d in data[1:100]]
       
       print("Parsing documents:")
       parsed_results = await tqdm_asyncio.gather(
             *(get_parsed_doc(doc) for doc in docs), desc="Parsing", unit="doc"
       )
       documents = [Document(text="\n\n".join(page.text for page in result.pages), metadata= meta) for result, meta in zip(parsed_results, metadata)]
-
+      #print(documents[0].text)
       print("Uploading to S3:")
       await tqdm_asyncio.gather(
             *(uploading_to_s3(doc) for doc in documents), desc="Uploading", unit="file"
