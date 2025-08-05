@@ -86,7 +86,6 @@ async def parsing_document(http_client, doc):
 
 semaphore = Semaphore(2)
 async def get_parsed_doc(doc):
-
       async with semaphore:
             async with httpx.AsyncClient(verify=False) as http_client:
                   client.proxies = proxies_dict
@@ -97,8 +96,8 @@ async def get_parsed_doc(doc):
                   raise Exception("No documents were correctly parsed and returned")
 
 async def uploading_to_s3(doc):
-      title = doc.metadata['title'].strip().lower().replace(' ', '-')
-      s3_key = f"parsed-pdf-batch/{title}_parsed.txt"
+      title = doc.metadata['title'].strip().lower().replace(' ', '-').replace('---', '-').replace("'", "-")
+      s3_key = f"parsed-pdf-batch/{title}-parsed.txt"
       
       if hasattr(doc, "get_text_documents"):
             doc_texts = doc.get_text_documents(split_by_page=False)
@@ -127,30 +126,33 @@ async def uploading_to_s3(doc):
             logging.error(f"Failed to upload {s3_key} to S3: {e.response['Error']['Message']}")
 
 def sanitize_filename(filename: str) -> str:
-    forbidden_chars = r'\/:*?"<>|'
+    forbidden_chars = r'\.\/:*?"“”<>«»|,'
     text = ''.join(c for c in filename if c not in forbidden_chars)
-    return text.replace(' ', '')
+    return text
 
 def get_metadata(filename):
-      doc_filename = filename.strip().lower().strip('.pdf')
+      index = filename.rfind('.pdf')
+      doc_filename = filename[:index]
+      doc_filename = sanitize_filename(doc_filename).strip().lower().replace(' ', '')
       metadata =  defaultdict()
       for _, row in metadata_df.iterrows():
             
-            title = sanitize_filename(row['title']).strip().lower()
+            title = sanitize_filename(row['title']).strip().lower().replace(' ', '')
             if title == doc_filename:
 
                   metadata['language'] = row['lan']
-                  metadata['title'] = row['title']
+                  metadata['title'] = sanitize_filename(row['title'])
                   metadata['publication_date'] = row['pub_date']
                   metadata['data_type'] = row['date_type']
                   break
 
+      assert title == doc_filename
       return metadata  
            
 async def main():
       data = load_data_from_directory(local_path)
-      docs = [d.filepath for d in data]
-      metadata = [d.metadata for d in data]
+      docs = [d.filepath for d in data[:100]]
+      metadata = [d.metadata for d in data[:100]]
       
       print("Parsing documents:")
       parsed_results = await tqdm_asyncio.gather(
