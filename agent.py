@@ -55,7 +55,9 @@ with st.form("my-form"):
                               #Collect agent output.
                               if 'chunk' in event:
                                     chunk = event["chunk"]
-                                    st.write(chunk["bytes"].decode())
+                                    refs = [refs_type["location"] for c in chunk["attribution"]["citations"] for refs_type in c["retrievedReferences"]]
+                                    st.write(refs[1])#chunk["bytes"].decode())
+                                    
                               
                               # Log trace output.
                               if 'trace' in event:

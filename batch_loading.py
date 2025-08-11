@@ -77,14 +77,14 @@ async def parsing_document(http_client, doc):
       parser = LlamaParse(
             api_key=LLAMA_API_KEY,
             custom_client=http_client,
-            num_workers=1,
+            num_workers=2,
             show_progress=True,
-            verbose=True
+            verbose=False
       )
       parsed_result = await parser.aparse(doc)
       return parsed_result
 
-semaphore = Semaphore(1)
+semaphore = Semaphore(2)
 async def get_parsed_doc(doc):
       async with semaphore:
             async with httpx.AsyncClient(verify=False) as http_client:
@@ -148,8 +148,8 @@ def get_metadata(filename):
            
 async def main():
       data = load_data_from_directory(local_path)
-      docs = [d.filepath for d in data[1:100]]
-      metadata = [d.metadata for d in data[1:100]]
+      docs = [d.filepath for d in data[400:]]
+      metadata = [d.metadata for d in data[400:]]
       
       print("Parsing documents:")
       parsed_results = await tqdm_asyncio.gather(
