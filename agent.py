@@ -97,11 +97,17 @@ with st.form("my-form"):
 if source_files:
       st.write("Sources:")
       for b, k, s in zip(buckets, keys, source_files):
+            type_ = "application/pdf"
+            if s.endswith('-parsed.txt'):
+                  type_ = None
+                  
             st.download_button(
                   label=f"{s}",
+                  file_name=s,
                   data = s3_client.get_object(Bucket=b, Key=k)['Body'].read(),
                   on_click='ignore',
-                  icon="📁"
+                  icon="📁",
+                  mime=type_
                   )
 
 if st.button("Clear chat"):
