@@ -58,7 +58,8 @@ st.session_state["session_id"] = session_id
 st.title(":zap: Demo BFE - Chatbot")
 
 source_files = None
-
+s3_files = []
+web_refs = []
 with st.form("my-form"):
       text = st.text_area(
             "Please enter your question : ",
@@ -80,13 +81,19 @@ with st.form("my-form"):
                               if 'chunk' in event:
                                     chunk = event["chunk"]
                                     if chunk.get('attribution'):
-                                          s3_refs = [refs_type["location"]["s3Location"]["uri"] for c in chunk["attribution"]["citations"]
-                                                for refs_type in c["retrievedReferences"] if refs_type["location"]["type"]=="S3"]
-                                          buckets, keys, source_files = zip(*[parse_s3_uri(uri) for uri in s3_refs])
+                                          for c in chunk['attribution']['citations']:
+
+                                                s3_refs = [refs_type["location"]["s3Location"]["uri"]
+                                                      for refs_type in c["retrievedReferences"] if refs_type["location"]["type"]=="S3"]
+                                                if s3_refs:
+                                                      s3_refs = set(s3_refs)
+                                                      buckets, keys, s3_files = zip(*[parse_s3_uri(uri) for uri in s3_refs])
+                                                web_refs = [refs_type["location"]["webLocation"]["url"]
+                                                      for refs_type in c["retrievedReferences"] if refs_type["location"]["type"]=="WEB"]
+                                                web_refs = set(web_refs)
                                           
 
                                     st.write(chunk['bytes'].decode())
-                                    st.write(chunk['attribution'])
                                     
                               
                               # Log trace output.
@@ -96,22 +103,27 @@ with st.form("my-form"):
                                     for key, value in trace.items():
                                           logging.info("%s: %s",key,value)
 
-if source_files:
+if s3_files or web_refs:
       st.write("Sources:")
-      for b, k, s in zip(buckets, keys, source_files):
-            type_ = "application/pdf"
-            if s.endswith('-parsed.txt'):
-                  type_ = None
-                  
-            st.download_button(
-                  label=f"{s}",
-                  file_name=s,
-                  key=k,
-                  data = s3_client.get_object(Bucket=b, Key=k)['Body'].read(),
-                  on_click='ignore',
-                  icon="📁",
-                  mime=type_
-                  )
+      if web_refs:
+            for web in web_refs:
+                  st.write(web)
+            
+      if s3_files:
+            for b, k, s in zip(buckets, keys, s3_files):
+                  type_ = "application/pdf"
+                  if s.endswith('-parsed.txt'):
+                        type_ = None
+                        
+                  st.download_button(
+                        label=f"{s}",
+                        file_name=s,
+                        key=k,
+                        data = s3_client.get_object(Bucket=b, Key=k)['Body'].read(),
+                        on_click='ignore',
+                        icon="📁",
+                        mime=type_
+                        )
 
 if st.button("Clear chat"):
       st.session_state["session_id"] = str(uuid.uuid4())
