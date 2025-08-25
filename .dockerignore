@@ -1,2 +1,4 @@
 Dockerfile
 .env
+*.pem
+*.ppk
