@@ -83,8 +83,10 @@ with st.form("my-form"):
                                           s3_refs = [refs_type["location"]["s3Location"]["uri"] for c in chunk["attribution"]["citations"]
                                                 for refs_type in c["retrievedReferences"] if refs_type["location"]["type"]=="S3"]
                                           buckets, keys, source_files = zip(*[parse_s3_uri(uri) for uri in s3_refs])
+                                          
 
                                     st.write(chunk['bytes'].decode())
+                                    st.write(chunk['attribution'])
                                     
                               
                               # Log trace output.
@@ -104,6 +106,7 @@ if source_files:
             st.download_button(
                   label=f"{s}",
                   file_name=s,
+                  key=k,
                   data = s3_client.get_object(Bucket=b, Key=k)['Body'].read(),
                   on_click='ignore',
                   icon="📁",
