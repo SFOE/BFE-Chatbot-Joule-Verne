@@ -52,62 +52,87 @@ def parse_s3_uri(s3_uri):
     filename = os.path.basename(key)
     return bucket, key, filename
 
-session_id = st.session_state.get("session_id", str(uuid.uuid4()))
-st.session_state["session_id"] = session_id
-
-st.title(":zap: Demo BFE - Chatbot")
-
 source_files = None
 s3_files = []
 web_refs = []
-with st.form("my-form"):
-      text = st.text_area(
-            "Please enter your question : ",
-            "Type your question here..."
-      )
-      submitted = st.form_submit_button("Submit")
-      text = text.strip()
+
+session_id = st.session_state.get("session_id", str(uuid.uuid4()))
+st.session_state["session_id"] = session_id
+
+if "messages" not in st.session_state:
+      st.session_state.messages = []
+
+st.title("Demo BFE - Chatbot :zap:")
+
+with st.expander(":information_source:"):
+    st.write("""
+    This is a demo application and will still be submitted to changes. The chatbot might not always be correct or precise. Do not hesitate to check the sources in the side bar if unsure.
+    For any questions or requests you can [contact us](mailto:zoe.jeandupeux@bfe.admin.ch) at the Digital Innovation & Geoinformation section. 
+    """)
+
+for message in st.session_state.messages:
+      with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+
+st.sidebar.write("**Settings**  :pushpin:")
+
+if not st.sidebar.toggle("Session history", value=True):
+      st.session_state["session_id"] = str(uuid.uuid4())
+
+if not st.sidebar.toggle("Chat history", value=True):
+      st.session_state["messages"] = []
       
-      if submitted :
-            if not text or text=="Type your question here...":
-                  st.write("Please enter your question before submitting")
-             
-            else:
-                  with st.spinner('Your question is being processed'):
-                        response = query_agent(text, st.session_state["session_id"])
-                        for event in response.get("completion"):
+prompt = st.chat_input(
+      "Type your question here..."
+)
+
+if prompt:
+      if prompt.strip() == "": 
+            st.chat_message("assistant").markdown("Please enter your question before submitting")
+            
+      else:
+            st.chat_message("user").markdown(prompt)
+            st.session_state.messages.append({"role": "user", "content": prompt})
+
+            with st.spinner('Your question is being processed'):
+                  response = query_agent(prompt, st.session_state["session_id"])
+                  for event in response.get("completion"):
+                        
+                        #Collect agent output.
+                        if 'chunk' in event:
+                              chunk = event["chunk"]
+                              if chunk.get('attribution'):
+                                    for c in chunk['attribution']['citations']:
+
+                                          s3_refs = [refs_type["location"]["s3Location"]["uri"]
+                                                for refs_type in c["retrievedReferences"] if refs_type["location"]["type"]=="S3"]
+                                          if s3_refs:
+                                                s3_refs = set(s3_refs)
+                                                buckets, keys, s3_files = zip(*[parse_s3_uri(uri) for uri in s3_refs])
+                                          web_refs = [refs_type["location"]["webLocation"]["url"]
+                                                for refs_type in c["retrievedReferences"] if refs_type["location"]["type"]=="WEB"]
+                                          web_refs = set(web_refs)
+
+                              reply = chunk['bytes'].decode()
+
+                              with st.chat_message("assistant"):
+                                    st.markdown(reply)
+                                    st.session_state.messages.append({"role": "assistant", "content": reply})
                               
-                              #Collect agent output.
-                              if 'chunk' in event:
-                                    chunk = event["chunk"]
-                                    if chunk.get('attribution'):
-                                          for c in chunk['attribution']['citations']:
+                        
+                        # Log trace output.
+                        if 'trace' in event:
+                              trace_event = event.get("trace")
+                              trace = trace_event['trace']
+                              for key, value in trace.items():
+                                    logging.info("%s: %s",key,value)
 
-                                                s3_refs = [refs_type["location"]["s3Location"]["uri"]
-                                                      for refs_type in c["retrievedReferences"] if refs_type["location"]["type"]=="S3"]
-                                                if s3_refs:
-                                                      s3_refs = set(s3_refs)
-                                                      buckets, keys, s3_files = zip(*[parse_s3_uri(uri) for uri in s3_refs])
-                                                web_refs = [refs_type["location"]["webLocation"]["url"]
-                                                      for refs_type in c["retrievedReferences"] if refs_type["location"]["type"]=="WEB"]
-                                                web_refs = set(web_refs)
-                                          
-
-                                    st.write(chunk['bytes'].decode())
-                                    
-                              
-                              # Log trace output.
-                              if 'trace' in event:
-                                    trace_event = event.get("trace")
-                                    trace = trace_event['trace']
-                                    for key, value in trace.items():
-                                          logging.info("%s: %s",key,value)
-
+st.sidebar.write("**Sources** :bulb:")
 if s3_files or web_refs:
-      st.write("Sources:")
+      
       if web_refs:
             for web in web_refs:
-                  st.write(web)
+                  st.sidebar.write(web)
             
       if s3_files:
             for b, k, s in zip(buckets, keys, s3_files):
@@ -115,7 +140,7 @@ if s3_files or web_refs:
                   if s.endswith('-parsed.txt'):
                         type_ = None
                         
-                  st.download_button(
+                  st.sidebar.download_button(
                         label=f"{s}",
                         file_name=s,
                         key=k,
@@ -125,5 +150,3 @@ if s3_files or web_refs:
                         mime=type_
                         )
 
-if st.button("Clear chat"):
-      st.session_state["session_id"] = str(uuid.uuid4())
