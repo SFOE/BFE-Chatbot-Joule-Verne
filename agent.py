@@ -76,11 +76,14 @@ for message in st.session_state.messages:
 
 st.sidebar.write("**Settings**  :pushpin:")
 
-if not st.sidebar.toggle("Session history", value=True):
+keep_session = st.sidebar.toggle("Session history", value=True, key="keep_session")
+
+if not keep_session:
       st.session_state["session_id"] = str(uuid.uuid4())
 
-if not st.sidebar.toggle("Chat history", value=True):
+if st.sidebar.button("Clear chat", icon="✏️"):
       st.session_state["messages"] = []
+      st.rerun()
       
 prompt = st.chat_input(
       "Type your question here..."
