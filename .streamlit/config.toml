@@ -1,0 +1,18 @@
+[theme]
+
+base="light"
+primaryColor="#a784d6ff"
+backgroundColor="#f7f7fdff"
+secondaryBackgroundColor="#ececfcff"
+textColor="#262730"
+font="sans serif"
+linkColor="#8860bdff"
+
+[client]
+
+toolbarMode="viewer"
+
+[theme.sidebar]
+
+linkColor="#8860bdff"
+linkUnderline=false

@@ -64,10 +64,10 @@ if "messages" not in st.session_state:
 
 st.title("Demo BFE - Chatbot :zap:")
 
-with st.expander(":information_source:"):
+with st.expander(":information_source: :construction:"):
     st.write("""
     This is a demo application and will still be submitted to changes. The chatbot might not always be correct or precise. Do not hesitate to check the sources in the side bar if unsure.
-    For any questions or requests you can [contact us](mailto:zoe.jeandupeux@bfe.admin.ch) at the Digital Innovation & Geoinformation section. 
+    For any questions or requests you can [contact us](mailto:zoe.jeandupeux@bfe.admin.ch) at the Digital Innovation & Geoinformation section :blush:
     """)
 
 for message in st.session_state.messages:
@@ -91,7 +91,7 @@ prompt = st.chat_input(
 
 if prompt:
       if prompt.strip() == "": 
-            st.chat_message("assistant").markdown("Please enter your question before submitting")
+            st.chat_message("jv", avatar=st.image("./img/bundesamt_logo.jpeg")).markdown("Please enter your question before submitting")
             
       else:
             st.chat_message("user").markdown(prompt)
@@ -149,7 +149,7 @@ if s3_files or web_refs:
                         key=k,
                         data = s3_client.get_object(Bucket=b, Key=k)['Body'].read(),
                         on_click='ignore',
-                        icon="📁",
+                        icon="📃",
                         mime=type_
                         )
 
