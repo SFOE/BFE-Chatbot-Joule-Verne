@@ -2,7 +2,7 @@
 
 base="light"
 primaryColor="#a784d6ff"
-backgroundColor="#f7f7fdff"
+backgroundColor="#ffffffff"
 secondaryBackgroundColor="#ececfcff"
 textColor="#262730"
 font="sans serif"

@@ -62,7 +62,14 @@ st.session_state["session_id"] = session_id
 if "messages" not in st.session_state:
       st.session_state.messages = []
 
-st.title("Demo BFE - Chatbot :zap:")
+col1, col2 = st.columns([1,8])
+
+with col1:
+      st.markdown(" ") 
+      st.image("./img/bundesamt_logo.jpeg", width=60)
+
+with col2:
+      st.title("Demo BFE - Chatbot :zap:")
 
 with st.expander(":information_source: :construction:"):
     st.write("""
