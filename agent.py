@@ -73,7 +73,7 @@ with col2:
 
 with st.expander(":information_source: :construction:"):
     st.write("""
-    This is a demo application and will still be submitted to changes. The chatbot might not always be correct or precise. Do not hesitate to check the sources in the side bar if unsure.
+    This is a demo application and will still be submitted to changes. The chatbot might not always be correct or precise. Do not hesitate to check the sources in the side bar if unsure. Please be careful not to upload any personal data in the chat.
     For any questions or requests you can [contact us](mailto:zoe.jeandupeux@bfe.admin.ch) at the Digital Innovation & Geoinformation section :blush:
     """)
 
@@ -98,7 +98,7 @@ prompt = st.chat_input(
 
 if prompt:
       if prompt.strip() == "": 
-            st.chat_message("jv", avatar=st.image("./img/bundesamt_logo.jpeg")).markdown("Please enter your question before submitting")
+            st.chat_message("assistant").markdown("Please enter your question before submitting.")
             
       else:
             st.chat_message("user").markdown(prompt)
