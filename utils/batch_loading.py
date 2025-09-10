@@ -33,6 +33,7 @@ AWS_ACCESS_KEY = os.getenv("AWS_ACCESS_KEY_ID")
 AWS_SECRET_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 LLAMA_API_KEY = os.getenv("LLAMA_CLOUD_API_KEY")
 
+
 client = boto3.client(
       's3',
       region_name='eu-central-1',
