@@ -1,3 +1,4 @@
+"""This was used for parsing the files by batches using LlamaParser (not an optimal solution for autmoation)"""
 import os
 import logging
 import urllib
@@ -32,6 +33,7 @@ if 'http' in proxies:
 AWS_ACCESS_KEY = os.getenv("AWS_ACCESS_KEY_ID")
 AWS_SECRET_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 LLAMA_API_KEY = os.getenv("LLAMA_CLOUD_API_KEY")
+
 
 client = boto3.client(
       's3',
@@ -122,10 +124,6 @@ async def uploading_to_s3(doc):
       except ClientError as e:
             logging.error(f"Failed to upload {s3_key} to S3: {e.response['Error']['Message']}")
 
-def sanitize_filename(filename: str) -> str:
-    forbidden_chars = r'\.\/:*?"“”<>«»|’,'
-    text = ''.join(c for c in filename if c not in forbidden_chars)
-    return text
 
 def get_metadata(filename):
       index = filename.rfind('.pdf')

@@ -1,3 +1,4 @@
+"""This file served to scrape the publishing website from all public BFE pdfs"""
 import asyncio
 import aiohttp
 import boto3
