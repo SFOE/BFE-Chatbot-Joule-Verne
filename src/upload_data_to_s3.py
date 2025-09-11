@@ -8,10 +8,12 @@ import boto3
 import re
 from pyathena import connect
 from pyathena.pandas.cursor import PandasCursor
+from utils import sanitize_filename, sanitize_title, upload_file_from_url
+from tqdm import tqdm
 
 load_dotenv()
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.WARNING)
 
 ATHENA_DB = "default"
 ATHENA_OUTPUT = "s3://bfe-public-data-pdf/pdfs-batch-athena-queries/"
@@ -37,12 +39,15 @@ df = cursor.execute(query).as_pandas()
 
 print(f"Found {len(df)} URLs to download.")
 
-s3_client = boto3.client(
-    "s3",
-    aws_access_key_id=AWS_ACCESS_KEY_ID,
-    aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
-    region_name=AWS_REGION
-    )
+print(df.head())
+
+for row in tqdm(df.itertuples(index=False), total=len(df), desc="Uploading to S3"):
+    sanitized_filename = sanitize_filename(row.title)
+    row_metadata = {"pub_date": row.pub_date, "data_type" : row.date_type, "title" : sanitize_title(row.title), "lan": row.lan}
+
+    upload_file_from_url(row.href, sanitized_filename, row_metadata)
+
+
 
 
 
