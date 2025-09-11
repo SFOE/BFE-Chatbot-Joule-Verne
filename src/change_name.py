@@ -4,7 +4,8 @@ from dotenv import load_dotenv
 import boto3
 import logging
 import re
-import pyathena
+from pyathena.pandas.cursor import PandasCursor
+from utils import sanitize_filename
 
 logging.basicConfig(level=logging.WARNING)
 
@@ -24,11 +25,6 @@ all_objects = client.list_objects(
     Bucket = "bfe-public-data-pdf",
 
 )
-
-def sanitize_filename(filename: str) -> str:
-    forbidden_chars = r'\.\/:*?"“”<>«»|’,'
-    text = ''.join(c for c in filename if c not in forbidden_chars)
-    return text
 
 if __name__ == "__main__":
     obj_keys = [obj["Key"] for obj in all_objects['Contents'] if (obj["Key"].startswith("pdfs") and obj["Key"].endswith(".pdf"))]

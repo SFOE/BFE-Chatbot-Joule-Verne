@@ -15,17 +15,16 @@ logging.basicConfig(level=logging.DEBUG)
 
 ATHENA_DB = "default"
 ATHENA_OUTPUT = "s3://bfe-public-data-pdf/pdfs-batch-athena-queries/"
-ATHENA_REGION = "eu-central-1"
+AWS_REGION = "eu-central-1"
 AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
 AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 
-conn = connect(aws_access_key_id=AWS_ACCESS_KEY_ID,
+cursor = connect(aws_access_key_id=AWS_ACCESS_KEY_ID,
                 aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
                 s3_staging_dir=ATHENA_OUTPUT,
-               region_name=ATHENA_REGION,
-               cursor_class=PandasCursor)
+               region_name=AWS_REGION,
+               cursor_class=PandasCursor).cursor()
 
-cursor = conn.cursor()
 
 query = """SELECT *
     FROM "default"."metadata_db" 
@@ -34,10 +33,17 @@ query = """SELECT *
     LIMIT 1000;
     """
 
-cursor.execute(query)
-df = cursor.as_pandas()
-print(df.head())
+df = cursor.execute(query).as_pandas()
 
 print(f"Found {len(df)} URLs to download.")
+
+s3_client = boto3.client(
+    "s3",
+    aws_access_key_id=AWS_ACCESS_KEY_ID,
+    aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
+    region_name=AWS_REGION
+    )
+
+
 
 
