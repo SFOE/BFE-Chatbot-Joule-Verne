@@ -62,6 +62,4 @@
 ---
 
 [^3]: ECS uses **Fargate**, so no management of underlying instances is required.
-[^1]Deployment spans **two Availability Zones** for high availability.
-- All service-to-service communication within VPC uses **VPC Endpoints**, keeping traffic private.
-- The architecture is designed for scalability, security, and fault tolerance.
+[^1]: Deployment spans **two Availability Zones** for high availability.
