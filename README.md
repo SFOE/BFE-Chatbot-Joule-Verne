@@ -12,7 +12,7 @@
   Provides network isolation with private and public subnets across two Availability Zones (AZs)
 
 - **Load Balancer (ALB)**  
-  - Located in public subnets, distributes incoming traffic to ECS tasks
+  - Located in public subnets, distributes incoming traffic to ECS tasks^1
   - Present in both AZs for high availability
   - Associated Security Group: allows inbound traffic on port 80/443 from CloudFront
 
