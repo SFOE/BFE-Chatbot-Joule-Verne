@@ -56,10 +56,10 @@
 | Security Group           | Purpose                                      | Rules Summary                                |
 |-------------------------|----------------------------------------------|----------------------------------------------|
 | Load Balancer SG         | Controls inbound traffic to ALB               | Inbound: Allow HTTP/HTTPS from CloudFront IPs |
-| ECS Service SG           | Controls inbound traffic to ECS tasks         | Inbound: Allow traffic on port 8501 from Load Balancer SG |
-| Additional outbound rules| Allow ECS tasks to access VPC endpoints       | Typically allow outbound HTTPS (443)          |
+| ECS Service SG           | Controls inbound traffic to ECS tasks[^4]        | Inbound: Allow traffic on port 8501 from Load Balancer SG |
 
 ---
 
 [^3]: ECS uses **Fargate**, so no management of underlying instances is required.
 [^1]: Deployment spans **two Availability Zones** for high availability.
+[^4]: The VPC endpoints are contained in the ECS Security group.
