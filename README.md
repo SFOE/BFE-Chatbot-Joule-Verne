@@ -9,15 +9,15 @@
   CloudFront acts as a CDN for caching and low latency and WAF protects against common web attacks
 
 - **Virtual Private Cloud (VPC)**
-  Provides network isolation with private and public subnets across two Availability Zones (AZs)
+  Provides network isolation with private and public subnets across two Availability Zones (AZs) [^1]
 
 - **Load Balancer (ALB)**  
-  - Located in public subnets, distributes incoming traffic to ECS tasks [^1]
+  - Located in public subnets, distributes incoming traffic to ECS tasks [^2]
   - Present in both AZs for high availability
   - Associated Security Group: allows inbound traffic on port 80/443 from CloudFront
-    [^1]: Another option for the ALB would be to put it in a private subnet for enhanced security. If doing this, a NAT Gateway should also be added so that it can communicate through a secure internet connexion the tokens to Cognito. It was decided to opt for this public option as it is still safe and including a NAT Gateway is more expensive
+    [^2]: Another option for the ALB would be to put it in a private subnet for enhanced security. If doing this, a NAT Gateway should also be added so that it can communicate through a secure internet connexion the tokens to Cognito. It was decided to opt for this public option as it is still safe and including a NAT Gateway is more expensive
 
-- **Elastic Container Service (ECS) using Fargate**  
+- **Elastic Container Service (ECS) using Fargate**[^3] 
   - Runs Docker containers inside private subnets for security
   - Containers listen on port **8501**
   - ECS Service is deployed across both AZs for fault tolerance
@@ -61,9 +61,7 @@
 
 ---
 
-## Notes
-
-- ECS uses **Fargate**, so no management of underlying instances is required.
-- Deployment spans **two Availability Zones** for high availability.
+[^3]: ECS uses **Fargate**, so no management of underlying instances is required.
+[^1]Deployment spans **two Availability Zones** for high availability.
 - All service-to-service communication within VPC uses **VPC Endpoints**, keeping traffic private.
 - The architecture is designed for scalability, security, and fault tolerance.
