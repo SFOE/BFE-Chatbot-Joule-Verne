@@ -12,9 +12,10 @@
   Provides network isolation with private and public subnets across two Availability Zones (AZs)
 
 - **Load Balancer (ALB)**  
-  - Located in public subnets, distributes incoming traffic to ECS tasks^1
+  - Located in public subnets, distributes incoming traffic to ECS tasks [^1]
   - Present in both AZs for high availability
   - Associated Security Group: allows inbound traffic on port 80/443 from CloudFront
+    [^1] Another option for the ALB would be to put it in a private subnet for enhanced security. If doing this, a NAT Gateway should also be added so that it can communicate through a secure internet connexion the tokens to Cognito. It was decided to opt for this public option as it is still safe and including a NAT Gateway is more expensive
 
 - **Elastic Container Service (ECS) using Fargate**  
   - Runs Docker containers inside private subnets for security
