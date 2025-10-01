@@ -32,7 +32,7 @@
     - CloudWatch for logging and monitoring
 
 - **AWS Cognito**  
-  Handles user authentication and authorization through a User pool (as the acces is restrained right now we can add the users manually)
+  Handles user authentication and authorization through a User pool (as the access is restrained right now we can add the users manually)
 
 - **CloudWatch**
   Aggregates logs and metrics from ECS for observability
