@@ -25,7 +25,8 @@
 
 - **VPC Endpoints**  
   - Enable private, secure access to AWS services without internet traffic (also less expensive than using a NAT Gateway), including:  
-    - S3 for retrieving the files stored in S3
+    - S3 for retrieving the files stored in S3 [^5]
+      [^5]: The Endpoint type of S3 is Gateway, so instead of being only attached to the corresponding subnets and security groups, the routing table of the (private in this case) subnets must be modified to include the endpoint.
     - Bedrock for API calls to the agent
     - ECR for calling the Docker image 
     - CloudWatch for logging and monitoring
