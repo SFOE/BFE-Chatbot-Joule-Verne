@@ -1,4 +1,10 @@
-"""This file served to scrape the publishing website from all public BFE pdfs"""
+"""
+This file served to scrape the publishing website from all public BFE pdfs.
+
+It then adds the most recent pdfs (published after the date DATE) to the metadata.jsonl,
+that will then be used to query in function of the metadat using Athena and finally uploaded to S3.
+
+"""
 import asyncio
 import aiohttp
 import boto3
@@ -9,7 +15,9 @@ from bs4 import BeautifulSoup
 import json
 from tqdm import tqdm
 from collections import defaultdict
-from datetime import date
+from datetime import date, datetime
+
+DATE = datetime(2025, 8, 1)
 
 def get_pdf_urls_from_page(base_url):
       try:
@@ -71,7 +79,7 @@ def get_pages_number():
       return int(re.search(r"von ([\d\.,]+)", text).group(1).strip())
       
 
-if __name__== " __main__":
+if __name__== "__main__":
       base_url = "https://www.bfe.admin.ch"
       first_p = "https://www.bfe.admin.ch/bfe/de/home/news-und-medien/publikationen.exturl.html/aHR0cHM6Ly9wdWJkYi5iZmUuYWRtaW4uY2gvZGUvc3VjaGU_eD/0x.html"
       
@@ -80,13 +88,12 @@ if __name__== " __main__":
       
       too_old = False
       n = get_pages_number()
-      for i in range(n-1):
-            print(i)
-            next_p = get_next_page_url(first_p)
-            next_p_urls = get_pdf_urls_from_page(next_p)
+      next_p = get_next_page_url(first_p)
+      for i in tqdm(range(n-1)):
+            next_p_urls = get_pdf_urls_from_page(base_url + next_p)
 
             for url in next_p_urls:
-                  if date.strptime(url.pub_date, '%d.%m.%Y') >= date(2025, 8, 1):
+                  if datetime.strptime(url['pub_date'], '%d.%m.%Y') >= DATE:
                         metadata.append(get_metadata_pdf(url))
                   else:
                         too_old = True
@@ -95,7 +102,9 @@ if __name__== " __main__":
             if too_old:
                   break
 
-      with open('./data/pdf_urls.csv', 'w') as f:
-            for record in metadata:
-                  f.write(json.dumps(record) + '\n')
+            next_p = get_next_page_url(base_url + next_p)
+
+      # with open('../data/metadata.jsonl', 'a') as f:
+      #       for record in metadata:
+      #             f.write(json.dumps(record) + '\n')
 
