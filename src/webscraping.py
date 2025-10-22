@@ -9,6 +9,7 @@ from bs4 import BeautifulSoup
 import json
 from tqdm import tqdm
 from collections import defaultdict
+from datetime import date
 
 def get_pdf_urls_from_page(base_url):
       try:
@@ -69,16 +70,32 @@ def get_pages_number():
       text = soup.find('nav', class_='pagination-container clearfix').find('span').get_text(strip=True)
       return int(re.search(r"von ([\d\.,]+)", text).group(1).strip())
       
-                  
 
-if __name__=="__main__":
+if __name__== " __main__":
       base_url = "https://www.bfe.admin.ch"
       first_p = "https://www.bfe.admin.ch/bfe/de/home/news-und-medien/publikationen.exturl.html/aHR0cHM6Ly9wdWJkYi5iZmUuYWRtaW4uY2gvZGUvc3VjaGU_eD/0x.html"
-            
+      
+      pdf_urls = get_pdf_urls_from_page(first_p)
+      metadata =[get_metadata_pdf(link) for link in pdf_urls] 
+      
+      too_old = False
       n = get_pages_number()
-      
-      
-# def lambda_handler(event, context):
-#       url = event.get('url')
-#       if not url:
-#             return {'Status code': 400, 'body': 'Missing url'}
+      for i in range(n-1):
+            print(i)
+            next_p = get_next_page_url(first_p)
+            next_p_urls = get_pdf_urls_from_page(next_p)
+
+            for url in next_p_urls:
+                  if date.strptime(url.pub_date, '%d.%m.%Y') >= date(2025, 8, 1):
+                        metadata.append(get_metadata_pdf(url))
+                  else:
+                        too_old = True
+                        break
+
+            if too_old:
+                  break
+
+      with open('./data/pdf_urls.csv', 'w') as f:
+            for record in metadata:
+                  f.write(json.dumps(record) + '\n')
+

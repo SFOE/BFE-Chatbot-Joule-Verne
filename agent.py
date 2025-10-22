@@ -1,56 +1,12 @@
-import os
-from urllib.parse import urlparse
 import streamlit as st
-import boto3
 import logging
 import uuid
-from botocore.exceptions import ClientError
+from src.utils import parse_s3_uri, query_agent, s3_get_object
 from dotenv import load_dotenv
 
 load_dotenv()
 
-AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
-AWS_SECRET_KEY_ID = os.getenv("AWS_SECRET_ACCESS_KEY")
-
-AGENT_ALIAS_ID = os.getenv("AGENT_ALIAS_ID")
-AGENT_ID = os.getenv("AGENT_ID")
-
 logging.basicConfig(level=logging.INFO)
-
-bedrock_client = boto3.client('bedrock-agent-runtime',
-                      region_name='eu-central-1',
-                      aws_access_key_id = AWS_ACCESS_KEY_ID,
-                      aws_secret_access_key=AWS_SECRET_KEY_ID,
-                      verify=False #"custom_bundle.pem"
-                      )
-s3_client = boto3.client(
-      's3',
-      region_name='eu-central-1',
-      aws_access_key_id = AWS_ACCESS_KEY_ID,
-      aws_secret_access_key = AWS_SECRET_KEY_ID,
-      verify=False
-      )
-
-def query_agent(prompt, session_id):
-      response = bedrock_client.invoke_agent(
-            agentAliasId = AGENT_ALIAS_ID,
-            agentId = AGENT_ID,
-            enableTrace=True,
-            sessionId=session_id,
-            inputText=prompt
-      )
-      return response
-
-def parse_s3_uri(s3_uri):
-    """Parse s3://bucket/key into bucket and key"""
-    if not s3_uri.startswith("s3://"):
-        raise ValueError("Invalid S3 URI. It should start with 's3://'")
-    
-    parsed = urlparse(s3_uri)
-    bucket = parsed.netloc
-    key = parsed.path.lstrip('/')
-    filename = os.path.basename(key)
-    return bucket, key, filename
 
 source_files = None
 s3_files = []
@@ -147,14 +103,17 @@ if s3_files or web_refs:
       if s3_files:
             for b, k, s in zip(buckets, keys, s3_files):
                   type_ = "application/pdf"
-                  if s.endswith('-parsed.txt'):
-                        type_ = None
+                  if s.endswith('-parsedtxt'):
+                        base_filename = s.rsplit("/", 1)[-1].replace("-parsedtxt", ".pdf")
+                        pdf_subfolder = "pdfs-batch/"
+                        k = pdf_subfolder + base_filename
+                        s = base_filename
                         
                   st.sidebar.download_button(
                         label=f"{s}",
                         file_name=s,
                         key=k,
-                        data = s3_client.get_object(Bucket=b, Key=k)['Body'].read(),
+                        data = s3_get_object(b, k),
                         on_click='ignore',
                         icon="📃",
                         mime=type_

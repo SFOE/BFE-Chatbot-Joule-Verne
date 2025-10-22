@@ -1,20 +1,68 @@
 import os
 import re
 import unicodedata
+from urllib.parse import urlparse
 import boto3
 from botocore.exceptions import ClientError
 import requests
 import io
+from tqdm import tqdm
 from dotenv import load_dotenv
+import logging
+ 
+ 
+logging.basicConfig(level=logging.DEBUG)
+ 
+st_logger = logging.getLogger("streamlit")
+st_logger.setLevel(logging.INFO)
+ 
 
 load_dotenv()
 
+# AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
+# AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
+# AWS_REGION = os.getenv("AWS_REGION")
+AGENT_ALIAS_ID = os.getenv("AGENT_ALIAS_ID")
+AGENT_ID = os.getenv("AGENT_ID")
+
+
 s3_client = boto3.client(
     's3',
-    aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
-    aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
-    region_name='eu-central-1'
+    # aws_access_key_id=AWS_ACCESS_KEY_ID,
+    # aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
+    # region_name=AWS_REGION
     )
+
+bedrock_client = boto3.client('bedrock-agent-runtime',
+    # aws_access_key_id = AWS_ACCESS_KEY_ID,
+    # aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
+    # region_name=AWS_REGION,
+    verify=False #"custom_bundle.pem"
+    )
+
+def query_agent(prompt, session_id):
+      response = bedrock_client.invoke_agent(
+            agentAliasId = AGENT_ALIAS_ID,
+            agentId = AGENT_ID,
+            enableTrace=True,
+            sessionId=session_id,
+            inputText=prompt
+      )
+      return response
+
+def parse_s3_uri(s3_uri):
+    """Parse s3://bucket/key into bucket and key"""
+    if not s3_uri.startswith("s3://"):
+        raise ValueError("Invalid S3 URI. It should start with 's3://'")
+    
+    parsed = urlparse(s3_uri)
+    bucket = parsed.netloc
+    key = parsed.path.lstrip('/')
+    filename = os.path.basename(key)
+    return bucket, key, filename
+
+def s3_get_object(bucket, key):
+    return s3_client.get_object(Bucket=bucket, Key=key)['Body'].read()
 
 def sanitize_filename(filename: str) -> str:
     forbidden_chars = r'\.\/:*?"“”<>«»|–’,'
@@ -69,9 +117,8 @@ def upload_file_from_url(url, sanitized_filename, metadata):
         print(f"File already exists at s3://{s3_bucket}/{s3_key}. Skipping it")
         return False
     except ClientError as e:
-        if e.response["Error"]["Code"] == "404":
-            continue
-        else:
+        error_code = e.response["Error"]["Code"] 
+        if error_code != "404":
             print(f"Error checking file: {e}")
             raise
     
@@ -81,3 +128,23 @@ def upload_file_from_url(url, sanitized_filename, metadata):
     except Exception as e:
         print(f"Failed to download file {sanitized_filename} to S3")
         raise
+
+def change_filenames():
+    """Changes the filenames in S3 bucket for the parsed files (to do once- DONE)"""
+    s3_bucket = "bfe-public-data-pdf"
+    subfolder = "parsed-pdf-batch/"
+
+    response = s3_client.list_objects_v2(Bucket=s3_bucket, Prefix=subfolder)
+
+    for obj in tqdm(response.get("Contents", []), total = len(response.get("Contents", [])), desc="Changing parsed files' names"):
+        old_key = obj["Key"]
+        filename = old_key.split("/")[-1]
+        new_filename = sanitize_filename(filename)
+        new_key = subfolder + new_filename
+
+        if old_key != new_key:
+            s3_client.copy_object(Bucket=s3_bucket, CopySource={"Bucket": s3_bucket, "Key": old_key}, Key=new_key)
+            s3_client.delete_object(Bucket=s3_bucket, Key=old_key)
+    
+if __name__=="__main__":
+    change_filenames()
