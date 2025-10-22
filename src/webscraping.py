@@ -5,17 +5,14 @@ It then adds the most recent pdfs (published after the date DATE) to the metadat
 that will then be used to query in function of the metadat using Athena and finally uploaded to S3.
 
 """
-import asyncio
-import aiohttp
-import boto3
 import re
-from urllib.parse import urljoin
 import requests
-from bs4 import BeautifulSoup
 import json
+from bs4 import BeautifulSoup
 from tqdm import tqdm
 from collections import defaultdict
-from datetime import date, datetime
+from datetime import datetime
+from utils import upload_file
 
 DATE = datetime(2025, 8, 1)
 
@@ -104,7 +101,16 @@ if __name__== "__main__":
 
             next_p = get_next_page_url(base_url + next_p)
 
-      # with open('../data/metadata.jsonl', 'a') as f:
-      #       for record in metadata:
-      #             f.write(json.dumps(record) + '\n')
+#      #  We update the metadata.jsonl file 
+#       with open('../data/metadata.jsonl', 'a') as f:
+#             for record in metadata:
+#                   f.write(json.dumps(record) + '\n')
 
+#      # We  push the newly updated file to S3 (in order to be queried by Athena afterwards)
+#       bucket_name = 'bfe-public-data-pdf'
+#       object_key = 'metadata/metadata.jsonl'
+
+#       if upload_file('../data/metadata.jsonl', bucket_name, object_key):
+#             print("File uploaded successfully!")
+#       else:
+#             print("Failed to upload file.")
