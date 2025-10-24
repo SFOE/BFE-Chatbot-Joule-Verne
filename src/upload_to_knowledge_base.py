@@ -6,7 +6,7 @@ from datetime import datetime
 
 S3_BUCKET = "bfe-public-data-pdf"
 S3_PREFIX = "pdfs-batch/"
-S3_TEMP = "kb-upload_temp/"
+S3_TEMP = "unparsed-pdf-batch/" # "kb-upload-temp/"
 KNOWLEDGE_BASE = "your-knowledge-base-id"
 DATA_SOURCE = "your-data-source-id"
 
@@ -41,6 +41,18 @@ def filter_files_by_date(start_date:datetime=None, end_date:datetime=None) -> li
                         filtered_files.append(key)
     return filtered_files
 
+def copy_to_temp_bucket(filtered_files):
+    for key in filtered_files:
+        dest_key = f"{S3_TEMP}{key.split('/')[-1]}"
+        s3_client.copy_object(
+            Bucket=S3_BUCKET,
+            CopySource={"Bucket": S3_BUCKET, "Key": key},
+            Key=dest_key
+        )
+
 if __name__=="__main__":
-    filtered_files = filter_files_by_date(start_date=datetime(2025,8,1))
-    print(filtered_files)
+    filtered_files = filter_files_by_date(end_date=datetime(2024,3,4))
+    copy_to_temp_bucket(filtered_files)
+
+
+    
