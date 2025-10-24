@@ -1,14 +1,20 @@
-"""This file served to scrape the publishing website from all public BFE pdfs"""
-import asyncio
-import aiohttp
-import boto3
+"""
+This file served to scrape the publishing website from all public BFE pdfs.
+
+It then adds the most recent pdfs (published after the date DATE) to the metadata.jsonl,
+that will then be used to query in function of the metadat using Athena and finally uploaded to S3.
+
+"""
 import re
-from urllib.parse import urljoin
 import requests
-from bs4 import BeautifulSoup
 import json
+from bs4 import BeautifulSoup
 from tqdm import tqdm
 from collections import defaultdict
+from datetime import datetime
+from utils import upload_file
+
+DATE = datetime(2025, 8, 1)
 
 def get_pdf_urls_from_page(base_url):
       try:
@@ -69,16 +75,42 @@ def get_pages_number():
       text = soup.find('nav', class_='pagination-container clearfix').find('span').get_text(strip=True)
       return int(re.search(r"von ([\d\.,]+)", text).group(1).strip())
       
-                  
 
-if __name__=="__main__":
+if __name__== "__main__":
       base_url = "https://www.bfe.admin.ch"
       first_p = "https://www.bfe.admin.ch/bfe/de/home/news-und-medien/publikationen.exturl.html/aHR0cHM6Ly9wdWJkYi5iZmUuYWRtaW4uY2gvZGUvc3VjaGU_eD/0x.html"
-            
+      
+      pdf_urls = get_pdf_urls_from_page(first_p)
+      metadata =[get_metadata_pdf(link) for link in pdf_urls] 
+      
+      too_old = False
       n = get_pages_number()
-      
-      
-# def lambda_handler(event, context):
-#       url = event.get('url')
-#       if not url:
-#             return {'Status code': 400, 'body': 'Missing url'}
+      next_p = get_next_page_url(first_p)
+      for i in tqdm(range(n-1)):
+            next_p_urls = get_pdf_urls_from_page(base_url + next_p)
+
+            for url in next_p_urls:
+                  if datetime.strptime(url['pub_date'], '%d.%m.%Y') >= DATE:
+                        metadata.append(get_metadata_pdf(url))
+                  else:
+                        too_old = True
+                        break
+
+            if too_old:
+                  break
+
+            next_p = get_next_page_url(base_url + next_p)
+
+#      #  We update the metadata.jsonl file 
+#       with open('../data/metadata.jsonl', 'a') as f:
+#             for record in metadata:
+#                   f.write(json.dumps(record) + '\n')
+
+#      # We  push the newly updated file to S3 (in order to be queried by Athena afterwards)
+#       bucket_name = 'bfe-public-data-pdf'
+#       object_key = 'metadata/metadata.jsonl'
+
+#       if upload_file('../data/metadata.jsonl', bucket_name, object_key):
+#             print("File uploaded successfully!")
+#       else:
+#             print("Failed to upload file.")
