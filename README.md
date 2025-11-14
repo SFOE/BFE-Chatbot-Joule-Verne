@@ -25,8 +25,7 @@
 
 - **VPC Endpoints**  
   - Enable private, secure access to AWS services without internet traffic (also less expensive than using a NAT Gateway), including:  
-    - S3 for retrieving the files stored in S3 [^5]
-      [^5]: The Endpoint type of S3 is Gateway, so instead of being only attached to the corresponding subnets and security groups, the routing table of the (private in this case) subnets must be modified to include the endpoint.
+    - S3 for retrieving the files stored in S3 [^6]
     - Bedrock for API calls to the agent
     - ECR for calling the Docker image 
     - CloudWatch for logging and monitoring
@@ -73,3 +72,4 @@
 [^1]: Deployment spans **two Availability Zones** for high availability.
 [^4]: The VPC endpoints are contained in the ECS Security group, and this is necessary to allow traffic with the S3 Gateway Endpoint.
 [^5]: This is primordial (in and out) to allow the JWT exchange between the ALB and Cognito.
+[^6]: The Endpoint type of S3 is Gateway, so instead of being only attached to the corresponding subnets and security groups, the routing table of the (private in this case) subnets must be modified to include the endpoint.
