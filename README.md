@@ -61,7 +61,7 @@
 | Outbound           |    HTTPS 443   | Default route 0.0.0.0/0 |
 | Outbound       |   All TCP 	0 - 65535 |   ECS SG |
 
-| ECS SG           | Port range/protocol                                     |        Source/Destination                       |
+| Elastic Container Service SG           | Port range/protocol                                     |        Source/Destination                       |
 |-------------------------|----------------------------------------------|----------------------------------------------|
 | Inbound        | HTTPS 443             | ECS SG[^4]|
 | Inbound       |  HTTP 8501  |  Load Balancer SG   |
