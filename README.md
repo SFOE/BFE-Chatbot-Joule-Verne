@@ -3,7 +3,7 @@
 <details>
 <summary>Table of Contents</summary>
    
-1. [Project Overview](#project-overview)  
+1. [Joule Verne Overview](#project-overview)  
 2. [Features](#features)  
 3. [Cloud Architecture](#cloud-architecture)
    - [AWS Infrastructure](#aws-infrastructure)  
@@ -28,6 +28,8 @@
     
 </details>
 
+## Joule Verne Overview
+
 
 ## Cloud Architecture
 ### AWS Infrastructure
@@ -41,7 +43,8 @@ The architecture was deployed with the AWS infrastructure.
   CloudFront acts as a CDN for caching and low latency and WAF protects against common web attacks
 
 - **Virtual Private Cloud (VPC)**
-  Provides network isolation with private and public subnets across two Availability Zones (AZs) [^1]
+  Provides network isolation with private and public subnets across two Availability Zones (AZs)
+  [!NOTE] Deployment spans two AZs for ensuring high availability.
 
 - **Load Balancer (ALB)**  
   - Located in public subnets, distributes incoming traffic to ECS tasks [^2]
