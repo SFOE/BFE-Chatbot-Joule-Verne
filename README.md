@@ -56,7 +56,6 @@
 | Load Balancer SG           | Port range/protocol                                     |        Source/Destination                       |
 |-------------------------|----------------------------------------------|----------------------------------------------|
 | Inbound        | HTTPS 443             | CloudFront IP range (list defined by AWS)|
-| Inbound       |  HTTPS 443  |      Default route   0.0.0.0/0   |
 | Outbound           |    HTTPS 443   | Default route 0.0.0.0/0 [^5]|
 | Outbound       |   All TCP 	0 - 65535 |   ECS SG |
 
