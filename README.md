@@ -1,6 +1,7 @@
 # BFE Chatbot Joule Verne :zap:
 
-## Table of Contents
+<details>
+<summary>Table of Contents</summary>
 1. [Project Overview](#project-overview)  
 2. [Features](#features)  
 3. [Cloud Architecture](#cloud-architecture)
@@ -23,7 +24,7 @@
 11. [Contributing](#contributing)  
 12. [License](#license)  
 13. [References](#references) 
-
+</details>
 
 
 ## Cloud Architecture
