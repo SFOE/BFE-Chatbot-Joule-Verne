@@ -54,13 +54,21 @@
 
 ## Security Groups Summary
 
-| Security Group           | Purpose                                      | Rules Summary                                |
+| Load Balancer SG           | Port range/protocol                                     |        Source/Destination                       |
 |-------------------------|----------------------------------------------|----------------------------------------------|
-| Load Balancer SG         | Controls inbound traffic to ALB               | Inbound: Allow HTTP/HTTPS from CloudFront IPs |
-| ECS Service SG           | Controls inbound traffic to ECS tasks[^4]        | Inbound: Allow traffic on port 8501 from Load Balancer SG |
+| Inbound        | HTTPS 443             | CloudFront IP range (list defined by AWS)|
+| Inbound       |  HTTPS 443  |      Default route   0.0.0.0/0   |
+| Outbound           |    HTTPS 443   | Default route 0.0.0.0/0 |
+| Outbound       |   All TCP 	0 - 65535 |   ECS SG |
+
+| ECS SG           | Port range/protocol                                     |        Source/Destination                       |
+|-------------------------|----------------------------------------------|----------------------------------------------|
+| Inbound        | HTTPS 443             | ECS SG[^4]|
+| Inbound       |  HTTP 8501  |  Load Balancer SG   |
+| Outbound           |    All TCP   | Default route 0.0.0.0/0 |
 
 ---
 
 [^3]: ECS uses **Fargate**, so no management of underlying instances is required.
 [^1]: Deployment spans **two Availability Zones** for high availability.
-[^4]: The VPC endpoints are contained in the ECS Security group.
+[^4]: The VPC endpoints are contained in the ECS Security group, and this is necessary to allow traffic with the S3 Gateway Endpoint.
