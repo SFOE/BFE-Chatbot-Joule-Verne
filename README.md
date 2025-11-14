@@ -29,6 +29,9 @@
 </details>
 
 ## Joule Verne Overview
+### Presentation
+[![Watch the demo](bfe-chatbot-demo.mp4)]("\\adb.intra.admin.ch\Userhome$\BFE-01\U80879907\data\Documents\RAG-chatbot\bfe-chatbot-demo.mp4")
+
 
 
 ## Cloud Architecture
@@ -44,7 +47,7 @@ The architecture was deployed with the AWS infrastructure.
 
 - **Virtual Private Cloud (VPC)**
   Provides network isolation with private and public subnets across two Availability Zones (AZs)
-  > [!NOTE] Deployment spans two AZs for ensuring high availability.
+  > ℹ️ Deployment spans two AZs for ensuring high availability.
 
 - **Load Balancer (ALB)**  
   - Located in public subnets, distributes incoming traffic to ECS tasks [^2]
