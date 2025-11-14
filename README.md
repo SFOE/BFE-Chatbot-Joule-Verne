@@ -14,7 +14,7 @@
 - **Load Balancer (ALB)**  
   - Located in public subnets, distributes incoming traffic to ECS tasks [^2]
   - Present in both AZs for high availability
-  - Associated Security Group: allows inbound traffic on port 80/443 from CloudFront
+  - Associated Security Group: allows inbound traffic on port 443 from CloudFront
     [^2]: Another option for the ALB would be to put it in a private subnet for enhanced security. If doing this, a NAT Gateway should also be added so that it can communicate through a secure internet connexion the tokens to Cognito. It was decided to opt for this public option as it is still safe and including a NAT Gateway is more expensive
 
 - **Elastic Container Service (ECS) using Fargate**[^3] 
@@ -67,8 +67,8 @@
 
 ---
 
-[^3]: ECS uses **Fargate**, so no management of underlying instances is required.
+[^3]: ECS uses **Fargate**, so no management of underlying instances is required as it is serverless.
 [^1]: Deployment spans **two Availability Zones** for high availability.
 [^4]: The VPC endpoints are contained in the ECS Security group, and this is necessary to allow traffic with the S3 Gateway Endpoint.
-[^5]: This is primordial (in and out) to allow the JWT exchange between the ALB and Cognito.
+[^5]: This is primordial to allow the JWT exchange between the ALB and Cognito.
 [^6]: The Endpoint type of S3 is Gateway, so instead of being only attached to the corresponding subnets and security groups, the routing table of the (private in this case) subnets must be modified to include the endpoint.
