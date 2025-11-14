@@ -1,4 +1,4 @@
-# BFE Chatbot Joule Verne :zap:🐡:
+# BFE Chatbot Joule Verne :zap:
 
 ## Table of Contents
 1. [Project Overview](#project-overview)  
