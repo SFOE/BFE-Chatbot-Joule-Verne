@@ -2,6 +2,7 @@
 
 <details>
 <summary>Table of Contents</summary>
+   
 1. [Project Overview](#project-overview)  
 2. [Features](#features)  
 3. [Cloud Architecture](#cloud-architecture)
@@ -23,7 +24,8 @@
 10. [Troubleshooting](#troubleshooting)  
 11. [Contributing](#contributing)  
 12. [License](#license)  
-13. [References](#references) 
+13. [References](#references)
+    
 </details>
 
 
