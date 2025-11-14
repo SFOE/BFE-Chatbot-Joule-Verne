@@ -58,7 +58,7 @@
 |-------------------------|----------------------------------------------|----------------------------------------------|
 | Inbound        | HTTPS 443             | CloudFront IP range (list defined by AWS)|
 | Inbound       |  HTTPS 443  |      Default route   0.0.0.0/0   |
-| Outbound           |    HTTPS 443   | Default route 0.0.0.0/0 |
+| Outbound           |    HTTPS 443   | Default route 0.0.0.0/0 [^5]|
 | Outbound       |   All TCP 	0 - 65535 |   ECS SG |
 
 | Elastic Container Service SG           | Port range/protocol                                     |        Source/Destination                       |
@@ -72,3 +72,4 @@
 [^3]: ECS uses **Fargate**, so no management of underlying instances is required.
 [^1]: Deployment spans **two Availability Zones** for high availability.
 [^4]: The VPC endpoints are contained in the ECS Security group, and this is necessary to allow traffic with the S3 Gateway Endpoint.
+[^5]: This is primordial (in and out) to allow the JWT exchange between the ALB and Cognito.
