@@ -1,9 +1,38 @@
-# AWS Architecture Summary
+# BFE Chatbot Joule Verne :zap: :octopus:
 
+## Table of Contents
+1. [Project Overview](#project-overview)  
+2. [Features](#features)  
+3. [Cloud Architecture](#cloud-architecture)
+   - [AWS Infrastructure](#aws-infrastructure)  
+   - [Components](#components-overview)
+   - [Request Flow](#request-flow)
+   - [Security Groups]()  
+5. [Setup and Deployment](#setup-and-deployment)  
+   - [Prerequisites](#prerequisites)  
+   - [Infrastructure](#infrastructure)  
+   - [Deployment Steps](#deployment-steps)  
+6. [Configuration](#configuration)  
+   - [Environment Variables](#environment-variables)  
+   - [Secrets / Credentials](#secrets--credentials)  
+   - [Custom Domain & SSL Certificates](#custom-domain--ssl-certificates)  
+7. [Authentication & Authorization](#authentication--authorization)  
+8. [Usage](#usage)  
+9. [Security Considerations](#security-considerations)  
+10. [Troubleshooting](#troubleshooting)  
+11. [Contributing](#contributing)  
+12. [License](#license)  
+13. [References](#references) 
+
+
+
+## Cloud Architecture
+### AWS Infrastructure
+The architecture was deployed with the AWS infrastructure.
 <img width="1600" height="900" alt="image" src="https://github.com/user-attachments/assets/e58f5881-1750-4406-9015-31d50055ad4c" />
 
 
-## Components Overview
+### Components Overview
 
 - **CloudFront + WAF**
   CloudFront acts as a CDN for caching and low latency and WAF protects against common web attacks
@@ -38,7 +67,7 @@
 
 ---
 
-## Request Flow
+### Request Flow
 
 1. User request hits **CloudFront + WAF** for caching and security.
 2. Request forwarded to the **Application Load Balancer** (ALB) in the public subnet.
@@ -51,7 +80,7 @@
 
 ---
 
-## Security Groups Summary
+### Security Groups
 
 | Load Balancer SG           | Port range/protocol                                     |        Source/Destination                       |
 |-------------------------|----------------------------------------------|----------------------------------------------|
