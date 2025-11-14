@@ -44,7 +44,8 @@ The architecture was deployed with the AWS infrastructure.
 
 - **Virtual Private Cloud (VPC)**
   Provides network isolation with private and public subnets across two Availability Zones (AZs)
-  [!NOTE] Deployment spans two AZs for ensuring high availability.
+  [!NOTE]
+  Deployment spans two AZs for ensuring high availability.
 
 - **Load Balancer (ALB)**  
   - Located in public subnets, distributes incoming traffic to ECS tasks [^2]
