@@ -31,7 +31,9 @@
 ## Joule Verne Overview
 ### Presentation
 ![Watch the demo](docs/bfe-chatbot-demo-ezgif.com-speed.gif)
-Joule Verne is a chatbot that was designed with the aim of answering requests received by the Swiss Federal Office of Energy, from the general public or parliamentaries. It was built solely using public data, that can be found on the [Publication database](https://www.bfe.admin.ch/bfe/en/home/news-und-medien/publikationen.exturl.html/aHR0cHM6Ly9wdWJkYi5iZmUuYWRtaW4uY2gvZW4vc3VjaGU=.html?keywords=&q=&from=20.10.2025&to=24.10.2025&nr=)
+Joule Verne is a chatbot that was designed with the aim of answering requests received by the Swiss Federal Office of Energy (SFOE), ranging from the general public to parliamentaries. It was built solely using public data, that can be found on the [Publication database](https://www.bfe.admin.ch/bfe/en/home/news-und-medien/publikationen.exturl.html/aHR0cHM6Ly9wdWJkYi5iZmUuYWRtaW4uY2gvZW4vc3VjaGU=.html?keywords=&q=&from=20.10.2025&to=24.10.2025&nr=), as well as the official [website](https://www.bfe.admin.ch/bfe/en/home.html) of the SFOE.
+
+Retrieval Augmented Generation (RAG) was the technique used to design the chatbot.
 If you have an account, you can check the chatbot by yourself at https://www.joule-verne.ch
 
 ## Cloud Architecture
