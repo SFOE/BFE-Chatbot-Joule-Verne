@@ -6,9 +6,11 @@ import boto3
 from botocore.exceptions import ClientError
 import requests
 import io
+import datetime as datetime
 from tqdm import tqdm
 from dotenv import load_dotenv
 import logging
+
  
  
 logging.basicConfig(level=logging.DEBUG)
@@ -145,6 +147,27 @@ def change_filenames():
         if old_key != new_key:
             s3_client.copy_object(Bucket=s3_bucket, CopySource={"Bucket": s3_bucket, "Key": old_key}, Key=new_key)
             s3_client.delete_object(Bucket=s3_bucket, Key=old_key)
+        
+def give_oldest_file_date():
+    S3_BUCKET = "bfe-public-data-pdf"
+    S3_PREFIX = "pdfs-batch/"
+
+    paginator = s3_client.get_paginator("list_objects_v2")
+    page_iterator = paginator.paginate(Bucket = S3_BUCKET, Prefix=S3_PREFIX)
+
+    oldest_time = datetime(2026,1,1)
+    oldest_file = None
+    for page in page_iterator:
+        for obj in page.get("Contents", []):
+            key = obj["Key"]
+            head = s3_client.head_object(Bucket=S3_BUCKET, Key=key)
+            pub_date = datetime.strptime(head['Metadata']['pub_date'], "%d.%m.%Y")
+        
+            if pub_date < oldest_time:
+                oldest_time = pub_date
+                oldest_file = key
+
+    return oldest_time, oldest_file
     
 if __name__=="__main__":
     change_filenames()
