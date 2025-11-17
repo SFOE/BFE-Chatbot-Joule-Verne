@@ -174,7 +174,13 @@ The architecture was deployed with the AWS infrastructure.
 
 ### Environment & Local Run
 
-In order to create an environment 
+In order to create an environment, install the required dependencies and run the app locally you can use the following commands:
+```bash
+python -m venv venv #create the environment
+source venv/bin/activate # activate the environment on Mac/Linux
+python install -r requirements.txt #install dependencies
+streamlit run agent.py # run the app locally on port 8501
+```
 
 ### Updating Data
 
