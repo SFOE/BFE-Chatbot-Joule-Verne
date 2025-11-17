@@ -6,7 +6,7 @@
 1. [Joule Verne Overview](#joule-verne-overview)
    - [Presentation](#presentation)
    - [Usage](#usage)
-   - [What's next](#what-s-next)
+   - [What's next](#what's-next?)
 3. [Features](#features)  
 4. [Cloud Architecture](#cloud-architecture)
    - [AWS Infrastructure](#aws-infrastructure)  
