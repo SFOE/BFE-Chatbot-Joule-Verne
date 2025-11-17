@@ -34,13 +34,13 @@
 ![Watch the demo](docs/bfe-chatbot-demo-ezgif.com-speed.gif)
 Joule Verne is a chatbot that was designed with the aim of answering requests received by the Swiss Federal Office of Energy (SFOE), ranging from the general public to parliamentaries. It was built solely using public data, that can be found on the [Publication database](https://www.bfe.admin.ch/bfe/en/home/news-und-medien/publikationen.exturl.html/aHR0cHM6Ly9wdWJkYi5iZmUuYWRtaW4uY2gvZW4vc3VjaGU=.html?keywords=&q=&from=20.10.2025&to=24.10.2025&nr=), as well as the official [website](https://www.bfe.admin.ch/bfe/en/home.html) of the SFOE. The main purpose of this agent is to support the Bundes-und Parliamentsgeschäfte Section to answer all letters addressed to the SFOE.
 
----
+
 ### Usage
 
 If you have an account, you can check the chatbot by yourself at https://www.joule-verne.ch.
 More information useful to the user on how to use the agent and the used data can be found [here](docs/chatbot-instructions.docx?raw=1).
 
----
+
 ### What's next?
 
 ## Features
@@ -50,7 +50,7 @@ More information useful to the user on how to use the agent and the used data ca
 The architecture was deployed with the AWS infrastructure.
 <img width="1600" height="900" alt="image" src="https://github.com/user-attachments/assets/e58f5881-1750-4406-9015-31d50055ad4c" />
 
----
+
 ### Components Overview
 
 - **CloudFront + WAF**
@@ -92,7 +92,6 @@ The architecture was deployed with the AWS infrastructure.
 - **CloudWatch**
   Aggregates logs and metrics from ECS for observability
 
----
 
 ### Request Flow
 
@@ -104,8 +103,6 @@ The architecture was deployed with the AWS infrastructure.
 6. ECS containers listen on port **8501** and process the request.
 7. Containers interact with **S3**, **Bedrock**, and other AWS services via **VPC endpoints**.
 8. Logs and metrics are sent to **CloudWatch**.
-
----
 
 ### Security Groups
 
@@ -124,7 +121,7 @@ The architecture was deployed with the AWS infrastructure.
 > ℹ️ To allow a route 443 all the way through (in and out) is primordial to allow the JWT exchange between the ALB and Cognito.
 >  The VPC endpoints are contained in the ECS Security group, so opening an https inside of the ECS SG is necessary to allow traffic with the S3 Gateway Endpoint.
 
----
+
 
 ### Deployment Flow
 
@@ -160,17 +157,17 @@ The architecture was deployed with the AWS infrastructure.
     ├── README.md
     └── requirements.txt
 ```
----
+
 ### Environment & Local Run
----
+
 ### Updating Data
 
 ## Configuration 
 
 ### Environment Variables
----
+
 ### Secrets / Credentials 
----
+
 ### Custom Domain & SSL Certificates
 
 ## Authentication & Authorization 
