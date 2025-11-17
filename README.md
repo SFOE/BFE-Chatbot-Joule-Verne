@@ -84,12 +84,12 @@ The architecture was deployed with the AWS infrastructure.
 
 1. User request hits **CloudFront + WAF** for caching and security.
 2. Request forwarded to the **Application Load Balancer** (ALB) in the public subnet.
-3. If the ALB recognizes the JWT tokens, it goes to step 5 directly
-4. The ALB redirects the user to **Cognito** frontpage, where the user must authenticate
-5. The ALB routes traffic to ECS tasks running in private subnets through a target group
-6. ECS containers listen on port **8501** and process the request
-7. Containers interact with **S3**, **Bedrock**, and other AWS services via **VPC endpoints**
-8. Logs and metrics are sent to **CloudWatch**
+3. If the ALB recognizes the JWT tokens, it goes to step 5 directly.
+4. The ALB redirects the user to **Cognito** frontpage, where the user must authenticate.
+5. The ALB routes traffic to ECS tasks running in private subnets through a target group.
+6. ECS containers listen on port **8501** and process the request.
+7. Containers interact with **S3**, **Bedrock**, and other AWS services via **VPC endpoints**.
+8. Logs and metrics are sent to **CloudWatch**.
 
 ---
 
@@ -111,3 +111,11 @@ The architecture was deployed with the AWS infrastructure.
 >  The VPC endpoints are contained in the ECS Security group, so opening an https inside of the ECS SG is necessary to allow traffic with the S3 Gateway Endpoint.
 
 ---
+
+### Deployment Flow
+
+1. The Docker image of the app is uploaded on the **Elastic Container Registry** (ECR).
+2. A task is created on ECS that chooses the image to use and takes the environment variables and the exposed port as parameters.
+3. A service is created on ECS that specify the task that will run and that Fargate will be used.
+4. Fargate provides the computing ressources and the containers defined on the service are launched.
+5. Because an ALB is used, the service automatically registers the IPs/ports of the launched task in the target group so that the ALB can route traffic to the app.
