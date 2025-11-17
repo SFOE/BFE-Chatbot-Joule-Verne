@@ -49,20 +49,23 @@ The architecture was deployed with the AWS infrastructure.
 
 - **Virtual Private Cloud (VPC)**
   Provides network isolation with private and public subnets across two Availability Zones (AZs)
+  
   > ℹ️ Deployment spans two AZs for ensuring high availability.
 
 - **Load Balancer (ALB)**  
   - Located in public subnets, distributes incoming traffic to ECS tasks [^2]
   - Present in both AZs for high availability
   - Associated Security Group: allows inbound traffic on port 443 from CloudFront
-   > ℹ️ Another option for the ALB would be to put it in a private subnet for enhanced security. If doing this, a NAT Gateway should also be added so that it can communicate through a secure internet connexion the tokens to Cognito. It was decided to opt for this public option as it is still safe and including a NAT Gateway is more expensive
+    
+> ℹ️ Another option for the ALB would be to put it in a private subnet for enhanced security. If doing this, a NAT Gateway should also be added so that it can communicate through a secure internet connexion the tokens to Cognito. It was decided to opt for this public option as it is still safe and including a NAT Gateway is more expensive
 
 - **Elastic Container Service (ECS) using Fargate**[^3] 
   - Runs Docker containers inside private subnets for security
   - Containers listen on port **8501**
   - ECS Service is deployed across both AZs for fault tolerance
   - Associated Security Group: allows inbound traffic on port 8501 from the Load Balancer Security Group
-   > ℹ️ ECS uses **Fargate**, so no management of underlying instances is required as it is serverless.
+    
+> ℹ️ ECS uses **Fargate**, so no management of underlying instances is required as it is serverless.
 
 
 - **VPC Endpoints**  
@@ -71,7 +74,8 @@ The architecture was deployed with the AWS infrastructure.
     - Bedrock for API calls to the agent
     - ECR for calling the Docker image 
     - CloudWatch for logging and monitoring
-     > ℹ️ The Endpoint type of S3 is Gateway, so instead of being only attached to the corresponding subnets and security groups, the routing table of the (private in this case) subnets must be modified to include the endpoint.
+      
+> ℹ️ The Endpoint type of S3 is Gateway, so instead of being only attached to the corresponding subnets and security groups, the routing table of the (private in this case) subnets must be modified to include the endpoint.
 
 - **AWS Cognito**  
   Handles user authentication and authorization through a User pool (as the access is restrained right now we can add the users manually)
@@ -108,9 +112,7 @@ The architecture was deployed with the AWS infrastructure.
 | Inbound       |  HTTP 8501  |  Load Balancer SG   |
 | Outbound           |    All TCP   | Default route 0.0.0.0/0 |
 
-> ℹ️ This is primordial to allow the JWT exchange between the ALB and Cognito.
->  The VPC endpoints are contained in the ECS Security group, and this is necessary to allow traffic with the S3 Gateway Endpoint.
+> ℹ️ To allow a route 443 all the way through (in and out) is primordial to allow the JWT exchange between the ALB and Cognito.
+>  The VPC endpoints are contained in the ECS Security group, so opening an https inside of the ECS SG is necessary to allow traffic with the S3 Gateway Endpoint.
 
 ---
-
-[^6]: The Endpoint type of S3 is Gateway, so instead of being only attached to the corresponding subnets and security groups, the routing table of the (private in this case) subnets must be modified to include the endpoint.
