@@ -30,7 +30,7 @@
 
 ## Joule Verne Overview
 ### Presentation
-[![Watch the demo](bfe-chatbot-demo.mp4)]("\\adb.intra.admin.ch\Userhome$\BFE-01\U80879907\data\Documents\RAG-chatbot\bfe-chatbot-demo.mp4")
+[![Watch the demo](docs/bfe-chatbot-demo-ezgif.com-speed.gif)
 
 If you have an account, you can check the chatbot by yourself at https://www.joule-verne.ch
 
