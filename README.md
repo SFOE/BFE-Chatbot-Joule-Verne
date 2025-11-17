@@ -137,26 +137,40 @@ The architecture was deployed with the AWS infrastructure.
 .
 └── AWS-AgenticAI/
     ├── streamlit/
-    │   └── config.toml #custom settings for the frontend
+    │   └── config.toml 
     ├── data/
-    │   └── metadata.jsonl # the metadata downloaded from the publishing website, ready to be uploaded to S3
-    ├── docs # the docs needed to produce the README
-    ├── img # the Swiss vignette for the frontend
+    │   └── metadata.jsonl
+    ├── docs
+    ├── img
     ├── src/
     │   ├── archive/
-    │   │   └── batch_loading.py # used to parse data with LlamaParse, not free if CI/CD implemented (restricted free usage)
+    │   │   └── batch_loading.py 
     │   ├── __init__.py
-    │   ├── upload_data_to_s3.py # upload data with their metadata to S3 under bfe-public-data-pdf/pdfs-batch/. Use Athena queries to filter what data to upload
+    │   ├── upload_data_to_s3.py 
     │   ├── utils.py
-    │   └── webscraping.py # scrape publishing website and adds most recent pdfs from a certain date DATE to the metadata.jsonl
+    │   └── webscraping.py 
     ├── .dockerignore
     ├── .env
     ├── .gitignore
-    ├── agent.py # the streamlit script containing the frontend design
+    ├── agent.py 
     ├── Dockerfile
     ├── README.md
     └── requirements.txt
 ```
+streamlit/
+   - config.toml : custom settings for the frontend
+data/
+   - the metadata downloaded from the publishing website, ready to be uploaded to S3
+docs/
+   -  the docs needed to produce the README
+img/
+   - the Swiss vignette for the frontend
+src/
+   - archive/batch_loading.py: used to parse data with LlamaParse, not free if CI/CD implemented (restricted free usage)
+   - webscraping.py: scrape publishing website and adds most recent pdfs from a certain date DATE to the metadata.jsonl
+   - upload_data_to_s3.py:  upload data with their metadata to S3 under bfe-public-data-pdf/pdfs-batch/. Use Athena queries to filter what data to upload
+agent.py: the streamlit script containing the frontend design
+
 
 ### Environment & Local Run
 
