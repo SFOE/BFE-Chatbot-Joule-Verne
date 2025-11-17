@@ -18,10 +18,7 @@
    - [Folder Structure](#folder-structure)
    - [Environment & Local Run](#environment--local-run)
    - [Updating Data](#updating-data)
-7. [Configuration](#configuration)  
    - [Environment Variables](#environment-variables)  
-   - [Secrets / Credentials](#secrets--credentials)  
-   - [Custom Domain & SSL Certificates](#custom-domain--ssl-certificates)  
 8. [Authentication & Authorization](#authentication--authorization)   
 9. [Security Considerations](#security-considerations)
 12. [License](#license)  
@@ -42,6 +39,8 @@ More information useful to the user on how to use the agent and the used data ca
 
 
 ### What's next?
+
+As of today (November 2025), only the documents in pdf format have been added to the workflow. For future use, we could consider adding more datatypes (such as Excel for instance) and automatically upload the data to the Vector knowledge base stored on AWS, after agreement over the update frequency and whether older data should be deleted, in order to keep the costs low and the information provided to the chatbot up-to-date. We will also integrate the authentication system with the Smartcard, so that access can be extended to all people working at the SFOE and as well as at other offices. 
 
 ## Features
 
@@ -165,7 +164,7 @@ The architecture was deployed with the AWS infrastructure.
      
 `img/` : the Swiss vignette for the frontend
 
-`src/`
+`src/` :
    - `archive/batch_loading.py` : used to parse data with LlamaParse, not free if CI/CD implemented (restricted free usage)
    - `webscraping.py` : scrape publishing website and adds most recent pdfs from a certain date DATE to the metadata.jsonl
    - `upload_data_to_s3.py` :  upload data with their metadata to S3 under bfe-public-data-pdf/pdfs-batch/. Use Athena queries to filter what data to upload
@@ -175,17 +174,13 @@ The architecture was deployed with the AWS infrastructure.
 
 ### Environment & Local Run
 
+In order to create an environment 
+
 ### Updating Data
 
-## Configuration 
 
 ### Environment Variables
 
-### Secrets / Credentials 
-
-### Custom Domain & SSL Certificates
-
-## Authentication & Authorization 
 
 ## Security Considerations
 
