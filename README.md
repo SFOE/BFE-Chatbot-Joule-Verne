@@ -36,8 +36,10 @@ Joule Verne is a chatbot that was designed with the aim of answering requests re
 
 ---
 ### Usage
+
 If you have an account, you can check the chatbot by yourself at https://www.joule-verne.ch.
 More information useful to the user on how to use the agent and the used data can be found [here](docs/chatbot-instructions.docx?raw=1).
+
 ---
 ### What's next?
 
