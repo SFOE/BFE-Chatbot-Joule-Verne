@@ -33,7 +33,7 @@ Joule Verne is a chatbot that was designed with the aim of answering requests re
 
 ### Usage
 If you have an account, you can check the chatbot by yourself at https://www.joule-verne.ch.
-More information useful to the user on how to use the agent and the used data can be found [here](https://github.com/SFOE/AWS-AgenticAI/blob/main/docs/Anweisungen%20f%C3%BCr%20den%20BFE%20Chatbot.docx)
+More information useful to the user on how to use the agent and the used data can be found [here](docs/chatbot-instructions.docx)
 
 ## Cloud Architecture
 ### AWS Infrastructure
