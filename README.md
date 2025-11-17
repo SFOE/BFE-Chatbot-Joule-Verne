@@ -30,7 +30,7 @@
 
 ## Joule Verne Overview
 ### Presentation
-[![Watch the demo](docs/bfe-chatbot-demo-ezgif.com-speed.gif)
+![Watch the demo](docs/bfe-chatbot-demo-ezgif.com-speed.gif)
 
 If you have an account, you can check the chatbot by yourself at https://www.joule-verne.ch
 
