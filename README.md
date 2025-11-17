@@ -137,22 +137,22 @@ The architecture was deployed with the AWS infrastructure.
 .
 └── AWS-AgenticAI/
     ├── streamlit/
-    │   └── config.toml
+    │   └── config.toml #custom settings for the frontend
     ├── data/
-    │   └── metadata.jsonl
-    ├── docs
-    ├── img
+    │   └── metadata.jsonl # the metadata downloaded from the publishing website, ready to be uploaded to S3
+    ├── docs # the docs needed to produce the README
+    ├── img # the Swiss vignette for the frontend
     ├── src/
     │   ├── archive/
-    │   │   └── batch_loading.py
+    │   │   └── batch_loading.py # used to parse data with LlamaParse, not free if CI/CD implemented (restricted free usage)
     │   ├── __init__.py
-    │   ├── upload_data_to_s3.py
+    │   ├── upload_data_to_s3.py # upload data with their metadata to S3 under bfe-public-data-pdf/pdfs-batch/. Use Athena queries to filter what data to upload
     │   ├── utils.py
-    │   └── webscraping.py
+    │   └── webscraping.py # scrape publishing website and adds most recent pdfs from a certain date DATE to the metadata.jsonl
     ├── .dockerignore
     ├── .env
     ├── .gitignore
-    ├── agent.py
+    ├── agent.py # the streamlit script containing the frontend design
     ├── Dockerfile
     ├── README.md
     └── requirements.txt
