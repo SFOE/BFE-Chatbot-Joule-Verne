@@ -7,7 +7,7 @@
    - [Presentation](#presentation)
    - [Usage](#usage)
    - [What's next?](#whats-next)
-3. [Features](#features)  
+3. [Agent Features](#agent-features)  
 4. [Cloud Architecture](#cloud-architecture)
    - [AWS Infrastructure](#aws-infrastructure)  
    - [Components](#components-overview)
@@ -29,7 +29,7 @@
 ## Joule Verne Overview
 ### Presentation
 ![Watch the demo](docs/bfe-chatbot-demo-ezgif.com-speed.gif)
-Joule Verne is a chatbot that was designed with the aim of answering requests received by the Swiss Federal Office of Energy (SFOE), ranging from the general public to parliamentaries. It was built solely using public data, that can be found on the [Publication database](https://www.bfe.admin.ch/bfe/en/home/news-und-medien/publikationen.exturl.html/aHR0cHM6Ly9wdWJkYi5iZmUuYWRtaW4uY2gvZW4vc3VjaGU=.html?keywords=&q=&from=20.10.2025&to=24.10.2025&nr=), as well as the official [website](https://www.bfe.admin.ch/bfe/en/home.html) of the SFOE. The main purpose of this agent is to support the Bundes-und Parliamentsgeschäfte Section to answer all letters addressed to the SFOE.
+Joule Verne is a chatbot that was designed with the aim of answering requests received by the Swiss Federal Office of Energy (SFOE), ranging from the general public to parliamentaries. It was built solely using public data, that can be found on the [Publication database](https://www.bfe.admin.ch/bfe/en/home/news-und-medien/publikationen.exturl.html/aHR0cHM6Ly9wdWJkYi5iZmUuYWRtaW4uY2gvZW4vc3VjaGU=.html?keywords=&q=&from=20.10.2025&to=24.10.2025&nr=), as well as the official [website](https://www.bfe.admin.ch/bfe/en/home.html) of the SFOE. The main purpose of this agent is to support the Bundes-und Parliamentsgeschäfte Section to answer all letters addressed to the SFOE. Sources are explicited with each answers and can be downloaded for consultation.
 
 
 ### Usage
@@ -40,9 +40,9 @@ More information useful to the user on how to use the agent and the used data ca
 
 ### What's next?
 
-As of today (November 2025), only the documents in pdf format have been added to the workflow. For future use, we could consider adding more datatypes (such as Excel for instance) and automatically upload the data to the Vector knowledge base stored on AWS, after agreement over the update frequency and whether older data should be deleted, in order to keep the costs low and the information provided to the chatbot up-to-date. We will also integrate the authentication system with the Smartcard, so that access can be extended to all people working at the SFOE and as well as at other offices. 
+As of today (November 2025), only the documents in pdf format have been added to the workflow. For future use, we could consider adding more datatypes (such as Excel for instance) and automatically upload the data to the Vector knowledge base stored on AWS, after agreement over the update frequency and whether older data should be deleted, in order to keep the costs low and the information provided to the chatbot up-to-date. We will also integrate the authentication system with the Smartcard, so that access can be extended to all people working at the SFOE and as well as at other offices. In the long term, another version of the chatbot might be made public.
 
-## Features
+## Agent Features
 
 ## Cloud Architecture
 ### AWS Infrastructure
@@ -177,19 +177,32 @@ The architecture was deployed with the AWS infrastructure.
 In order to create an environment, install the required dependencies and run the app locally you can use the following commands:
 ```bash
 python -m venv venv #create the environment
-source venv/bin/activate # activate the environment on Mac/Linux
-python install -r requirements.txt #install dependencies
+# Activate the environment
+source venv/bin/activate         # macOS / Linux
+venv\Scripts\activate            # Windows
+pip install -r requirements.txt #install dependencies
 streamlit run agent.py # run the app locally on port 8501
 ```
 
 ### Updating Data
 
+If there is a need to update the data from the Publishing website manually, you can follow the following steps:
+
+1. Create the environment as explained above.
+2. Run script `webscraping.py` with the parameter DATE updated. The metadata.jsonl will then be updated with all pdf published between DATE and now.
+3. Modify the QUERY in `upload_data_to_S3.py` at your convenience to filter the data. If the filtered files are not already present in S3, they will be uploaded.
+4. Sync an existing data source that points to the correct S3 bucket in the `knowledge-base-documents-s3` Knowledge base in Bedrock.
+5. Now you are all set ! 🎉
+
 
 ### Environment Variables
 
+The environment variables can be found under the task definition `chatbot-server-task` and `Environment and secrets` of the SFOE AWS Data Science account.
 
 ## Security Considerations
-
-## License
+When using the app, the user should always be very careful not to prompt with any private data, and check the sources when unsure.
 
 ## References
+- RAG papers
+- Llamandex doc
+- AWS doc
