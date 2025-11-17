@@ -6,20 +6,24 @@
 1. [Joule Verne Overview](#joule-verne-overview)
    - [Presentation](#presentation)
    - [Usage](#usage)
+   - [What's next](#what-s-next)
 3. [Features](#features)  
 4. [Cloud Architecture](#cloud-architecture)
    - [AWS Infrastructure](#aws-infrastructure)  
    - [Components](#components-overview)
    - [Request Flow](#request-flow)
    - [Security Groups](#security-groups)
-   - [Deployement Flow](#deployment-flow)   
-5. [Configuration](#configuration)  
+   - [Deployement Flow](#deployment-flow)
+5. [How to Install & Run Project for Data Updates](#how-to-install--run-project)
+   - [Folder Structure](#folder-structure)
+   - [Environment & Local Run](#environment--local-run)
+   - [Updating Data](#updating-data)
+7. [Configuration](#configuration)  
    - [Environment Variables](#environment-variables)  
    - [Secrets / Credentials](#secrets--credentials)  
    - [Custom Domain & SSL Certificates](#custom-domain--ssl-certificates)  
-6. [Authentication & Authorization](#authentication--authorization)  
-7. [Usage](#usage)  
-8. [Security Considerations](#security-considerations)
+8. [Authentication & Authorization](#authentication--authorization)   
+9. [Security Considerations](#security-considerations)
 12. [License](#license)  
 13. [References](#references)
     
@@ -30,17 +34,21 @@
 ![Watch the demo](docs/bfe-chatbot-demo-ezgif.com-speed.gif)
 Joule Verne is a chatbot that was designed with the aim of answering requests received by the Swiss Federal Office of Energy (SFOE), ranging from the general public to parliamentaries. It was built solely using public data, that can be found on the [Publication database](https://www.bfe.admin.ch/bfe/en/home/news-und-medien/publikationen.exturl.html/aHR0cHM6Ly9wdWJkYi5iZmUuYWRtaW4uY2gvZW4vc3VjaGU=.html?keywords=&q=&from=20.10.2025&to=24.10.2025&nr=), as well as the official [website](https://www.bfe.admin.ch/bfe/en/home.html) of the SFOE. The main purpose of this agent is to support the Bundes-und Parliamentsgeschäfte Section to answer all letters addressed to the SFOE.
 
-
+---
 ### Usage
 If you have an account, you can check the chatbot by yourself at https://www.joule-verne.ch.
 More information useful to the user on how to use the agent and the used data can be found [here](docs/chatbot-instructions.docx?raw=1).
+---
+### What's next?
+
+## Features
 
 ## Cloud Architecture
 ### AWS Infrastructure
 The architecture was deployed with the AWS infrastructure.
 <img width="1600" height="900" alt="image" src="https://github.com/user-attachments/assets/e58f5881-1750-4406-9015-31d50055ad4c" />
 
-
+---
 ### Components Overview
 
 - **CloudFront + WAF**
@@ -123,3 +131,50 @@ The architecture was deployed with the AWS infrastructure.
 3. A service is created on ECS that specify the task that will run and that Fargate will be used.
 4. Fargate provides the computing ressources and the containers defined on the service are launched.
 5. Because an ALB is used, the service automatically registers the IPs/ports of the launched task in the target group so that the ALB can route traffic to the app.
+
+## How to Install & Run Project for Data Updates
+### Folder structure
+```
+.
+└── AWS-AgenticAI/
+    ├── streamlit/
+    │   └── config.toml
+    ├── data/
+    │   └── metadata.jsonl
+    ├── docs
+    ├── img
+    ├── src/
+    │   ├── archive/
+    │   │   └── batch_loading.py
+    │   ├── __init__.py
+    │   ├── upload_data_to_s3.py
+    │   ├── utils.py
+    │   └── webscraping.py
+    ├── .dockerignore
+    ├── .env
+    ├── .gitignore
+    ├── agent.py
+    ├── Dockerfile
+    ├── README.md
+    └── requirements.txt
+```
+---
+### Environment & Local Run
+---
+### Updating Data
+
+## Configuration 
+
+### Environment Variables
+---
+### Secrets / Credentials 
+---
+### Custom Domain & SSL Certificates
+
+## Authentication & Authorization 
+
+## Security Considerations
+
+## License
+
+## References
