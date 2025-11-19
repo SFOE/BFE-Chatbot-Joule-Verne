@@ -93,7 +93,7 @@ The architecture was deployed with the AWS infrastructure.
     - CloudWatch for logging and monitoring
       
    > [!NOTE]
-   > The Endpoint type of S3 is Gateway, so instead of being only attached to the corresponding subnets and security groups, the routing table of the (private in this case) subnets must be modified to include the endpoint.
+   > The Endpoint type of S3 is Gateway, so instead of being only attached to the corresponding subnets and security groups, the routing table of the         > (private in this case) subnets must be modified to include the endpoint.
 
 - **AWS Cognito**  
   Handles user authentication and authorization through a User pool (as the access is restrained right now we can add the users manually)
