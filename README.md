@@ -7,22 +7,19 @@
    - [Presentation](#presentation)
    - [Usage](#usage)
    - [What's next?](#whats-next)
-3. [Agent Features](#agent-features)  
-4. [Cloud Architecture](#cloud-architecture)
+2. [Agent Features](#agent-features)  
+3. [Cloud Architecture](#cloud-architecture)
    - [AWS Infrastructure](#aws-infrastructure)  
    - [Components](#components-overview)
    - [Request Flow](#request-flow)
    - [Security Groups](#security-groups)
    - [Deployement Flow](#deployment-flow)
-5. [How to Install & Run Project for Data Updates](#how-to-install--run-project)
+4. [How to Install & Run Project for Data Updates](#how-to-install--run-project)
    - [Folder Structure](#folder-structure)
    - [Environment & Local Run](#environment--local-run)
    - [Updating Data](#updating-data)
-   - [Environment Variables](#environment-variables)  
-8. [Authentication & Authorization](#authentication--authorization)   
-9. [Security Considerations](#security-considerations)
-12. [License](#license)  
-13. [References](#references)
+   - [Environment Variables](#environment-variables)    
+5. [References](#references)
     
 </details>
 
@@ -37,14 +34,17 @@ Joule Verne is a chatbot that was designed with the aim of answering requests re
 If you have an account, you can check the chatbot by yourself at https://www.joule-verne.ch.
 More information useful to the user on how to use the agent and the used data can be found [here](docs/chatbot-instructions.docx?raw=1).
 
+> [!CAUTION]
+> When using the app, the user should always be very careful not to prompt with any private data, and check the sources when unsure.
+
 
 ### What's next?
 
-As of today (November 2025), only the documents in pdf format have been added to the workflow. For future use, we could consider adding more datatypes (such as Excel for instance) and automatically upload the data to the Vector knowledge base stored on AWS, after agreement over the update frequency and whether older data should be deleted, in order to keep the costs low and the information provided to the chatbot up-to-date. We will also integrate the authentication system with the Smartcard, so that access can be extended to all people working at the SFOE and as well as at other offices. In the long term, another version of the chatbot might be made public.
+As of today (November 2025), only the documents in pdf format have been added to the workflow. For future use, we could consider adding more datatypes (such as Excel for instance) and automatically upload the data to the Vector knowledge base stored on AWS, after agreement over the update frequency and whether older data should be deleted, in order to keep the costs low and the information provided to the chatbot up-to-date. We will also integrate the authentication system with the Smartcard, so that access can be extended to all people working at the SFOE and as well as at other offices. In the long term, newer version of the chatbot might be rendered public.
 
 ## Agent Features
 ### Retrieval Augmented Generation (RAG)
-The technique used to design the agent is called Retrieval Augmented Generation. The idea is to upload the data we want our agent to know of in a vector database. For this, they will be chunked off and vectorized, that is to say embedded in a mathematical form. When a user will make a query to the chatbot, the query will be compared to the vector database and a semantic search will be performed, retrieving the most similar documents from the database. These documents will then be added to the user's question in the prompt and the LLM will reply according to this new prompt and context. For more details refer to the 
+The technique used to design the agent is called Retrieval Augmented Generation. The idea is to upload the data we want our agent to know into a vector database. For this, they will be chunked and vectorized, that is, embedded in a mathematical form. When a user makes a query to the chatbot, the query will be compared to the vector database and a semantic search will be performed, retrieving the most similar documents from the database. These documents are then added to the user's question in the prompt and the LLM will reply according to this combined prompt and context. For more details please consult the [References](#references) section.
 
 
 ### Bedrock Implementation
@@ -208,9 +208,6 @@ If there is a need to update the data from the Publishing website manually, you 
 ### Environment Variables
 
 The environment variables can be found under the task definition `chatbot-server-task` and `Environment and secrets` of the SFOE AWS Data Science account.
-
-## Security Considerations
-When using the app, the user should always be very careful not to prompt with any private data, and check the sources when unsure.
 
 ## References
 - Gao, Yunfan, et al. "Retrieval-augmented generation for large language models: A survey." arXiv preprint arXiv:2312.10997 2.1 (2023).
