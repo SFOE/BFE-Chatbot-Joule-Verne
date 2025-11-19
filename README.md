@@ -43,6 +43,10 @@ More information useful to the user on how to use the agent and the used data ca
 As of today (November 2025), only the documents in pdf format have been added to the workflow. For future use, we could consider adding more datatypes (such as Excel for instance) and automatically upload the data to the Vector knowledge base stored on AWS, after agreement over the update frequency and whether older data should be deleted, in order to keep the costs low and the information provided to the chatbot up-to-date. We will also integrate the authentication system with the Smartcard, so that access can be extended to all people working at the SFOE and as well as at other offices. In the long term, another version of the chatbot might be made public.
 
 ## Agent Features
+### Retrieval Augmented Generation (RAG)
+
+### Bedrock Implementation
+The LLM leveraged by the agent is Claude Sonnet 3.5. The agent is hosted on Bedrock and called `BFE-agent`. Two knowledge bases are provided, one containing the data of the official BFE website `bfe-website-knowledge-base`, the other containing the public pdf documents of the Publications Database `knowledge-base-documents-s3`. Both knowledge bases use semantic chunking, basic parsing and a token size of 512. The pdf documents are contained between the START and the END, and for 500 of them advanced parsing was performed using the LLM parser from LlamaIndex. This solution could nonetheless not be implemented for the whole dataset, as only a handful of documents can be treated this way using free-tier, and no entreprise account was deemed necessary to open at the time.
 
 ## Cloud Architecture
 ### AWS Infrastructure
