@@ -45,8 +45,7 @@ As of today (November 2025), only the documents in pdf format have been added to
 ## Agent Features
 ### Retrieval Augmented Generation (RAG)
 The technique used to design the agent is called Retrieval Augmented Generation. The idea is to upload the data we want our agent to know of in a vector database. For this, they will be chunked off and vectorized, that is to say embedded in a mathematical form. When a user will make a query to the chatbot, the query will be compared to the vector database and a semantic search will be performed, retrieving the most similar documents from the database. These documents will then be added to the user's question in the prompt and the LLM will reply according to this new prompt and context. For more details refer to the 
-> [!NOTE]
-> Useful information that users should know, even when skimming content.
+
 
 ### Bedrock Implementation
 The LLM leveraged by the agent is Claude Sonnet 3.5. The agent is hosted on Bedrock and called `BFE-agent`. Two knowledge bases are provided, one containing the data of the official BFE website `bfe-website-knowledge-base`, the other containing the public pdf documents of the Publications Database `knowledge-base-documents-s3`. Both knowledge bases use semantic chunking, basic parsing and a token size of 512. The pdf documents are 1000 in total and contained between the 29th of August 2022 and the 24th of October 2025, and for 500 of them advanced parsing was performed using the LLM parser from LlamaIndex. This solution could nonetheless not be implemented for the whole dataset, as only a handful of documents can be treated this way using free-tier, and no entreprise account was deemed necessary to open at the time. The vector store used was Amazon OpenSearch Service's vector database for both knowledge bases. In the future one might consider to use the S3 native vector store, which is still in its beta version today and recommended against for production at the time.
@@ -65,14 +64,16 @@ The architecture was deployed with the AWS infrastructure.
 - **Virtual Private Cloud (VPC)**
   Provides network isolation with private and public subnets across two Availability Zones (AZs)
   
-  > ℹ️ Deployment spans two AZs for ensuring high availability.
+   > [!NOTE]
+   > Deployment spans two AZs for ensuring high availability.
 
 - **Load Balancer (ALB)**  
   - Located in public subnets, distributes incoming traffic to ECS tasks [^2]
   - Present in both AZs for high availability
   - Associated Security Group: allows inbound traffic on port 443 from CloudFront
     
-   > ℹ️ Another option for the ALB would be to put it in a private subnet for enhanced security. If doing this, a NAT Gateway should also be added so that it can communicate through a secure internet connexion the tokens to Cognito. It was decided to opt for this public option as it is still safe and including a NAT Gateway is more expensive
+   > [!TIP]
+   > Another option for the ALB would be to put it in a private subnet for enhanced security. If doing this, a NAT Gateway should also be added so that it can communicate through a secure internet connexion the tokens to Cognito. It was decided to opt for this public option as it is still safe and including a NAT Gateway is more expensive
 
 - **Elastic Container Service (ECS) using Fargate**[^3] 
   - Runs Docker containers inside private subnets for security
@@ -80,7 +81,8 @@ The architecture was deployed with the AWS infrastructure.
   - ECS Service is deployed across both AZs for fault tolerance
   - Associated Security Group: allows inbound traffic on port 8501 from the Load Balancer Security Group
     
-   > ℹ️ ECS uses **Fargate**, so no management of underlying instances is required as it is serverless.
+   > [!NOTE]
+   > ECS uses **Fargate**, so no management of underlying instances is required as it is serverless.
 
 
 - **VPC Endpoints**  
@@ -90,7 +92,8 @@ The architecture was deployed with the AWS infrastructure.
     - ECR for calling the Docker image 
     - CloudWatch for logging and monitoring
       
-   > ℹ️ The Endpoint type of S3 is Gateway, so instead of being only attached to the corresponding subnets and security groups, the routing table of the (private in this case) subnets must be modified to include the endpoint.
+   > [!NOTE]
+   > The Endpoint type of S3 is Gateway, so instead of being only attached to the corresponding subnets and security groups, the routing table of the (private in this case) subnets must be modified to include the endpoint.
 
 - **AWS Cognito**  
   Handles user authentication and authorization through a User pool (as the access is restrained right now we can add the users manually)
@@ -124,7 +127,8 @@ The architecture was deployed with the AWS infrastructure.
 | Inbound       |  HTTP 8501  |  Load Balancer SG   |
 | Outbound           |    All TCP   | Default route 0.0.0.0/0 |
 
-> ℹ️ To allow a route 443 all the way through (in and out) is primordial to allow the JWT exchange between the ALB and Cognito.
+> [!IMPORTANT]
+> To allow a route 443 all the way through (in and out) is primordial to allow the JWT exchange between the ALB and Cognito.
 >  The VPC endpoints are contained in the ECS Security group, so opening an https inside of the ECS SG is necessary to allow traffic with the S3 Gateway Endpoint.
 
 
