@@ -204,7 +204,5 @@ When using the app, the user should always be very careful not to prompt with an
 
 ## References
 Gao, Yunfan, et al. "Retrieval-augmented generation for large language models: A survey." arXiv preprint arXiv:2312.10997 2.1 (2023).
-
 [LlamaIndex Python documentation](https://developers.llamaindex.ai/python/framework/)
-
 [AWS Python SDK documentation](https://boto3.amazonaws.com/v1/documentation/api/latest/index.html)
