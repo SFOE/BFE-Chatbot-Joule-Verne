@@ -64,18 +64,15 @@ The architecture was deployed with the AWS infrastructure.
 - **Virtual Private Cloud (VPC)**
   Provides network isolation with private and public subnets across two Availability Zones (AZs)
 > [!NOTE]
-> Useful information that users should know, even when skimming content.
-   
-   > [!NOTE]
-   > Deployment spans two AZs for ensuring high availability.
+> Deployment spans two AZs for ensuring high availability.
 
 - **Load Balancer (ALB)**  
   - Located in public subnets, distributes incoming traffic to ECS tasks [^2]
   - Present in both AZs for high availability
   - Associated Security Group: allows inbound traffic on port 443 from CloudFront
     
-   > [!TIP]
-   > Another option for the ALB would be to put it in a private subnet for enhanced security. If doing this, a NAT Gateway should also be added so that it can communicate through a secure internet connexion the tokens to Cognito. It was decided to opt for this public option as it is still safe and including a NAT Gateway is more expensive
+> [!TIP]
+> Another option for the ALB would be to put it in a private subnet for enhanced security. If doing this, a NAT Gateway should also be added so that it can communicate through a secure internet connexion the tokens to Cognito. It was decided to opt for this public option as it is still safe and including a NAT Gateway is more expensive
 
 - **Elastic Container Service (ECS) using Fargate**[^3] 
   - Runs Docker containers inside private subnets for security
@@ -83,8 +80,8 @@ The architecture was deployed with the AWS infrastructure.
   - ECS Service is deployed across both AZs for fault tolerance
   - Associated Security Group: allows inbound traffic on port 8501 from the Load Balancer Security Group
     
-   > [!NOTE]
-   > ECS uses **Fargate**, so no management of underlying instances is required as it is serverless.
+> [!NOTE]
+> ECS uses **Fargate**, so no management of underlying instances is required as it is serverless.
 
 
 - **VPC Endpoints**  
@@ -94,8 +91,8 @@ The architecture was deployed with the AWS infrastructure.
     - ECR for calling the Docker image 
     - CloudWatch for logging and monitoring
       
-   > [!NOTE]
-   > The Endpoint type of S3 is Gateway, so instead of being only attached to the corresponding subnets and security groups, the routing table of the         > (private in this case) subnets must be modified to include the endpoint.
+> [!NOTE]
+> The Endpoint type of S3 is Gateway, so instead of being only attached to the corresponding subnets and security groups, the routing table of the         > (private in this case) subnets must be modified to include the endpoint.
 
 - **AWS Cognito**  
   Handles user authentication and authorization through a User pool (as the access is restrained right now we can add the users manually)
