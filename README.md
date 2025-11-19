@@ -63,7 +63,8 @@ The architecture was deployed with the AWS infrastructure.
 
 - **Virtual Private Cloud (VPC)**
   Provides network isolation with private and public subnets across two Availability Zones (AZs)
-  
+  > [!NOTE]
+   > Useful information that users should know, even when skimming content.
    > [!NOTE]
    > Deployment spans two AZs for ensuring high availability.
 
