@@ -203,6 +203,6 @@ The environment variables can be found under the task definition `chatbot-server
 When using the app, the user should always be very careful not to prompt with any private data, and check the sources when unsure.
 
 ## References
-Gao, Yunfan, et al. "Retrieval-augmented generation for large language models: A survey." arXiv preprint arXiv:2312.10997 2.1 (2023).
-[LlamaIndex Python documentation](https://developers.llamaindex.ai/python/framework/)
-[AWS Python SDK documentation](https://boto3.amazonaws.com/v1/documentation/api/latest/index.html)
+- Gao, Yunfan, et al. "Retrieval-augmented generation for large language models: A survey." arXiv preprint arXiv:2312.10997 2.1 (2023).
+- [LlamaIndex Python documentation](https://developers.llamaindex.ai/python/framework/)
+- [AWS Python SDK documentation](https://boto3.amazonaws.com/v1/documentation/api/latest/index.html)
