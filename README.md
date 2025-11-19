@@ -37,7 +37,7 @@ If you have an account, you can check the chatbot by yourself at https://www.jou
 More information useful to the user on how to use the agent and the used data can be found [here](docs/chatbot-instructions.docx?raw=1).
 
 > [!CAUTION]
-> When using the app, the user should always be very careful not to prompt with any private data, and check the sources when unsure.
+> When using the app, the user should always be very careful not to prompt any private data, and check the sources when unsure.
 
 
 ### What's next?
