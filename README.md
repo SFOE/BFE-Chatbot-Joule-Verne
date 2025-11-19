@@ -7,19 +7,21 @@
    - [Presentation](#presentation)
    - [Usage](#usage)
    - [What's next?](#whats-next)
-2. [Agent Features](#agent-features)  
-3. [Cloud Architecture](#cloud-architecture)
+2. [Agentic AI](#agentic-ai)
+   - [Retrieval-Augmented Generation](#retrieval-augmented-generation)
+   - [Bedrock Implementation](#bedrock-implementation)
+4. [Cloud Architecture](#cloud-architecture)
    - [AWS Infrastructure](#aws-infrastructure)  
    - [Components](#components-overview)
    - [Request Flow](#request-flow)
    - [Security Groups](#security-groups)
    - [Deployement Flow](#deployment-flow)
-4. [How to Install & Run Project for Data Updates](#how-to-install--run-project)
+5. [How to Install & Run Project for Data Updates](#how-to-install--run-project)
    - [Folder Structure](#folder-structure)
    - [Environment & Local Run](#environment--local-run)
    - [Updating Data](#updating-data)
    - [Environment Variables](#environment-variables)    
-5. [References](#references)
+6. [References](#references)
     
 </details>
 
@@ -42,9 +44,9 @@ More information useful to the user on how to use the agent and the used data ca
 
 As of today (November 2025), only the documents in pdf format have been added to the workflow. For future use, we could consider adding more datatypes (such as Excel for instance) and automatically upload the data to the Vector knowledge base stored on AWS, after agreement over the update frequency and whether older data should be deleted, in order to keep the costs low and the information provided to the chatbot up-to-date. We will also integrate the authentication system with the Smartcard, so that access can be extended to all people working at the SFOE and as well as at other offices. In the long term, newer version of the chatbot might be rendered public.
 
-## Agent Features
-### Retrieval Augmented Generation (RAG)
-The technique used to design the agent is called Retrieval Augmented Generation. The idea is to upload the data we want our agent to know into a vector database. For this, they will be chunked and vectorized, that is, embedded in a mathematical form. When a user makes a query to the chatbot, the query will be compared to the vector database and a semantic search will be performed, retrieving the most similar documents from the database. These documents are then added to the user's question in the prompt and the LLM will reply according to this combined prompt and context. For more details please consult the [References](#references) section.
+## Agentic AI
+### Retrieval-Augmented Generation (RAG)
+The technique used to design the agent is called Retrieval-Augmented Generation. The idea is to upload the data we want our agent to know into a vector database. For this, they will be chunked and vectorized, that is, embedded in a mathematical form. When a user makes a query to the chatbot, the query will be compared to the vector database and a semantic search will be performed, retrieving the most similar documents from the database. These documents are then added to the user's question in the prompt and the LLM will reply according to this combined prompt and context. For more details please consult the [References](#references) section.
 
 
 ### Bedrock Implementation
