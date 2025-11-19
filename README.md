@@ -69,14 +69,14 @@ The architecture was deployed with the AWS infrastructure.
 > Deployment spans two AZs for ensuring high availability.
 
 - **Load Balancer (ALB)**  
-  - Located in public subnets, distributes incoming traffic to ECS tasks [^2]
+  - Located in public subnets, distributes incoming traffic to ECS tasks
   - Present in both AZs for high availability
   - Associated Security Group: allows inbound traffic on port 443 from CloudFront
     
 > [!TIP]
 > Another option for the ALB would be to put it in a private subnet for enhanced security. If doing this, a NAT Gateway should also be added so that it can communicate through a secure internet connexion the tokens to Cognito. It was decided to opt for this public option as it is still safe and including a NAT Gateway is more expensive
 
-- **Elastic Container Service (ECS) using Fargate**[^3] 
+- **Elastic Container Service (ECS) using Fargate**
   - Runs Docker containers inside private subnets for security
   - Containers listen on port **8501**
   - ECS Service is deployed across both AZs for fault tolerance
