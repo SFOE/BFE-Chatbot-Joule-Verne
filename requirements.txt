@@ -114,7 +114,7 @@ rich==13.7.1
 s3transfer==0.10.1
 SciPy==1.11.4
 service-identity==24.1.0
-setuptools==68.1.2
+setuptools==78.1.1
 six==1.16.0
 sos==4.8.2
 soupsieve==2.5
