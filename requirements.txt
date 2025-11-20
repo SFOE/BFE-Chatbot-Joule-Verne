@@ -48,13 +48,13 @@ incremental==22.10.0
 ipykernel==6.29.3
 ipython==8.20.0
 jedi==0.19.1
-Jinja2==3.1.2
+Jinja2==3.1.6
 jmespath==1.0.1
 jsonpatch==1.32
 jsonpointer==2.0
 jsonschema==4.10.3
 jupyter_client==7.4.9
-jupyter_core==5.3.2
+jupyter_core==5.8.1
 kiwisolver==0.0.0
 launchpadlib==1.11.0
 lazr.restfulclient==0.14.6
@@ -125,7 +125,7 @@ systemd-python==235
 tables==3.9.2
 tornado==6.5
 traitlets==5.5.0
-Twisted==24.3.0
+Twisted==24.7.0rc1
 types-aiofiles==23.2
 types-aws-xray-sdk==2.12
 types-beautifulsoup4==4.12
