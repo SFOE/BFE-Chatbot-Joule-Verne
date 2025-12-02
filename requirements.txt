@@ -37,7 +37,7 @@ ec2-hibinit-agent==1.0.0
 entrypoints==0.4
 et-xmlfile==1.0.1
 executing==2.0.1
-fonttools==4.46.0
+fonttools==4.61.0
 fs==2.4.16
 hibagent==1.0.1
 html5lib==1.1
