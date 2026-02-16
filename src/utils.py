@@ -21,25 +21,19 @@ st_logger.setLevel(logging.INFO)
 
 load_dotenv()
 
-# AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
-# AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
-# AWS_REGION = os.getenv("AWS_REGION")
+AWS_REGION = os.getenv("AWS_REGION")
 AGENT_ALIAS_ID = os.getenv("AGENT_ALIAS_ID")
 AGENT_ID = os.getenv("AGENT_ID")
 
 
 s3_client = boto3.client(
     's3',
-    # aws_access_key_id=AWS_ACCESS_KEY_ID,
-    # aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
-    # region_name=AWS_REGION
+    region_name=AWS_REGION
     )
 
-bedrock_client = boto3.client('bedrock-agent-runtime',
-    # aws_access_key_id = AWS_ACCESS_KEY_ID,
-    # aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
-    # region_name=AWS_REGION,
-    verify=False #"custom_bundle.pem"
+bedrock_client = boto3.client(
+    'bedrock-agent-runtime',
+    region_name=AWS_REGION
     )
 
 def query_agent(prompt, session_id):
@@ -170,4 +164,5 @@ def give_oldest_file_date():
     return oldest_time, oldest_file
     
 if __name__=="__main__":
-    change_filenames()
+    pass
+    # change_filenames()
