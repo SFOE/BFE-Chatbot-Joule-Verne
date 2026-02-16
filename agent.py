@@ -30,7 +30,7 @@ with col2:
 with st.expander(":information_source: :construction:"):
     st.write("""
     This is a demo application and will still be submitted to changes. The chatbot might not always be correct or precise. Do not hesitate to check the sources in the side bar if unsure. Please be careful not to upload any personal data in the chat.
-    For any questions or requests you can [contact us](mailto:zoe.jeandupeux@bfe.admin.ch) at the Digital Innovation & Geoinformation section :blush:
+    For any questions or requests you can [contact us](mailto:digitalisierung@bfe.admin.ch) at the Digital Innovation & Geoinformation section :blush:
     """)
 
 for message in st.session_state.messages:
