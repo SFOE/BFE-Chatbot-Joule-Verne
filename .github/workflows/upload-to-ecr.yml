@@ -1,4 +1,4 @@
-name: Build and Upload Docker Imageto ECR on prometheon-workload-jouleverne-dev
+name: Build and Upload Docker Image to ECR on prometheon-workload-jouleverne-dev
 
 on:
   pull_request:
@@ -20,10 +20,11 @@ jobs:
 
     strategy:
       matrix:
-        - name: dev
-          role: SFOE_JOULEVERNE_DEV_ROLE
-        - name: prod
-          role: SFOE_JOULEVERNE_PROD_ROLE
+        env:
+          - name: dev
+            role: SFOE_JOULEVERNE_DEV_ROLE
+          - name: prod
+            role: SFOE_JOULEVERNE_PROD_ROLE
 
     steps:
       - name: Checkout code
