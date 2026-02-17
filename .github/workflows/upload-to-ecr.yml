@@ -33,7 +33,7 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ matrix.role }}
+          role-to-assume: ${{ matrix.env.role }}
           aws-region: eu-central-1
 
       - name: Login to Amazon ECR
