@@ -23,8 +23,8 @@ jobs:
         env:
           - name: dev
             role: SFOE_JOULEVERNE_DEV_ROLE
-          - name: prod
-            role: SFOE_JOULEVERNE_PROD_ROLE
+          # - name: prod
+          #   role: SFOE_JOULEVERNE_PROD_ROLE
 
     steps:
       - name: Checkout code
