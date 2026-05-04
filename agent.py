@@ -1,12 +1,42 @@
 import streamlit as st
 import logging
 import uuid
+import base64
+import json
+import os
 from src.utils import parse_s3_uri, query_agent, s3_get_object
 from dotenv import load_dotenv
 
 load_dotenv()
 
 logging.basicConfig(level=logging.INFO)
+
+# ---------------------------------------------------------------------------------------------------------------------
+# ¦ GROUP-BASED AUTHORIZATION
+# Allowed groups are set via the ALLOWED_COGNITO_GROUPS environment variable (comma-separated),
+# injected by the ECS task definition in prometheon-workload-jouleverne-dev.
+# The ALB (authenticate-oidc) has already verified the JWT signature. We only decode the payload
+# to read the cognito:groups claim from the x-amzn-oidc-accesstoken header.
+# ---------------------------------------------------------------------------------------------------------------------
+_allowed_groups = set(
+    g.strip() for g in os.environ.get("ALLOWED_COGNITO_GROUPS", "").split(",") if g.strip()
+)
+
+def _get_cognito_groups() -> set:
+    try:
+        access_token = st.context.headers.get("x-amzn-oidc-accesstoken", "")
+        if not access_token:
+            return set()
+        payload_b64 = access_token.split(".")[1]
+        payload_b64 += "=" * (4 - len(payload_b64) % 4)
+        payload = json.loads(base64.urlsafe_b64decode(payload_b64))
+        return set(payload.get("cognito:groups", []))
+    except Exception:
+        return set()
+
+if _allowed_groups and not (_get_cognito_groups() & _allowed_groups):
+    st.error("403 - Access Denied: you are not authorised to access this application.")
+    st.stop()
 
 source_files = None
 s3_files = []
