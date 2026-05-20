@@ -60,6 +60,11 @@ def parse_s3_uri(s3_uri):
 def s3_get_object(bucket, key):
     return s3_client.get_object(Bucket=bucket, Key=key)['Body'].read()
 
+def s3_head_object(bucket, key):
+    """Get S3 object metadata (user-defined metadata)."""
+    response = s3_client.head_object(Bucket=bucket, Key=key)
+    return response.get("Metadata", {})
+
 def sanitize_filename(filename: str) -> str:
     forbidden_chars = r'\.\/:*?"“”<>«»|–’,'
     
