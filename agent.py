@@ -1,10 +1,11 @@
 import streamlit as st
 import logging
+import re
 import uuid
 import base64
 import json
 import os
-from src.utils import parse_s3_uri, query_agent, s3_get_object
+from src.utils import parse_s3_uri, query_agent, s3_get_object, s3_head_object
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -39,8 +40,13 @@ if _allowed_groups and not (_get_cognito_groups() & _allowed_groups):
     st.stop()
 
 source_files = None
-s3_files = []
+s3_refs_collected = []
 web_refs = []
+
+# Bucket names
+BUCKET_EXTRACTED_TEXT = "prometheon-joule-verne-bfe-extracted-text-dev"
+BUCKET_PDF = "prometheon-joule-verne-bfe-public-data-pdf-dev"
+BUCKET_WEBSITE = "prometheon-joule-verne-bfe-website-content-dev"
 
 session_id = st.session_state.get("session_id", str(uuid.uuid4()))
 st.session_state["session_id"] = session_id
@@ -99,15 +105,11 @@ if prompt:
                               chunk = event["chunk"]
                               if chunk.get('attribution'):
                                     for c in chunk['attribution']['citations']:
-
-                                          s3_refs = [refs_type["location"]["s3Location"]["uri"]
-                                                for refs_type in c["retrievedReferences"] if refs_type["location"]["type"]=="S3"]
-                                          if s3_refs:
-                                                s3_refs = set(s3_refs)
-                                                buckets, keys, s3_files = zip(*[parse_s3_uri(uri) for uri in s3_refs])
-                                          web_refs = [refs_type["location"]["webLocation"]["url"]
-                                                for refs_type in c["retrievedReferences"] if refs_type["location"]["type"]=="WEB"]
-                                          web_refs = set(web_refs)
+                                          for ref in c["retrievedReferences"]:
+                                                if ref["location"]["type"] == "S3":
+                                                      s3_refs_collected.append(ref["location"]["s3Location"]["uri"])
+                                                elif ref["location"]["type"] == "WEB":
+                                                      web_refs.append(ref["location"]["webLocation"]["url"])
 
                               reply = chunk['bytes'].decode()
 
@@ -124,28 +126,73 @@ if prompt:
                                     logging.info("%s: %s",key,value)
 
 st.sidebar.write("**Sources** :bulb:")
-if s3_files or web_refs:
-      
-      if web_refs:
-            for web in web_refs:
-                  st.sidebar.write(web)
-            
-      if s3_files:
-            for b, k, s in zip(buckets, keys, s3_files):
-                  type_ = "application/pdf"
-                  if s.endswith('-parsedtxt'):
-                        base_filename = s.rsplit("/", 1)[-1].replace("-parsedtxt", ".pdf")
-                        pdf_subfolder = "pdfs-batch/"
-                        k = pdf_subfolder + base_filename
-                        s = base_filename
-                        
-                  st.sidebar.download_button(
-                        label=f"{s}",
-                        file_name=s,
-                        key=k,
-                        data = s3_get_object(b, k),
-                        on_click='ignore',
-                        icon="📃",
-                        mime=type_
+if s3_refs_collected or web_refs:
+      # Deduplicate
+      s3_refs_collected = list(set(s3_refs_collected))
+      web_refs = list(set(web_refs))
+
+      # Display web refs that came directly as WEB type
+      for web in web_refs:
+            st.sidebar.markdown(f"🌐 [{web}]({web})")
+
+      # Process S3 references
+      shown_pdfs = set()
+      shown_urls = set()
+
+      for uri in s3_refs_collected:
+            bucket, key, filename = parse_s3_uri(uri)
+
+            # Website content .txt → show original URL from metadata
+            if bucket == BUCKET_WEBSITE:
+                  try:
+                        metadata = s3_head_object(bucket, key)
+                        source_url = metadata.get("source_url", "")
+                        if source_url and source_url not in shown_urls:
+                              shown_urls.add(source_url)
+                              st.sidebar.markdown(f"🌐 [{source_url}]({source_url})")
+                        elif not source_url:
+                              st.sidebar.write(f"🌐 {filename} (source URL not available)")
+                  except Exception:
+                        st.sidebar.write(f"🌐 {filename}")
+
+            # Extracted text .txt → download corresponding PDF
+            elif bucket == BUCKET_EXTRACTED_TEXT:
+                  try:
+                        # Strip _partN suffix and replace .txt with .pdf
+                        pdf_filename = re.sub(r"_part\d+\.txt$", ".pdf", filename)
+                        if pdf_filename == filename:
+                              # No _partN suffix, just replace .txt
+                              pdf_filename = filename.replace(".txt", ".pdf")
+
+                        if pdf_filename in shown_pdfs:
+                              continue
+                        shown_pdfs.add(pdf_filename)
+
+                        pdf_key = pdf_filename
+                        st.sidebar.download_button(
+                              label=pdf_filename,
+                              file_name=pdf_filename,
+                              key=f"{pdf_filename}",
+                              data=s3_get_object(BUCKET_PDF, pdf_key),
+                              on_click='ignore',
+                              icon="📃",
+                              mime="application/pdf"
                         )
+                  except Exception as e:
+                        st.sidebar.write(f"📃 {filename} (PDF not available)")
+
+            # Any other S3 bucket — fallback: offer download as-is
+            else:
+                  try:
+                        st.sidebar.download_button(
+                              label=filename,
+                              file_name=filename,
+                              key=f"{uri}",
+                              data=s3_get_object(bucket, key),
+                              on_click='ignore',
+                              icon="📃",
+                              mime="application/octet-stream"
+                        )
+                  except Exception:
+                        st.sidebar.write(f"📃 {filename}")
 
