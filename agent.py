@@ -78,13 +78,36 @@ st.sidebar.write("**Settings**  :pushpin:")
 # Web search toggle — disabled once conversation has started
 has_messages = len(st.session_state.get("messages", [])) > 0
 
-web_search_enabled = st.sidebar.toggle(
+web_search_toggle = st.sidebar.toggle(
       "🔍 Enable web search",
       value=st.session_state.get("web_search_enabled", False),
       disabled=has_messages,
       help="Enables web search for current news and events. Can only be selected before the first message."
 )
-st.session_state["web_search_enabled"] = web_search_enabled
+
+# Confirmation dialog when user enables web search
+if web_search_toggle and not st.session_state.get("web_search_enabled", False):
+      @st.dialog("⚠️ Enable web search?")
+      def confirm_web_search():
+            st.write(
+                  "When web search is enabled, your queries may be sent to external search services. "
+                  "Results may include unverified information from the internet. "
+                  "It is your responsibility to not share any internal information and to verify the output. "
+                  "Are you sure you want to proceed?"
+            )
+            col_yes, col_no = st.columns(2)
+            with col_yes:
+                  if st.button("Yes, enable", use_container_width=True):
+                        st.session_state["web_search_enabled"] = True
+                        st.rerun()
+            with col_no:
+                  if st.button("Cancel", use_container_width=True):
+                        st.rerun()
+      confirm_web_search()
+elif not web_search_toggle:
+      st.session_state["web_search_enabled"] = False
+
+web_search_enabled = st.session_state.get("web_search_enabled", False)
 
 # Select agent based on toggle
 if web_search_enabled:
