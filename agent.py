@@ -5,7 +5,7 @@ import uuid
 import base64
 import json
 import os
-from src.utils import parse_s3_uri, query_agent, s3_get_object, s3_head_object
+from src.utils import parse_s3_uri, query_agent, s3_get_object, s3_head_object, AGENT_ID, AGENT_ALIAS_ID, AGENT_SEARCH_ID, AGENT_SEARCH_ALIAS_ID
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -75,6 +75,25 @@ for message in st.session_state.messages:
 
 st.sidebar.write("**Settings**  :pushpin:")
 
+# Web search toggle — disabled once conversation has started
+has_messages = len(st.session_state.get("messages", [])) > 0
+
+web_search_enabled = st.sidebar.toggle(
+      "🔍 Enable web search",
+      value=st.session_state.get("web_search_enabled", False),
+      disabled=has_messages,
+      help="Enables web search for current news and events. Can only be selected before the first message."
+)
+st.session_state["web_search_enabled"] = web_search_enabled
+
+# Select agent based on toggle
+if web_search_enabled:
+      active_agent_id = AGENT_SEARCH_ID
+      active_alias_id = AGENT_SEARCH_ALIAS_ID
+else:
+      active_agent_id = AGENT_ID
+      active_alias_id = AGENT_ALIAS_ID
+
 keep_session = st.sidebar.toggle("Session history", value=True, key="keep_session")
 
 if not keep_session:
@@ -82,6 +101,7 @@ if not keep_session:
 
 if st.sidebar.button("Clear chat", icon="✏️"):
       st.session_state["messages"] = []
+      st.session_state["web_search_enabled"] = False
       st.rerun()
       
 prompt = st.chat_input(
@@ -97,7 +117,7 @@ if prompt:
             st.session_state.messages.append({"role": "user", "content": prompt})
 
             with st.spinner('Your question is being processed'):
-                  response = query_agent(prompt, st.session_state["session_id"])
+                  response = query_agent(prompt, st.session_state["session_id"], active_agent_id, active_alias_id)
                   for event in response.get("completion"):
                         
                         #Collect agent output.
