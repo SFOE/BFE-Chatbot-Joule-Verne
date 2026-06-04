@@ -1,4 +1,4 @@
-name: Build and Upload Docker Image to ECR on prometheon-workload-jouleverne-dev
+name: Build and Upload Docker Image to ECR
 
 on:
   pull_request:
@@ -14,61 +14,38 @@ permissions:
   id-token: write
 
 jobs:
-  build-and-upload:
-    runs-on: ubuntu-latest
-    environment: prometheon-access
+  build-scan-push-pr:
+    if: github.event_name == 'pull_request'
+    uses: SFOE-prometheon/github-terraform-workflows/.github/workflows/ecr-build-scan-push.yml@v9
+    with:
+      dockerfile: Dockerfile
+      build-context: .
+      ecr-repository: jouleverne
+      image-tag: pr-${{ github.event.pull_request.number }}
+      aws-region: eu-central-1
+    secrets:
+      aws-role: ${{ secrets.SFOE_JOULEVERNE_PIPELINE_ROLE_DEV }}
 
-    strategy:
-      matrix:
-        env:
-          - name: dev
-            role: SFOE_JOULEVERNE_DEV_ROLE
-          # - name: prod
-          #   role: SFOE_JOULEVERNE_PROD_ROLE
+  build-scan-push-latest:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    uses: SFOE-prometheon/github-terraform-workflows/.github/workflows/ecr-build-scan-push.yml@v9
+    with:
+      dockerfile: Dockerfile
+      build-context: .
+      ecr-repository: jouleverne
+      image-tag: latest
+      aws-region: eu-central-1
+    secrets:
+      aws-role: ${{ secrets.SFOE_JOULEVERNE_PIPELINE_ROLE_DEV }}
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ vars[matrix.env.role] }}
-          aws-region: eu-central-1
-
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Build, tag, and push Docker image to Amazon ECR (PR)
-        if: github.event_name == 'pull_request' && matrix.env.name == 'dev'
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: jouleverne
-          IMAGE_TAG: pr-${{ github.event.pull_request.number }}
-        run: |
-          docker build -t $ECR_REPOSITORY:$IMAGE_TAG .
-          docker tag $ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-
-      - name: Build, tag, and push Docker image to Amazon ECR (main)
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && matrix.env.name == 'dev'
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: jouleverne
-          IMAGE_TAG: latest
-        run: |
-          docker build -t $ECR_REPOSITORY:$IMAGE_TAG .
-          docker tag $ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-
-      - name: Build, tag, and push Docker image to Amazon ECR (release)
-        if: github.event_name == 'release'
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: jouleverne
-          IMAGE_TAG: ${{ github.event.release.tag_name }}
-        run: |
-          docker build -t $ECR_REPOSITORY:$IMAGE_TAG .
-          docker tag $ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+  build-scan-push-release:
+    if: github.event_name == 'release'
+    uses: SFOE-prometheon/github-terraform-workflows/.github/workflows/ecr-build-scan-push.yml@v9
+    with:
+      dockerfile: Dockerfile
+      build-context: .
+      ecr-repository: jouleverne
+      image-tag: ${{ github.event.release.tag_name }}
+      aws-region: eu-central-1
+    secrets:
+      aws-role: ${{ secrets.SFOE_JOULEVERNE_PIPELINE_ROLE_DEV }}
