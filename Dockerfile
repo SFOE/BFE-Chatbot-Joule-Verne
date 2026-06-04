@@ -1,39 +1,48 @@
-# Stage 1: Install dependencies (has build tools)
+# ─── Stage 1: build ──────────────────────────────────────────────────────────
+# build-essential (and its perl dependency) stays here and never reaches runtime
 FROM python:3.11-slim AS builder
 
-WORKDIR /app
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
 
-RUN apt-get update && apt-get upgrade -y && apt-get install -y \
-    git \
+WORKDIR /app
+COPY requirements.txt .
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libffi-dev \
     libssl-dev \
     python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
+# Upgrade wheel (fixes CVE-2026-24049) and setuptools (fixes CVE-2026-23949 via
+# updated vendored jaraco.context) before installing project requirements
+RUN pip install --no-cache-dir --upgrade pip "wheel>=0.46.2" setuptools
 
-RUN pip install --upgrade pip setuptools wheel
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Stage 2: Final image (no build tools)
+# ─── Stage 2: runtime ────────────────────────────────────────────────────────
+# Fresh base: no build tools, no perl, no git (GitPython is not used by the app).
 FROM python:3.11-slim
 
 WORKDIR /app
 
-# Upgrade OS packages to get security patches, install only runtime deps
-RUN apt-get update && apt-get upgrade -y && apt-get install -y \
-    git \
+COPY --from=builder /opt/venv /opt/venv
+
+# Upgrade system Python packaging tools BEFORE activating the venv so that
+# /usr/local/bin/pip is used — the venv pip would otherwise shadow it.
+# This fixes pip (CVE-2025-8869, CVE-2026-6357, CVE-2026-3219, CVE-2026-1703),
+# wheel (CVE-2026-24049), and setuptools-vendored jaraco.context (CVE-2026-23949).
+# Purge the full `perl` package: no fix version exists (all perl CVEs show null),
+# and perl is not required at runtime; perl-base (Required) stays.
+RUN pip install --no-cache-dir --upgrade pip "wheel>=0.46.2" setuptools \
+    && apt-get update \
+    && apt-get upgrade -y --no-install-recommends \
+    && apt-get purge -y --auto-remove perl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy installed Python packages from builder
-COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
-COPY --from=builder /usr/local/bin /usr/local/bin
+ENV PATH="/opt/venv/bin:$PATH"
 
-# Upgrade pip in final image to fix pip CVEs
-RUN pip install --upgrade pip setuptools wheel
-
-# Copy application code
 COPY . .
 
 EXPOSE 8501
