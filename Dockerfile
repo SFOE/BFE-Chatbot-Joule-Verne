@@ -28,11 +28,20 @@ FROM python:3.11-slim
 WORKDIR /app
 
 COPY --from=builder /opt/venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
 
-# No OS packages needed at runtime — git was removed because GitPython is unused.
-# apt-get upgrade picks up any available OS patches.
-RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
+# Upgrade system Python packaging tools BEFORE activating the venv so that
+# /usr/local/bin/pip is used — the venv pip would otherwise shadow it.
+# This fixes pip (CVE-2025-8869, CVE-2026-6357, CVE-2026-3219, CVE-2026-1703),
+# wheel (CVE-2026-24049), and setuptools-vendored jaraco.context (CVE-2026-23949).
+# Purge the full `perl` package: no fix version exists (all perl CVEs show null),
+# and perl is not required at runtime; perl-base (Required) stays.
+RUN pip install --no-cache-dir --upgrade pip "wheel>=0.46.2" setuptools \
+    && apt-get update \
+    && apt-get upgrade -y --no-install-recommends \
+    && apt-get purge -y --auto-remove perl \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV PATH="/opt/venv/bin:$PATH"
 
 COPY . .
 
