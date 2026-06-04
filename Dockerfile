@@ -24,6 +24,8 @@ WORKDIR /app
 # Upgrade OS packages to get security patches, install only runtime deps
 RUN apt-get update && apt-get upgrade -y && apt-get install -y \
     git \
+    && apt-get remove -y perl-base || true \
+    && apt-get autoremove -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy installed Python packages from builder
