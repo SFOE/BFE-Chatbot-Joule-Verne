@@ -24,6 +24,8 @@ load_dotenv()
 AWS_REGION = os.getenv("AWS_REGION")
 AGENT_ALIAS_ID = os.getenv("AGENT_ALIAS_ID")
 AGENT_ID = os.getenv("AGENT_ID")
+AGENT_SEARCH_ID = os.getenv("AGENT_SEARCH_ID")
+AGENT_SEARCH_ALIAS_ID = os.getenv("AGENT_SEARCH_ALIAS_ID")
 
 
 s3_client = boto3.client(
@@ -36,10 +38,10 @@ bedrock_client = boto3.client(
     region_name=AWS_REGION
     )
 
-def query_agent(prompt, session_id):
+def query_agent(prompt, session_id, agent_id=None, agent_alias_id=None):
       response = bedrock_client.invoke_agent(
-            agentAliasId = AGENT_ALIAS_ID,
-            agentId = AGENT_ID,
+            agentAliasId=agent_alias_id or AGENT_ALIAS_ID,
+            agentId=agent_id or AGENT_ID,
             enableTrace=True,
             sessionId=session_id,
             inputText=prompt
