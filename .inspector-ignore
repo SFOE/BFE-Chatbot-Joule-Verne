@@ -1,0 +1,1 @@
+CVE-2026-45186 # expat: fix (2.8.1-1) is only available in Debian sid/forky, not yet backported to trixie; expat cannot be removed as it is a hard dependency of libpython3.11 — https://security-tracker.debian.org/tracker/CVE-2026-45186
