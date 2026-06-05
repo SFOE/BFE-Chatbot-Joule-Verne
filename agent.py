@@ -78,15 +78,19 @@ st.sidebar.write("**Settings**  :pushpin:")
 # Web search toggle — disabled once conversation has started
 has_messages = len(st.session_state.get("messages", [])) > 0
 
+# Initialize toggle key to match web_search_enabled state
+if "web_search_toggle_value" not in st.session_state:
+      st.session_state["web_search_toggle_value"] = st.session_state.get("web_search_enabled", False)
+
 web_search_toggle = st.sidebar.toggle(
       "🔍 Enable web search",
-      value=st.session_state.get("web_search_enabled", False),
+      key="web_search_toggle_value",
       disabled=has_messages,
       help="Enables web search for current news and events. Can only be selected before the first message."
 )
 
 # Confirmation dialog when user enables web search
-if web_search_toggle and not st.session_state.get("web_search_enabled", False):
+if web_search_toggle and not st.session_state.get("web_search_enabled", False) and not st.session_state.pop("web_search_cancelled", False):
       @st.dialog("⚠️ Enable web search?")
       def confirm_web_search():
             st.write(
@@ -102,10 +106,14 @@ if web_search_toggle and not st.session_state.get("web_search_enabled", False):
                         st.rerun()
             with col_no:
                   if st.button("Cancel", use_container_width=True):
+                        st.session_state["web_search_enabled"] = False
+                        st.session_state["web_search_toggle_value"] = False
+                        st.session_state["web_search_cancelled"] = True
                         st.rerun()
       confirm_web_search()
-elif not web_search_toggle:
+elif not web_search_toggle and not has_messages:
       st.session_state["web_search_enabled"] = False
+      st.session_state.pop("web_search_cancelled", None)
 
 web_search_enabled = st.session_state.get("web_search_enabled", False)
 
