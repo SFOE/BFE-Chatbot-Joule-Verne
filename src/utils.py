@@ -1,4 +1,6 @@
 import os
+import json
+from datetime import datetime, timezone
 from urllib.parse import urlparse
 import boto3
 from dotenv import load_dotenv
@@ -19,6 +21,7 @@ AGENT_ALIAS_ID = os.getenv("AGENT_ALIAS_ID")
 AGENT_ID = os.getenv("AGENT_ID")
 AGENT_SEARCH_ID = os.getenv("AGENT_SEARCH_ID")
 AGENT_SEARCH_ALIAS_ID = os.getenv("AGENT_SEARCH_ALIAS_ID")
+FEEDBACK_BUCKET = os.getenv("FEEDBACK_BUCKET")
 
 
 s3_client = boto3.client(
@@ -59,3 +62,30 @@ def s3_head_object(bucket, key):
     """Get S3 object metadata (user-defined metadata)."""
     response = s3_client.head_object(Bucket=bucket, Key=key)
     return response.get("Metadata", {})
+
+
+def save_feedback(session_id, message_index, rating, user_query, agent_response, agent_variant):
+    """Save user feedback (thumbs up/down) to S3 as a JSON file."""
+    if not FEEDBACK_BUCKET:
+        logging.warning("FEEDBACK_BUCKET not configured, skipping feedback save.")
+        return
+
+    now = datetime.now(timezone.utc)
+    feedback = {
+        "session_id": session_id,
+        "timestamp": now.isoformat(),
+        "rating": rating,
+        "user_query": user_query,
+        "agent_response": agent_response,
+        "agent_variant": agent_variant,
+        "message_index": message_index,
+    }
+
+    key = f"feedback/{now.year}/{now.month:02d}/{now.day:02d}/{session_id}_{message_index}.json"
+
+    s3_client.put_object(
+        Bucket=FEEDBACK_BUCKET,
+        Key=key,
+        Body=json.dumps(feedback, ensure_ascii=False),
+        ContentType="application/json",
+    )

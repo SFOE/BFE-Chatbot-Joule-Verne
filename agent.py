@@ -5,7 +5,7 @@ import uuid
 import base64
 import json
 import os
-from src.utils import parse_s3_uri, query_agent, s3_get_object, s3_head_object, AGENT_ID, AGENT_ALIAS_ID, AGENT_SEARCH_ID, AGENT_SEARCH_ALIAS_ID
+from src.utils import parse_s3_uri, query_agent, s3_get_object, s3_head_object, save_feedback, AGENT_ID, AGENT_ALIAS_ID, AGENT_SEARCH_ID, AGENT_SEARCH_ALIAS_ID
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -69,9 +69,30 @@ with st.expander(":information_source: :construction:"):
     For any questions or requests you can [contact us](mailto:digitalisierung@bfe.admin.ch) at the Digital Innovation & Geoinformation section :blush:
     """)
 
-for message in st.session_state.messages:
+for idx, message in enumerate(st.session_state.messages):
       with st.chat_message(message["role"]):
             st.markdown(message["content"])
+            if message["role"] == "assistant":
+                  feedback_key = f"feedback_{idx}"
+                  score = st.feedback("thumbs", key=feedback_key)
+                  if score is not None and st.session_state.get(f"{feedback_key}_saved") != score:
+                        # Find the preceding user message
+                        user_query = ""
+                        for prev in range(idx - 1, -1, -1):
+                              if st.session_state.messages[prev]["role"] == "user":
+                                    user_query = st.session_state.messages[prev]["content"]
+                                    break
+                        rating = "positive" if score == 1 else "negative"
+                        agent_variant = "web_search" if st.session_state.get("web_search_enabled", False) else "default"
+                        save_feedback(
+                              session_id=st.session_state["session_id"],
+                              message_index=idx,
+                              rating=rating,
+                              user_query=user_query,
+                              agent_response=message["content"],
+                              agent_variant=agent_variant,
+                        )
+                        st.session_state[f"{feedback_key}_saved"] = score
 
 st.sidebar.write("**Settings**  :pushpin:")
 
