@@ -138,6 +138,7 @@ if st.sidebar.button("Clear chat", icon="✏️"):
 prompt = st.chat_input(
       "Type your question here..."
 )
+st.caption("🔒 Your interactions are logged to help us improve this chatbot.")
 
 if prompt:
       if prompt.strip() == "": 
