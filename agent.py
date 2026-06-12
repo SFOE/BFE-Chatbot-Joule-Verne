@@ -198,6 +198,8 @@ if prompt:
                               for key, value in trace.items():
                                     logging.info("%s: %s",key,value)
 
+            st.rerun()
+
 st.sidebar.write("**Sources** :bulb:")
 if s3_refs_collected or web_refs:
       # Deduplicate
