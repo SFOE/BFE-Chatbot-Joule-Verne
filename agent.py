@@ -39,7 +39,6 @@ if _allowed_groups and not (_get_cognito_groups() & _allowed_groups):
     st.error("403 - Access Denied: you are not authorised to access this application.")
     st.stop()
 
-source_files = None
 
 # Initialize sources in session state (only last answer's sources are kept)
 if "s3_refs" not in st.session_state:
@@ -66,6 +65,8 @@ with col1:
 
 with col2:
       st.title("Demo BFE - Chatbot :zap:")
+
+st.caption("🔒 Your interactions are logged to help us improve this chatbot.")
 
 with st.expander(":information_source: :construction:"):
     st.write("""
@@ -169,7 +170,6 @@ if st.sidebar.button("Clear chat", icon="✏️"):
 prompt = st.chat_input(
       "Type your question here..."
 )
-st.caption("🔒 Your interactions are logged to help us improve this chatbot.")
 
 if prompt:
       if prompt.strip() == "": 
