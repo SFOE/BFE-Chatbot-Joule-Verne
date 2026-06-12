@@ -40,8 +40,12 @@ if _allowed_groups and not (_get_cognito_groups() & _allowed_groups):
     st.stop()
 
 source_files = None
-s3_refs_collected = []
-web_refs = []
+
+# Initialize sources in session state (only last answer's sources are kept)
+if "s3_refs" not in st.session_state:
+      st.session_state["s3_refs"] = []
+if "web_refs" not in st.session_state:
+      st.session_state["web_refs"] = []
 
 # Bucket names
 BUCKET_EXTRACTED_TEXT = "prometheon-joule-verne-bfe-extracted-text-dev"
@@ -154,6 +158,12 @@ if not keep_session:
 if st.sidebar.button("Clear chat", icon="✏️"):
       st.session_state["messages"] = []
       st.session_state["web_search_enabled"] = False
+      st.session_state["s3_refs"] = []
+      st.session_state["web_refs"] = []
+      # Clear saved feedback markers
+      keys_to_remove = [k for k in st.session_state if k.startswith("feedback_")]
+      for k in keys_to_remove:
+            del st.session_state[k]
       st.rerun()
       
 prompt = st.chat_input(
@@ -170,6 +180,10 @@ if prompt:
             st.session_state.messages.append({"role": "user", "content": prompt})
 
             with st.spinner('Your question is being processed'):
+                  # Reset sources for new question
+                  st.session_state["s3_refs"] = []
+                  st.session_state["web_refs"] = []
+
                   response = query_agent(prompt, st.session_state["session_id"], active_agent_id, active_alias_id)
                   for event in response.get("completion"):
                         
@@ -180,9 +194,9 @@ if prompt:
                                     for c in chunk['attribution']['citations']:
                                           for ref in c["retrievedReferences"]:
                                                 if ref["location"]["type"] == "S3":
-                                                      s3_refs_collected.append(ref["location"]["s3Location"]["uri"])
+                                                      st.session_state["s3_refs"].append(ref["location"]["s3Location"]["uri"])
                                                 elif ref["location"]["type"] == "WEB":
-                                                      web_refs.append(ref["location"]["webLocation"]["url"])
+                                                      st.session_state["web_refs"].append(ref["location"]["webLocation"]["url"])
 
                               reply = chunk['bytes'].decode()
 
@@ -201,6 +215,9 @@ if prompt:
             st.rerun()
 
 st.sidebar.write("**Sources** :bulb:")
+s3_refs_collected = st.session_state.get("s3_refs", [])
+web_refs = st.session_state.get("web_refs", [])
+
 if s3_refs_collected or web_refs:
       # Deduplicate
       s3_refs_collected = list(set(s3_refs_collected))
