@@ -11,6 +11,7 @@ linkColor="#8860bdff"
 [client]
 
 toolbarMode="viewer"
+maxUploadSize=20
 
 [theme.sidebar]
 
