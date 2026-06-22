@@ -34,14 +34,19 @@ bedrock_client = boto3.client(
     region_name=AWS_REGION
     )
 
-def query_agent(prompt, session_id, agent_id=None, agent_alias_id=None):
-      response = bedrock_client.invoke_agent(
+def query_agent(prompt, session_id, agent_id=None, agent_alias_id=None, session_attributes=None):
+      kwargs = dict(
             agentAliasId=agent_alias_id or AGENT_ALIAS_ID,
             agentId=agent_id or AGENT_ID,
             enableTrace=True,
             sessionId=session_id,
-            inputText=prompt
+            inputText=prompt,
       )
+      if session_attributes:
+            kwargs["sessionState"] = {
+                  "promptSessionAttributes": session_attributes
+            }
+      response = bedrock_client.invoke_agent(**kwargs)
       return response
 
 def parse_s3_uri(s3_uri):

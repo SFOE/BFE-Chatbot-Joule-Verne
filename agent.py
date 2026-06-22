@@ -6,6 +6,7 @@ import base64
 import json
 import os
 from src.utils import parse_s3_uri, query_agent, s3_get_object, s3_head_object, save_feedback, AGENT_ID, AGENT_ALIAS_ID, AGENT_SEARCH_ID, AGENT_SEARCH_ALIAS_ID
+from src.document_processing import extract_text, prepare_document_context, find_relevant_chunks
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -71,6 +72,7 @@ st.caption("🔒 Your interactions are logged to help us improve this chatbot.")
 with st.expander(":information_source: :construction:"):
     st.write("""
     This is a demo application and will still be submitted to changes. The chatbot might not always be correct or precise. Do not hesitate to check the sources in the side bar if unsure. Please be careful not to upload any personal data in the chat.
+    You can upload a document (PDF, TXT, DOCX) via the sidebar to ask questions about it during your session.
     For any questions or requests you can [contact us](mailto:digitalisierung@bfe.admin.ch) at the Digital Innovation & Geoinformation section :blush:
     """)
 
@@ -129,6 +131,12 @@ if web_search_toggle and not st.session_state.get("web_search_enabled", False) a
             with col_yes:
                   if st.button("Yes, enable", use_container_width=True):
                         st.session_state["web_search_enabled"] = True
+                        # Clear document upload state — not compatible with web search
+                        st.session_state.pop("doc_full_text", None)
+                        st.session_state.pop("doc_context", None)
+                        st.session_state.pop("doc_context_mode", None)
+                        st.session_state.pop("uploaded_doc_name", None)
+                        st.session_state.pop("uploaded_doc_pages", None)
                         st.rerun()
             with col_no:
                   if st.button("Cancel", use_container_width=True):
@@ -151,6 +159,85 @@ else:
       active_agent_id = AGENT_ID
       active_alias_id = AGENT_ALIAS_ID
 
+# ---------------------------------------------------------------------------
+# Document Upload
+# ---------------------------------------------------------------------------
+st.sidebar.divider()
+st.sidebar.write("**Document Upload** :page_facing_up:")
+
+if web_search_enabled:
+      st.sidebar.info("Document upload is not available when web search is enabled.")
+      uploaded_file = None
+else:
+      uploaded_file = st.sidebar.file_uploader(
+            "Upload a document to ask questions about it",
+            type=["pdf", "txt", "docx"],
+            key="doc_uploader",
+            help="Supported formats: PDF, TXT, DOCX (max 20 MB)",
+      )
+
+# Process newly uploaded file
+if uploaded_file is not None:
+      # Check if this is a new file (different from what's already processed)
+      current_doc_name = st.session_state.get("uploaded_doc_name")
+      if current_doc_name != uploaded_file.name:
+            with st.sidebar:
+                  with st.spinner("Extracting text…"):
+                        try:
+                              file_bytes = uploaded_file.read()
+                              extracted_text, page_count = extract_text(file_bytes, uploaded_file.name)
+
+                              # Store full text for targeted retrieval
+                              st.session_state["doc_full_text"] = extracted_text
+
+                              # Determine context strategy
+                              doc_context, context_mode = prepare_document_context(extracted_text)
+                              st.session_state["doc_context"] = doc_context
+                              st.session_state["doc_context_mode"] = context_mode
+                              st.session_state["uploaded_doc_name"] = uploaded_file.name
+                              st.session_state["uploaded_doc_pages"] = page_count
+
+                        except ValueError as e:
+                              st.error(str(e))
+                              st.session_state.pop("doc_full_text", None)
+                              st.session_state.pop("doc_context", None)
+                              st.session_state.pop("doc_context_mode", None)
+                              st.session_state.pop("uploaded_doc_name", None)
+                              st.session_state.pop("uploaded_doc_pages", None)
+                        except Exception as e:
+                              logging.error("Document extraction failed: %s", e)
+                              st.error("Failed to extract text from the document. Please try another file.")
+                              st.session_state.pop("doc_full_text", None)
+                              st.session_state.pop("doc_context", None)
+                              st.session_state.pop("doc_context_mode", None)
+                              st.session_state.pop("uploaded_doc_name", None)
+                              st.session_state.pop("uploaded_doc_pages", None)
+
+# Show document status and remove button
+if st.session_state.get("uploaded_doc_name") and not web_search_enabled:
+      doc_name = st.session_state["uploaded_doc_name"]
+      page_count = st.session_state.get("uploaded_doc_pages", "?")
+      context_mode = st.session_state.get("doc_context_mode", "full")
+      mode_label = "full text" if context_mode == "full" else "summary"
+
+      st.sidebar.success(f"📄 **{doc_name}** ({page_count} pages, {mode_label})")
+
+      if context_mode == "summary":
+            st.sidebar.caption(
+                  "ℹ️ Document is large — working from a summary. "
+                  "Ask about specific sections for detailed answers."
+            )
+
+      if st.sidebar.button("Remove document", icon="🗑️", key="remove_doc"):
+            st.session_state.pop("doc_full_text", None)
+            st.session_state.pop("doc_context", None)
+            st.session_state.pop("doc_context_mode", None)
+            st.session_state.pop("uploaded_doc_name", None)
+            st.session_state.pop("uploaded_doc_pages", None)
+            st.rerun()
+
+st.sidebar.divider()
+
 keep_session = st.sidebar.toggle("Session history", value=True, key="keep_session")
 
 if not keep_session:
@@ -161,6 +248,12 @@ if st.sidebar.button("Clear chat", icon="✏️"):
       st.session_state["web_search_enabled"] = False
       st.session_state["s3_refs"] = []
       st.session_state["web_refs"] = []
+      # Clear document upload state
+      st.session_state.pop("doc_full_text", None)
+      st.session_state.pop("doc_context", None)
+      st.session_state.pop("doc_context_mode", None)
+      st.session_state.pop("uploaded_doc_name", None)
+      st.session_state.pop("uploaded_doc_pages", None)
       # Clear saved feedback markers
       keys_to_remove = [k for k in st.session_state if k.startswith("feedback_")]
       for k in keys_to_remove:
@@ -184,7 +277,36 @@ if prompt:
                   st.session_state["s3_refs"] = []
                   st.session_state["web_refs"] = []
 
-                  response = query_agent(prompt, st.session_state["session_id"], active_agent_id, active_alias_id)
+                  # Build session attributes for document context
+                  session_attributes = None
+                  if st.session_state.get("doc_context") and not web_search_enabled:
+                        doc_context = st.session_state["doc_context"]
+                        context_mode = st.session_state.get("doc_context_mode", "full")
+
+                        # For summary mode, try targeted chunk retrieval for relevant details
+                        if context_mode == "summary" and st.session_state.get("doc_full_text"):
+                              relevant_chunks = find_relevant_chunks(
+                                    st.session_state["doc_full_text"], prompt
+                              )
+                              if relevant_chunks:
+                                    doc_context = (
+                                          f"DOCUMENT SUMMARY:\n{doc_context}\n\n"
+                                          f"RELEVANT SECTIONS:\n{relevant_chunks}"
+                                    )
+
+                        session_attributes = {
+                              "uploaded_document": doc_context,
+                              "document_name": st.session_state.get("uploaded_doc_name", ""),
+                              "context_mode": context_mode,
+                        }
+
+                  response = query_agent(
+                        prompt,
+                        st.session_state["session_id"],
+                        active_agent_id,
+                        active_alias_id,
+                        session_attributes=session_attributes,
+                  )
                   for event in response.get("completion"):
                         
                         #Collect agent output.

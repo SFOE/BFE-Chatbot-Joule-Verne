@@ -1,0 +1,231 @@
+"""
+Document upload processing: text extraction, summarization, and chunk retrieval.
+"""
+
+import io
+import logging
+import re
+from typing import Optional
+
+import boto3
+from pypdf import PdfReader
+from docx import Document as DocxDocument
+
+logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Configuration
+# ---------------------------------------------------------------------------
+TOKEN_THRESHOLD = 80_000  # ~80K tokens ≈ 320K chars
+CHAR_THRESHOLD = TOKEN_THRESHOLD * 4  # rough char estimate
+CHUNK_SIZE = 2000  # characters per chunk for targeted retrieval
+SESSION_ATTR_MAX_CHARS = 24_000  # ~25KB limit for promptSessionAttributes value
+
+
+# ---------------------------------------------------------------------------
+# Text Extraction
+# ---------------------------------------------------------------------------
+
+def extract_text_from_pdf(file_bytes: bytes) -> tuple[str, int]:
+    """Extract text from a PDF file. Returns (text, page_count)."""
+    reader = PdfReader(io.BytesIO(file_bytes))
+    pages = []
+    for page in reader.pages:
+        text = page.extract_text() or ""
+        pages.append(text)
+    full_text = "\n\n".join(pages)
+    full_text = _clean_text(full_text)
+    return full_text, len(reader.pages)
+
+
+def extract_text_from_txt(file_bytes: bytes) -> tuple[str, int]:
+    """Extract text from a plain text file. Returns (text, 1)."""
+    text = file_bytes.decode("utf-8", errors="replace")
+    text = _clean_text(text)
+    return text, 1
+
+
+def extract_text_from_docx(file_bytes: bytes) -> tuple[str, int]:
+    """Extract text from a DOCX file. Returns (text, page_count_estimate)."""
+    doc = DocxDocument(io.BytesIO(file_bytes))
+    paragraphs = [p.text for p in doc.paragraphs if p.text.strip()]
+    full_text = "\n\n".join(paragraphs)
+    full_text = _clean_text(full_text)
+    # Estimate page count (~3000 chars per page)
+    page_estimate = max(1, len(full_text) // 3000)
+    return full_text, page_estimate
+
+
+def extract_text(file_bytes: bytes, filename: str) -> tuple[str, int]:
+    """
+    Extract text from an uploaded file based on its extension.
+    Returns (extracted_text, page_count).
+    Raises ValueError if the file type is unsupported or extraction fails.
+    """
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+
+    if ext == "pdf":
+        text, pages = extract_text_from_pdf(file_bytes)
+    elif ext == "txt":
+        text, pages = extract_text_from_txt(file_bytes)
+    elif ext == "docx":
+        text, pages = extract_text_from_docx(file_bytes)
+    else:
+        raise ValueError(f"Unsupported file type: .{ext}")
+
+    if not text_quality_ok(text):
+        raise ValueError(
+            "The extracted text appears to be of low quality (possibly a scanned PDF). "
+            "Please upload a text-based document."
+        )
+
+    return text, pages
+
+
+# ---------------------------------------------------------------------------
+# Text Quality & Cleaning
+# ---------------------------------------------------------------------------
+
+def _clean_text(text: str) -> str:
+    """Remove SVG artifacts and normalize whitespace."""
+    text = remove_svg_artifacts(text)
+    # Collapse multiple blank lines
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
+
+
+def remove_svg_artifacts(text: str) -> str:
+    """Remove SVG/XML-like artifacts from extracted text."""
+    text = re.sub(r"<svg[^>]*>.*?</svg>", "", text, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(r"<[^>]+>", "", text)
+    return text
+
+
+def text_quality_ok(text: str, min_alpha_ratio: float = 0.3, min_length: int = 50) -> bool:
+    """Check if extracted text has acceptable quality."""
+    if len(text.strip()) < min_length:
+        return False
+    alpha_chars = sum(1 for c in text if c.isalpha())
+    total_chars = len(text.replace(" ", "").replace("\n", ""))
+    if total_chars == 0:
+        return False
+    return (alpha_chars / total_chars) >= min_alpha_ratio
+
+
+# ---------------------------------------------------------------------------
+# Summarization
+# ---------------------------------------------------------------------------
+
+def summarize_document(text: str, region: Optional[str] = None) -> str:
+    """
+    Summarize a large document using Bedrock Claude.
+    Returns a comprehensive summary preserving key facts and structure.
+    """
+    import os
+    import json
+
+    region = region or os.getenv("AWS_REGION", "us-east-1")
+    bedrock_runtime = boto3.client("bedrock-runtime", region_name=region)
+
+    # Truncate input to ~200K chars to stay within model limits
+    max_input_chars = 200_000
+    truncated = text[:max_input_chars]
+    if len(text) > max_input_chars:
+        truncated += "\n\n[... document truncated for summarization ...]"
+
+    prompt = (
+        "Summarize the following document comprehensively, preserving key facts, "
+        "figures, dates, names, and structural sections. The summary should be "
+        "detailed enough to answer most questions about the document's content.\n\n"
+        f"DOCUMENT:\n{truncated}"
+    )
+
+    body = json.dumps({
+        "anthropic_version": "bedrock-2023-05-31",
+        "max_tokens": 4096,
+        "messages": [{"role": "user", "content": prompt}],
+    })
+
+    try:
+        response = bedrock_runtime.invoke_model(
+            modelId="anthropic.claude-3-haiku-20240307-v1:0",
+            contentType="application/json",
+            accept="application/json",
+            body=body,
+        )
+        result = json.loads(response["body"].read())
+        return result["content"][0]["text"]
+    except Exception as e:
+        logger.error("Summarization failed: %s", e)
+        # Fallback: return truncated beginning
+        fallback_len = SESSION_ATTR_MAX_CHARS - 500
+        return text[:fallback_len] + "\n\n[... truncated, summarization unavailable ...]"
+
+
+# ---------------------------------------------------------------------------
+# Smart Context Strategy
+# ---------------------------------------------------------------------------
+
+def prepare_document_context(extracted_text: str) -> tuple[str, str]:
+    """
+    Decide whether to use full text or a summary based on size.
+    Returns (context_text, context_mode) where context_mode is "full" or "summary".
+    """
+    if len(extracted_text) < CHAR_THRESHOLD:
+        # Still need to respect session attribute size limit
+        if len(extracted_text) <= SESSION_ATTR_MAX_CHARS:
+            return extracted_text, "full"
+        else:
+            # Text fits in context window but exceeds session attribute limit
+            summary = summarize_document(extracted_text)
+            return summary, "summary"
+    else:
+        summary = summarize_document(extracted_text)
+        return summary, "summary"
+
+
+# ---------------------------------------------------------------------------
+# Targeted Chunk Retrieval (for large documents)
+# ---------------------------------------------------------------------------
+
+def chunk_text(text: str, chunk_size: int = CHUNK_SIZE) -> list[str]:
+    """Split text into overlapping chunks."""
+    chunks = []
+    step = chunk_size - 200  # 200-char overlap
+    for i in range(0, len(text), step):
+        chunk = text[i:i + chunk_size]
+        if chunk.strip():
+            chunks.append(chunk)
+    return chunks
+
+
+def find_relevant_chunks(full_text: str, query: str, top_k: int = 3) -> str:
+    """
+    Simple keyword-based chunk retrieval.
+    Returns the top matching chunks concatenated.
+    """
+    chunks = chunk_text(full_text)
+    if not chunks:
+        return ""
+
+    # Extract keywords from query (words > 3 chars)
+    keywords = [w.lower() for w in re.split(r"\W+", query) if len(w) > 3]
+    if not keywords:
+        return ""
+
+    # Score each chunk by keyword occurrence
+    scored = []
+    for chunk in chunks:
+        chunk_lower = chunk.lower()
+        score = sum(chunk_lower.count(kw) for kw in keywords)
+        if score > 0:
+            scored.append((score, chunk))
+
+    scored.sort(key=lambda x: x[0], reverse=True)
+    top_chunks = [chunk for _, chunk in scored[:top_k]]
+
+    result = "\n\n---\n\n".join(top_chunks)
+    # Ensure it fits in session attributes
+    if len(result) > SESSION_ATTR_MAX_CHARS:
+        result = result[:SESSION_ATTR_MAX_CHARS]
+    return result
