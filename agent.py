@@ -91,7 +91,7 @@ for idx, message in enumerate(st.session_state.messages):
                                     break
                         rating = "positive" if score == 1 else "negative"
                         agent_variant = "web_search" if st.session_state.get("web_search_enabled", False) else "default"
-                        retrieved_sources = message.get("sources", {})
+                        retrieved_chunks = message.get("retrieved_chunks", [])
                         save_feedback(
                               session_id=st.session_state["session_id"],
                               message_index=idx,
@@ -99,7 +99,7 @@ for idx, message in enumerate(st.session_state.messages):
                               user_query=user_query,
                               agent_response=message["content"],
                               agent_variant=agent_variant,
-                              retrieved_sources=retrieved_sources,
+                              retrieved_chunks=retrieved_chunks,
                         )
                         st.session_state[f"{feedback_key}_saved"] = score
 
@@ -278,6 +278,7 @@ if prompt:
                   # Reset sources for new question
                   st.session_state["s3_refs"] = []
                   st.session_state["web_refs"] = []
+                  st.session_state["retrieved_chunks"] = []
 
                   # Build session attributes for document context
                   session_attributes = None
@@ -317,10 +318,21 @@ if prompt:
                               if chunk.get('attribution'):
                                     for c in chunk['attribution']['citations']:
                                           for ref in c["retrievedReferences"]:
+                                                # Extract chunk text
+                                                chunk_text = ref.get("content", {}).get("text", "")
                                                 if ref["location"]["type"] == "S3":
-                                                      st.session_state["s3_refs"].append(ref["location"]["s3Location"]["uri"])
+                                                      source = ref["location"]["s3Location"]["uri"]
+                                                      st.session_state["s3_refs"].append(source)
                                                 elif ref["location"]["type"] == "WEB":
-                                                      st.session_state["web_refs"].append(ref["location"]["webLocation"]["url"])
+                                                      source = ref["location"]["webLocation"]["url"]
+                                                      st.session_state["web_refs"].append(source)
+                                                else:
+                                                      source = ""
+                                                if chunk_text:
+                                                      st.session_state["retrieved_chunks"].append({
+                                                            "text": chunk_text,
+                                                            "source": source,
+                                                      })
 
                               reply = chunk['bytes'].decode()
 
@@ -329,10 +341,7 @@ if prompt:
                                     st.session_state.messages.append({
                                           "role": "assistant",
                                           "content": reply,
-                                          "sources": {
-                                                "s3_refs": list(set(st.session_state.get("s3_refs", []))),
-                                                "web_refs": list(set(st.session_state.get("web_refs", []))),
-                                          },
+                                          "retrieved_chunks": st.session_state.get("retrieved_chunks", []),
                                     })
                               
                         
