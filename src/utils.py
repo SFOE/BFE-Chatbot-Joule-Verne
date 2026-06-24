@@ -69,24 +69,33 @@ def s3_head_object(bucket, key):
     return response.get("Metadata", {})
 
 
-def save_feedback(session_id, message_index, rating, user_query, agent_response, agent_variant):
-    """Save user feedback (thumbs up/down) to S3 as a JSON file."""
+def save_feedback(session_id, message_index, rating, user_query, agent_response, agent_variant, retrieved_chunks=None, s3_key_override=None, original_timestamp=None):
+    """Save user feedback (thumbs up/down) to S3 as a JSON file.
+    
+    If s3_key_override is provided, uses that key (to overwrite a previously saved record).
+    Otherwise generates a new key based on the current date.
+    If original_timestamp is provided, preserves it instead of using current time.
+    Returns a tuple of (s3_key, timestamp).
+    """
     if not FEEDBACK_BUCKET:
         logging.warning("FEEDBACK_BUCKET not configured, skipping feedback save.")
-        return
+        return None, None
 
     now = datetime.now(timezone.utc)
+    timestamp = original_timestamp or now.isoformat()
+
     feedback = {
         "session_id": session_id,
-        "timestamp": now.isoformat(),
+        "timestamp": timestamp,
         "rating": rating,
         "user_query": user_query,
         "agent_response": agent_response,
         "agent_variant": agent_variant,
         "message_index": message_index,
+        "retrieved_chunks": retrieved_chunks or [],
     }
 
-    key = f"feedback/{now.year}/{now.month:02d}/{now.day:02d}/{session_id}_{message_index}.json"
+    key = s3_key_override or f"feedback/{now.year}/{now.month:02d}/{now.day:02d}/{session_id}_{message_index}.json"
 
     s3_client.put_object(
         Bucket=FEEDBACK_BUCKET,
@@ -94,3 +103,4 @@ def save_feedback(session_id, message_index, rating, user_query, agent_response,
         Body=json.dumps(feedback, ensure_ascii=False),
         ContentType="application/json",
     )
+    return key, timestamp
