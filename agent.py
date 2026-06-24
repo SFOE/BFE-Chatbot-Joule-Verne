@@ -100,6 +100,8 @@ for idx, message in enumerate(st.session_state.messages):
                               agent_response=message["content"],
                               agent_variant=agent_variant,
                               retrieved_chunks=retrieved_chunks,
+                              s3_key_override=message.get("feedback_s3_key"),
+                              original_timestamp=message.get("feedback_timestamp"),
                         )
                         st.session_state[f"{feedback_key}_saved"] = score
 
@@ -351,6 +353,22 @@ if prompt:
                               trace = trace_event['trace']
                               for key, value in trace.items():
                                     logging.info("%s: %s",key,value)
+
+            # Save interaction to feedback bucket (without rating) immediately
+            msg_index = len(st.session_state.messages) - 1
+            agent_variant = "web_search" if web_search_enabled else "default"
+            feedback_key_s3, feedback_timestamp = save_feedback(
+                  session_id=st.session_state["session_id"],
+                  message_index=msg_index,
+                  rating=None,
+                  user_query=prompt,
+                  agent_response=st.session_state.messages[msg_index]["content"],
+                  agent_variant=agent_variant,
+                  retrieved_chunks=st.session_state.get("retrieved_chunks", []),
+            )
+            # Store the S3 key and timestamp so later feedback overwrites the same file
+            st.session_state.messages[msg_index]["feedback_s3_key"] = feedback_key_s3
+            st.session_state.messages[msg_index]["feedback_timestamp"] = feedback_timestamp
 
             st.rerun()
 
