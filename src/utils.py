@@ -69,7 +69,7 @@ def s3_head_object(bucket, key):
     return response.get("Metadata", {})
 
 
-def save_feedback(session_id, message_index, rating, user_query, agent_response, agent_variant):
+def save_feedback(session_id, message_index, rating, user_query, agent_response, agent_variant, retrieved_sources=None):
     """Save user feedback (thumbs up/down) to S3 as a JSON file."""
     if not FEEDBACK_BUCKET:
         logging.warning("FEEDBACK_BUCKET not configured, skipping feedback save.")
@@ -84,6 +84,7 @@ def save_feedback(session_id, message_index, rating, user_query, agent_response,
         "agent_response": agent_response,
         "agent_variant": agent_variant,
         "message_index": message_index,
+        "retrieved_sources": retrieved_sources or [],
     }
 
     key = f"feedback/{now.year}/{now.month:02d}/{now.day:02d}/{session_id}_{message_index}.json"

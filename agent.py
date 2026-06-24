@@ -91,6 +91,7 @@ for idx, message in enumerate(st.session_state.messages):
                                     break
                         rating = "positive" if score == 1 else "negative"
                         agent_variant = "web_search" if st.session_state.get("web_search_enabled", False) else "default"
+                        retrieved_sources = message.get("sources", {})
                         save_feedback(
                               session_id=st.session_state["session_id"],
                               message_index=idx,
@@ -98,6 +99,7 @@ for idx, message in enumerate(st.session_state.messages):
                               user_query=user_query,
                               agent_response=message["content"],
                               agent_variant=agent_variant,
+                              retrieved_sources=retrieved_sources,
                         )
                         st.session_state[f"{feedback_key}_saved"] = score
 
@@ -324,7 +326,14 @@ if prompt:
 
                               with st.chat_message("assistant"):
                                     st.markdown(reply)
-                                    st.session_state.messages.append({"role": "assistant", "content": reply})
+                                    st.session_state.messages.append({
+                                          "role": "assistant",
+                                          "content": reply,
+                                          "sources": {
+                                                "s3_refs": list(set(st.session_state.get("s3_refs", []))),
+                                                "web_refs": list(set(st.session_state.get("web_refs", []))),
+                                          },
+                                    })
                               
                         
                         # Log trace output.
