@@ -334,51 +334,55 @@ if prompt:
             st.chat_message("user").markdown(prompt)
             st.session_state.messages.append({"role": "user", "content": prompt})
 
-            with st.spinner('Your question is being processed'):
-                  # Reset sources for new question
-                  st.session_state["s3_refs"] = []
-                  st.session_state["web_refs"] = []
-                  st.session_state["retrieved_chunks"] = []
+            # Reset sources for new question
+            st.session_state["s3_refs"] = []
+            st.session_state["web_refs"] = []
+            st.session_state["retrieved_chunks"] = []
 
-                  # Build session attributes for document context
-                  session_attributes = None
-                  if st.session_state.get("doc_context") and not web_search_enabled:
-                        doc_context = st.session_state["doc_context"]
-                        context_mode = st.session_state.get("doc_context_mode", "full")
+            # Build session attributes for document context
+            session_attributes = None
+            if st.session_state.get("doc_context") and not web_search_enabled:
+                  doc_context = st.session_state["doc_context"]
+                  context_mode = st.session_state.get("doc_context_mode", "full")
 
-                        # For summary mode, try targeted chunk retrieval for relevant details
-                        if context_mode == "summary" and st.session_state.get("doc_full_text"):
-                              relevant_chunks = find_relevant_chunks(
-                                    st.session_state["doc_full_text"], prompt
+                  # For summary mode, try targeted chunk retrieval for relevant details
+                  if context_mode == "summary" and st.session_state.get("doc_full_text"):
+                        relevant_chunks = find_relevant_chunks(
+                              st.session_state["doc_full_text"], prompt
+                        )
+                        if relevant_chunks:
+                              doc_context = (
+                                    f"DOCUMENT SUMMARY:\n{doc_context}\n\n"
+                                    f"RELEVANT SECTIONS:\n{relevant_chunks}"
                               )
-                              if relevant_chunks:
-                                    doc_context = (
-                                          f"DOCUMENT SUMMARY:\n{doc_context}\n\n"
-                                          f"RELEVANT SECTIONS:\n{relevant_chunks}"
-                                    )
 
-                        session_attributes = {
-                              "uploaded_document": doc_context,
-                              "document_name": st.session_state.get("uploaded_doc_name", ""),
-                              "context_mode": context_mode,
-                        }
+                  session_attributes = {
+                        "uploaded_document": doc_context,
+                        "document_name": st.session_state.get("uploaded_doc_name", ""),
+                        "context_mode": context_mode,
+                  }
 
-                  response = query_agent(
-                        prompt,
-                        st.session_state["session_id"],
-                        active_agent_id,
-                        active_alias_id,
-                        session_attributes=session_attributes,
-                  )
+            response = query_agent(
+                  prompt,
+                  st.session_state["session_id"],
+                  active_agent_id,
+                  active_alias_id,
+                  session_attributes=session_attributes,
+            )
+
+            # Show live progress with st.status, then collapse into expandable details
+            with st.status("Processing your question...", expanded=True) as status:
+                  trace_steps = []
+                  reply = None
+
                   for event in response.get("completion"):
-                        
-                        #Collect agent output.
+
+                        # Collect agent output.
                         if 'chunk' in event:
                               chunk = event["chunk"]
                               if chunk.get('attribution'):
                                     for c in chunk['attribution']['citations']:
                                           for ref in c["retrievedReferences"]:
-                                                # Extract chunk text
                                                 chunk_text = ref.get("content", {}).get("text", "")
                                                 if ref["location"]["type"] == "S3":
                                                       source = ref["location"]["s3Location"]["uri"]
@@ -396,37 +400,96 @@ if prompt:
 
                               reply = chunk['bytes'].decode()
 
-                              with st.chat_message("assistant"):
-                                    st.markdown(reply)
-                                    st.session_state.messages.append({
-                                          "role": "assistant",
-                                          "content": reply,
-                                          "retrieved_chunks": st.session_state.get("retrieved_chunks", []),
-                                    })
-                              
-                        
-                        # Log trace output.
+                        # Parse trace events for user-friendly status updates
                         if 'trace' in event:
                               trace_event = event.get("trace")
                               trace = trace_event['trace']
                               for key, value in trace.items():
-                                    logging.info("%s: %s",key,value)
+                                    logging.info("%s: %s", key, value)
+
+                                    # Map trace keys to human-readable labels
+                                    if key == "preProcessingTrace":
+                                          step_label = "🧠 Analyzing your question..."
+                                          if step_label not in trace_steps:
+                                                trace_steps.append(step_label)
+                                                status.update(label=step_label)
+                                                st.write(step_label)
+
+                                    elif key == "orchestrationTrace":
+                                          # Detect knowledge base lookups vs general reasoning
+                                          if isinstance(value, dict):
+                                                if "observation" in value:
+                                                      obs = value["observation"]
+                                                      if "knowledgeBaseLookupOutput" in obs:
+                                                            step_label = "📚 Searching knowledge base..."
+                                                      elif "actionGroupInvocationOutput" in obs:
+                                                            step_label = "⚙️ Executing action..."
+                                                      else:
+                                                            step_label = "🔍 Retrieving information..."
+                                                elif "invocationInput" in value:
+                                                      inv = value["invocationInput"]
+                                                      if "knowledgeBaseLookupInput" in inv:
+                                                            step_label = "📚 Searching knowledge base..."
+                                                      elif "actionGroupInvocationInput" in inv:
+                                                            step_label = "⚙️ Calling action group..."
+                                                      else:
+                                                            step_label = "🔍 Gathering information..."
+                                                elif "rationale" in value:
+                                                      step_label = "💭 Reasoning..."
+                                                elif "modelInvocationInput" in value:
+                                                      step_label = "🤖 Thinking..."
+                                                else:
+                                                      step_label = "🔄 Processing..."
+                                          else:
+                                                step_label = "🔄 Processing..."
+
+                                          if step_label not in trace_steps:
+                                                trace_steps.append(step_label)
+                                                status.update(label=step_label)
+                                                st.write(step_label)
+
+                                    elif key == "postProcessingTrace":
+                                          step_label = "✍️ Formulating response..."
+                                          if step_label not in trace_steps:
+                                                trace_steps.append(step_label)
+                                                status.update(label=step_label)
+                                                st.write(step_label)
+
+                                    elif key == "failureTrace":
+                                          step_label = "⚠️ An error occurred"
+                                          trace_steps.append(step_label)
+                                          status.update(label=step_label)
+                                          st.write(step_label)
+
+                  # Collapse the status widget after completion
+                  status.update(label="✅ Done", state="complete", expanded=False)
+
+            # Display the assistant's reply
+            if reply:
+                  with st.chat_message("assistant"):
+                        st.markdown(reply)
+                        st.session_state.messages.append({
+                              "role": "assistant",
+                              "content": reply,
+                              "retrieved_chunks": st.session_state.get("retrieved_chunks", []),
+                        })
 
             # Save interaction to feedback bucket (without rating) immediately
-            msg_index = len(st.session_state.messages) - 1
-            agent_variant = "web_search" if web_search_enabled else "default"
-            feedback_key_s3, feedback_timestamp = save_feedback(
-                  session_id=st.session_state["session_id"],
-                  message_index=msg_index,
-                  rating=None,
-                  user_query=prompt,
-                  agent_response=st.session_state.messages[msg_index]["content"],
-                  agent_variant=agent_variant,
-                  retrieved_chunks=st.session_state.get("retrieved_chunks", []),
-            )
-            # Store the S3 key and timestamp so later feedback overwrites the same file
-            st.session_state.messages[msg_index]["feedback_s3_key"] = feedback_key_s3
-            st.session_state.messages[msg_index]["feedback_timestamp"] = feedback_timestamp
+            if reply:
+                  msg_index = len(st.session_state.messages) - 1
+                  agent_variant = "web_search" if web_search_enabled else "default"
+                  feedback_key_s3, feedback_timestamp = save_feedback(
+                        session_id=st.session_state["session_id"],
+                        message_index=msg_index,
+                        rating=None,
+                        user_query=prompt,
+                        agent_response=st.session_state.messages[msg_index]["content"],
+                        agent_variant=agent_variant,
+                        retrieved_chunks=st.session_state.get("retrieved_chunks", []),
+                  )
+                  # Store the S3 key and timestamp so later feedback overwrites the same file
+                  st.session_state.messages[msg_index]["feedback_s3_key"] = feedback_key_s3
+                  st.session_state.messages[msg_index]["feedback_timestamp"] = feedback_timestamp
 
             st.rerun()
 
