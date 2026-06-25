@@ -73,6 +73,7 @@ with st.expander(":information_source: :construction:"):
     st.write("""
     This is a demo application and will still be submitted to changes. The chatbot might not always be correct or precise. Do not hesitate to check the sources in the side bar if unsure. Please be careful not to upload any personal data in the chat.
     You can upload a document (PDF, TXT, DOCX) via the sidebar to ask questions about it during your session.
+    You can rate answers with thumbs up/down and leave a short text comment via the 💬 button.
     For any questions or requests you can [contact us](mailto:digitalisierung@bfe.admin.ch) at the Digital Innovation & Geoinformation section :blush:
     """)
 
