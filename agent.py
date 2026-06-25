@@ -81,6 +81,13 @@ for idx, message in enumerate(st.session_state.messages):
       with st.chat_message(message["role"]):
             st.markdown(message["content"])
             if message["role"] == "assistant":
+                  # Show collapsible reasoning steps if available
+                  trace_steps = message.get("trace_steps", [])
+                  if trace_steps:
+                        with st.expander("🔎 Show reasoning", expanded=False):
+                              for step in trace_steps:
+                                    st.markdown(f"- {step}")
+
                   feedback_key = f"feedback_{idx}"
                   comment_key = f"comment_{idx}"
 
@@ -472,6 +479,7 @@ if prompt:
                               "role": "assistant",
                               "content": reply,
                               "retrieved_chunks": st.session_state.get("retrieved_chunks", []),
+                              "trace_steps": trace_steps,
                         })
 
             # Save interaction to feedback bucket (without rating) immediately
