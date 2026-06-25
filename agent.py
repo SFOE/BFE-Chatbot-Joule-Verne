@@ -73,6 +73,7 @@ with st.expander(":information_source: :construction:"):
     st.write("""
     This is a demo application and will still be submitted to changes. The chatbot might not always be correct or precise. Do not hesitate to check the sources in the side bar if unsure. Please be careful not to upload any personal data in the chat.
     You can upload a document (PDF, TXT, DOCX) via the sidebar to ask questions about it during your session.
+    You can rate answers with thumbs up/down and leave a short text comment via the 💬 button.
     For any questions or requests you can [contact us](mailto:digitalisierung@bfe.admin.ch) at the Digital Innovation & Geoinformation section :blush:
     """)
 
@@ -81,7 +82,21 @@ for idx, message in enumerate(st.session_state.messages):
             st.markdown(message["content"])
             if message["role"] == "assistant":
                   feedback_key = f"feedback_{idx}"
-                  score = st.feedback("thumbs", key=feedback_key)
+                  comment_key = f"comment_{idx}"
+
+                  # Layout: thumbs + comment button on one row
+                  fb_col, comment_btn_col = st.columns([3, 1])
+                  with fb_col:
+                        score = st.feedback("thumbs", key=feedback_key)
+                  with comment_btn_col:
+                        # Show ✅ if comment already saved, otherwise show 💬 toggle
+                        if st.session_state.get(f"{comment_key}_saved"):
+                              st.markdown("✅ Comment saved")
+                        else:
+                              if st.button("💬", key=f"{comment_key}_btn", help="Add a text comment about this answer"):
+                                    st.session_state[f"{comment_key}_open"] = not st.session_state.get(f"{comment_key}_open", False)
+
+                  # Handle thumbs feedback save
                   if score is not None and st.session_state.get(f"{feedback_key}_saved") != score:
                         # Find the preceding user message
                         user_query = ""
@@ -102,8 +117,51 @@ for idx, message in enumerate(st.session_state.messages):
                               retrieved_chunks=retrieved_chunks,
                               s3_key_override=message.get("feedback_s3_key"),
                               original_timestamp=message.get("feedback_timestamp"),
+                              comment=message.get("feedback_comment"),
                         )
                         st.session_state[f"{feedback_key}_saved"] = score
+
+                  # Show text comment area when toggled open
+                  if st.session_state.get(f"{comment_key}_open"):
+                        comment_text = st.text_area(
+                              "What worked or didn't work?",
+                              key=f"{comment_key}_text",
+                              placeholder="e.g. The answer was mostly correct but missed...",
+                              max_chars=1000,
+                        )
+                        if st.button("Send feedback", key=f"{comment_key}_send", type="primary"):
+                              if comment_text and comment_text.strip():
+                                    # Find the preceding user message
+                                    user_query = ""
+                                    for prev in range(idx - 1, -1, -1):
+                                          if st.session_state.messages[prev]["role"] == "user":
+                                                user_query = st.session_state.messages[prev]["content"]
+                                                break
+                                    # Use existing rating if available
+                                    saved_score = st.session_state.get(f"{feedback_key}_saved")
+                                    if saved_score is not None:
+                                          rating = "positive" if saved_score == 1 else "negative"
+                                    else:
+                                          rating = None
+                                    agent_variant = "web_search" if st.session_state.get("web_search_enabled", False) else "default"
+                                    retrieved_chunks = message.get("retrieved_chunks", [])
+                                    save_feedback(
+                                          session_id=st.session_state["session_id"],
+                                          message_index=idx,
+                                          rating=rating,
+                                          user_query=user_query,
+                                          agent_response=message["content"],
+                                          agent_variant=agent_variant,
+                                          retrieved_chunks=retrieved_chunks,
+                                          s3_key_override=message.get("feedback_s3_key"),
+                                          original_timestamp=message.get("feedback_timestamp"),
+                                          comment=comment_text.strip(),
+                                    )
+                                    # Store comment in message for persistence across reruns
+                                    st.session_state.messages[idx]["feedback_comment"] = comment_text.strip()
+                                    st.session_state[f"{comment_key}_saved"] = True
+                                    st.session_state[f"{comment_key}_open"] = False
+                                    st.rerun()
 
 st.sidebar.write("**Settings**  :pushpin:")
 
@@ -259,7 +317,7 @@ if st.sidebar.button("Clear chat", icon="✏️"):
       st.session_state.pop("uploaded_doc_name", None)
       st.session_state.pop("uploaded_doc_pages", None)
       # Clear saved feedback markers
-      keys_to_remove = [k for k in st.session_state if k.startswith("feedback_")]
+      keys_to_remove = [k for k in st.session_state if k.startswith("feedback_") or k.startswith("comment_")]
       for k in keys_to_remove:
             del st.session_state[k]
       st.rerun()
