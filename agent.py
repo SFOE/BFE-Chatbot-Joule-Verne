@@ -86,7 +86,10 @@ for idx, message in enumerate(st.session_state.messages):
                   if trace_steps:
                         with st.expander("🔎 Show reasoning", expanded=False):
                               for step in trace_steps:
-                                    st.markdown(f"- {step}")
+                                    st.markdown(f"**{step['label']}**")
+                                    if step.get("detail"):
+                                          st.code(step["detail"], language=None)
+                                    st.markdown("---")
 
                   feedback_key = f"feedback_{idx}"
                   comment_key = f"comment_{idx}"
@@ -171,6 +174,24 @@ for idx, message in enumerate(st.session_state.messages):
                                     st.rerun()
 
 st.sidebar.write("**Settings**  :pushpin:")
+
+# Detect interrupted query — show warning and retry button
+pending_query = st.session_state.get("pending_query")
+if pending_query:
+      # Check if the last message is still the user's question (no assistant reply followed)
+      messages = st.session_state.get("messages", [])
+      if messages and messages[-1]["role"] == "user":
+            st.warning("⚠️ The response was interrupted (e.g. by a button click). Your question was not answered.")
+            if st.button("🔄 Retry last question", type="primary"):
+                  # Remove the pending user message so it gets re-added cleanly
+                  st.session_state.messages.pop()
+                  st.session_state.pop("pending_query", None)
+                  # Re-inject the prompt via session state trick
+                  st.session_state["retry_prompt"] = pending_query
+                  st.rerun()
+      else:
+            # The reply was actually saved — clean up stale flag
+            st.session_state.pop("pending_query", None)
 
 # Web search toggle — disabled once conversation has started
 has_messages = len(st.session_state.get("messages", [])) > 0
@@ -323,6 +344,9 @@ if st.sidebar.button("Clear chat", icon="✏️"):
       st.session_state.pop("doc_context_mode", None)
       st.session_state.pop("uploaded_doc_name", None)
       st.session_state.pop("uploaded_doc_pages", None)
+      # Clear pending/retry state
+      st.session_state.pop("pending_query", None)
+      st.session_state.pop("retry_prompt", None)
       # Clear saved feedback markers
       keys_to_remove = [k for k in st.session_state if k.startswith("feedback_") or k.startswith("comment_")]
       for k in keys_to_remove:
@@ -333,6 +357,10 @@ prompt = st.chat_input(
       "Type your question here..."
 )
 
+# Check if there's a retry prompt from an interrupted query
+if not prompt and st.session_state.get("retry_prompt"):
+      prompt = st.session_state.pop("retry_prompt")
+
 if prompt:
       if prompt.strip() == "": 
             st.chat_message("assistant").markdown("Please enter your question before submitting.")
@@ -340,6 +368,9 @@ if prompt:
       else:
             st.chat_message("user").markdown(prompt)
             st.session_state.messages.append({"role": "user", "content": prompt})
+
+            # Mark that we're about to process — used to detect interruptions
+            st.session_state["pending_query"] = prompt
 
             # Reset sources for new question
             st.session_state["s3_refs"] = []
@@ -377,9 +408,10 @@ if prompt:
                   session_attributes=session_attributes,
             )
 
-            # Show live progress with st.status, then collapse into expandable details
-            with st.status("Processing your question...", expanded=True) as status:
-                  trace_steps = []
+            # Show live progress, then transition to reasoning expander
+            with st.status("Processing your question...", expanded=False) as status:
+                  trace_steps = []        # Steps with details for the expander
+                  shown_labels = set()    # Dedup for live status display
                   reply = None
 
                   for event in response.get("completion"):
@@ -414,62 +446,99 @@ if prompt:
                               for key, value in trace.items():
                                     logging.info("%s: %s", key, value)
 
-                                    # Map trace keys to human-readable labels
+                                    # Map trace keys to human-readable labels with details
                                     if key == "preProcessingTrace":
-                                          step_label = "🧠 Analyzing your question..."
-                                          if step_label not in trace_steps:
-                                                trace_steps.append(step_label)
-                                                status.update(label=step_label)
-                                                st.write(step_label)
+                                          live_label = "🧠 Analyzing your question..."
+                                          if live_label not in shown_labels:
+                                                shown_labels.add(live_label)
+                                                status.update(label=live_label)
 
                                     elif key == "orchestrationTrace":
-                                          # Detect knowledge base lookups vs general reasoning
                                           if isinstance(value, dict):
-                                                if "observation" in value:
-                                                      obs = value["observation"]
-                                                      if "knowledgeBaseLookupOutput" in obs:
-                                                            step_label = "📚 Searching knowledge base..."
-                                                      elif "actionGroupInvocationOutput" in obs:
-                                                            step_label = "⚙️ Executing action..."
-                                                      else:
-                                                            step_label = "🔍 Retrieving information..."
+                                                if "rationale" in value:
+                                                      step_label = "💭 Reasoning"
+                                                      detail = value["rationale"].get("text", "")
+                                                      if detail:
+                                                            trace_steps.append({"label": step_label, "detail": detail})
+                                                      live_label = "💭 Reasoning..."
+                                                      if live_label not in shown_labels:
+                                                            shown_labels.add(live_label)
+                                                            status.update(label=live_label)
+
                                                 elif "invocationInput" in value:
                                                       inv = value["invocationInput"]
                                                       if "knowledgeBaseLookupInput" in inv:
-                                                            step_label = "📚 Searching knowledge base..."
+                                                            kb_input = inv["knowledgeBaseLookupInput"]
+                                                            kb_id = kb_input.get("knowledgeBaseId", "")
+                                                            query_text = kb_input.get("text", "")
+                                                            step_label = "📚 Knowledge base query"
+                                                            detail = f"Knowledge Base: {kb_id}\nQuery: {query_text}"
+                                                            trace_steps.append({"label": step_label, "detail": detail})
+                                                            status.update(label="📚 Searching knowledge base...")
                                                       elif "actionGroupInvocationInput" in inv:
-                                                            step_label = "⚙️ Calling action group..."
+                                                            ag_input = inv["actionGroupInvocationInput"]
+                                                            ag_name = ag_input.get("actionGroupName", "unknown")
+                                                            api_path = ag_input.get("apiPath", ag_input.get("function", ""))
+                                                            step_label = f"⚙️ Calling: {ag_name}"
+                                                            detail = f"Action: {ag_name}\nAPI path: {api_path}" if api_path else f"Action: {ag_name}"
+                                                            trace_steps.append({"label": step_label, "detail": detail})
+                                                            status.update(label=f"⚙️ Calling {ag_name}...")
                                                       else:
-                                                            step_label = "🔍 Gathering information..."
-                                                elif "rationale" in value:
-                                                      step_label = "💭 Reasoning..."
-                                                elif "modelInvocationInput" in value:
-                                                      step_label = "🤖 Thinking..."
-                                                else:
-                                                      step_label = "🔄 Processing..."
-                                          else:
-                                                step_label = "🔄 Processing..."
+                                                            status.update(label="🔍 Gathering information...")
 
-                                          if step_label not in trace_steps:
-                                                trace_steps.append(step_label)
-                                                status.update(label=step_label)
-                                                st.write(step_label)
+                                                elif "observation" in value:
+                                                      obs = value["observation"]
+                                                      if "knowledgeBaseLookupOutput" in obs:
+                                                            kb_output = obs["knowledgeBaseLookupOutput"]
+                                                            refs = kb_output.get("retrievedReferences", [])
+                                                            step_label = f"📚 Retrieved {len(refs)} result(s)"
+                                                            previews = []
+                                                            for i, ref in enumerate(refs[:5]):
+                                                                  text = ref.get("content", {}).get("text", "")
+                                                                  source = ""
+                                                                  loc = ref.get("location", {})
+                                                                  if loc.get("type") == "S3":
+                                                                        source = loc.get("s3Location", {}).get("uri", "")
+                                                                  elif loc.get("type") == "WEB":
+                                                                        source = loc.get("webLocation", {}).get("url", "")
+                                                                  preview = text[:150] + "..." if len(text) > 150 else text
+                                                                  previews.append(f"[{i+1}] {preview}\n    Source: {source}")
+                                                            detail = "\n".join(previews) if previews else None
+                                                            if detail:
+                                                                  trace_steps.append({"label": step_label, "detail": detail})
+                                                            status.update(label=f"📚 Retrieved {len(refs)} result(s)")
+                                                      elif "actionGroupInvocationOutput" in obs:
+                                                            ag_output = obs["actionGroupInvocationOutput"]
+                                                            output_text = ag_output.get("text", "")
+                                                            step_label = "⚙️ Action result"
+                                                            detail = output_text[:500] if output_text else None
+                                                            if detail:
+                                                                  trace_steps.append({"label": step_label, "detail": detail})
+                                                            status.update(label="⚙️ Action completed")
+
+                                                elif "modelInvocationInput" in value:
+                                                      status.update(label="🤖 Thinking...")
 
                                     elif key == "postProcessingTrace":
-                                          step_label = "✍️ Formulating response..."
-                                          if step_label not in trace_steps:
-                                                trace_steps.append(step_label)
-                                                status.update(label=step_label)
-                                                st.write(step_label)
+                                          live_label = "✍️ Formulating response..."
+                                          if live_label not in shown_labels:
+                                                shown_labels.add(live_label)
+                                                status.update(label=live_label)
 
                                     elif key == "failureTrace":
-                                          step_label = "⚠️ An error occurred"
-                                          trace_steps.append(step_label)
-                                          status.update(label=step_label)
-                                          st.write(step_label)
+                                          reason = value.get("failureReason", "Unknown error") if isinstance(value, dict) else "Unknown error"
+                                          trace_steps.append({"label": "⚠️ Error", "detail": reason})
+                                          status.update(label="⚠️ An error occurred")
 
-                  # Collapse the status widget after completion
-                  status.update(label="✅ Done", state="complete", expanded=False)
+                  # Collapse the status widget and show reasoning details inside
+                  if trace_steps:
+                        for step in trace_steps:
+                              st.markdown(f"**{step['label']}**")
+                              if step.get("detail"):
+                                    st.code(step["detail"], language=None)
+                        status.update(label="🔎 Show reasoning", state="complete", expanded=False)
+                  else:
+                        status.update(label="✅ Done", state="complete", expanded=False)
 
             # Display the assistant's reply
             if reply:
@@ -499,6 +568,8 @@ if prompt:
                   st.session_state.messages[msg_index]["feedback_s3_key"] = feedback_key_s3
                   st.session_state.messages[msg_index]["feedback_timestamp"] = feedback_timestamp
 
+            # Clear the pending query flag — processing completed successfully
+            st.session_state.pop("pending_query", None)
             st.rerun()
 
 st.sidebar.write("**Sources** :bulb:")
