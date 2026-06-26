@@ -175,6 +175,24 @@ for idx, message in enumerate(st.session_state.messages):
 
 st.sidebar.write("**Settings**  :pushpin:")
 
+# Detect interrupted query — show warning and retry button
+pending_query = st.session_state.get("pending_query")
+if pending_query:
+      # Check if the last message is still the user's question (no assistant reply followed)
+      messages = st.session_state.get("messages", [])
+      if messages and messages[-1]["role"] == "user":
+            st.warning("⚠️ The response was interrupted (e.g. by a button click). Your question was not answered.")
+            if st.button("🔄 Retry last question", type="primary"):
+                  # Remove the pending user message so it gets re-added cleanly
+                  st.session_state.messages.pop()
+                  st.session_state.pop("pending_query", None)
+                  # Re-inject the prompt via session state trick
+                  st.session_state["retry_prompt"] = pending_query
+                  st.rerun()
+      else:
+            # The reply was actually saved — clean up stale flag
+            st.session_state.pop("pending_query", None)
+
 # Web search toggle — disabled once conversation has started
 has_messages = len(st.session_state.get("messages", [])) > 0
 
@@ -326,6 +344,9 @@ if st.sidebar.button("Clear chat", icon="✏️"):
       st.session_state.pop("doc_context_mode", None)
       st.session_state.pop("uploaded_doc_name", None)
       st.session_state.pop("uploaded_doc_pages", None)
+      # Clear pending/retry state
+      st.session_state.pop("pending_query", None)
+      st.session_state.pop("retry_prompt", None)
       # Clear saved feedback markers
       keys_to_remove = [k for k in st.session_state if k.startswith("feedback_") or k.startswith("comment_")]
       for k in keys_to_remove:
@@ -336,6 +357,10 @@ prompt = st.chat_input(
       "Type your question here..."
 )
 
+# Check if there's a retry prompt from an interrupted query
+if not prompt and st.session_state.get("retry_prompt"):
+      prompt = st.session_state.pop("retry_prompt")
+
 if prompt:
       if prompt.strip() == "": 
             st.chat_message("assistant").markdown("Please enter your question before submitting.")
@@ -343,6 +368,9 @@ if prompt:
       else:
             st.chat_message("user").markdown(prompt)
             st.session_state.messages.append({"role": "user", "content": prompt})
+
+            # Mark that we're about to process — used to detect interruptions
+            st.session_state["pending_query"] = prompt
 
             # Reset sources for new question
             st.session_state["s3_refs"] = []
@@ -540,6 +568,8 @@ if prompt:
                   st.session_state.messages[msg_index]["feedback_s3_key"] = feedback_key_s3
                   st.session_state.messages[msg_index]["feedback_timestamp"] = feedback_timestamp
 
+            # Clear the pending query flag — processing completed successfully
+            st.session_state.pop("pending_query", None)
             st.rerun()
 
 st.sidebar.write("**Sources** :bulb:")
