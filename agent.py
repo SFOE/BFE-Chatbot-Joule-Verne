@@ -618,7 +618,11 @@ if s3_refs_collected or web_refs:
                               continue
                         shown_pdfs.add(pdf_filename)
 
-                        pdf_key = pdf_filename
+                        # Preserve directory structure (e.g. aramis/) from the extracted text key
+                        pdf_key = re.sub(r"_part\d+\.txt$", ".pdf", key)
+                        if pdf_key == key:
+                              pdf_key = key.replace(".txt", ".pdf")
+
                         st.sidebar.download_button(
                               label=pdf_filename,
                               file_name=pdf_filename,
