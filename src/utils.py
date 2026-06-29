@@ -22,6 +22,10 @@ AGENT_ID = os.getenv("AGENT_ID")
 AGENT_SEARCH_ID = os.getenv("AGENT_SEARCH_ID")
 AGENT_SEARCH_ALIAS_ID = os.getenv("AGENT_SEARCH_ALIAS_ID")
 FEEDBACK_BUCKET = os.getenv("FEEDBACK_BUCKET")
+PDF_BUCKET = os.getenv("PDF_BUCKET")
+EXTRACTED_BUCKET = os.getenv("EXTRACTED_BUCKET")
+WEBSITE_BUCKET = os.getenv("WEBSITE_BUCKET")
+
 
 
 s3_client = boto3.client(
