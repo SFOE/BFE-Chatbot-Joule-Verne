@@ -5,7 +5,7 @@ import uuid
 import base64
 import json
 import os
-from src.utils import parse_s3_uri, query_agent, s3_get_object, s3_head_object, save_feedback, AGENT_ID, AGENT_ALIAS_ID, AGENT_SEARCH_ID, AGENT_SEARCH_ALIAS_ID
+from src.utils import parse_s3_uri, query_agent, s3_get_object, s3_head_object, save_feedback, AGENT_ID, AGENT_ALIAS_ID, AGENT_SEARCH_ID, AGENT_SEARCH_ALIAS_ID, PDF_BUCKET, EXTRACTED_BUCKET, WEBSITE_BUCKET
 from src.document_processing import extract_text, prepare_document_context, find_relevant_chunks
 from dotenv import load_dotenv
 
@@ -47,10 +47,10 @@ if "s3_refs" not in st.session_state:
 if "web_refs" not in st.session_state:
       st.session_state["web_refs"] = []
 
-# Bucket names
-BUCKET_EXTRACTED_TEXT = "prometheon-joule-verne-bfe-extracted-text-dev"
-BUCKET_PDF = "prometheon-joule-verne-bfe-public-data-pdf-dev"
-BUCKET_WEBSITE = "prometheon-joule-verne-bfe-website-content-dev"
+# Bucket names (loaded from environment in src/utils.py)
+BUCKET_EXTRACTED_TEXT = EXTRACTED_BUCKET
+BUCKET_PDF = PDF_BUCKET
+BUCKET_WEBSITE = WEBSITE_BUCKET
 
 session_id = st.session_state.get("session_id", str(uuid.uuid4()))
 st.session_state["session_id"] = session_id
@@ -618,7 +618,11 @@ if s3_refs_collected or web_refs:
                               continue
                         shown_pdfs.add(pdf_filename)
 
-                        pdf_key = pdf_filename
+                        # Preserve directory structure (e.g. aramis/) from the extracted text key
+                        pdf_key = re.sub(r"_part\d+\.txt$", ".pdf", key)
+                        if pdf_key == key:
+                              pdf_key = key.replace(".txt", ".pdf")
+
                         st.sidebar.download_button(
                               label=pdf_filename,
                               file_name=pdf_filename,
