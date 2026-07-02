@@ -5,7 +5,7 @@ import uuid
 import base64
 import json
 import os
-from src.utils import parse_s3_uri, query_agent, s3_get_object, s3_head_object, save_feedback, AGENT_ID, AGENT_ALIAS_ID, AGENT_SEARCH_ID, AGENT_SEARCH_ALIAS_ID, PDF_BUCKET, EXTRACTED_BUCKET, WEBSITE_BUCKET
+from src.utils import parse_s3_uri, query_agent, s3_get_object, s3_head_object, save_feedback, AGENT_ID, AGENT_ALIAS_ID, AGENT_SEARCH_ID, AGENT_SEARCH_ALIAS_ID, PDF_BUCKET, EXTRACTED_BUCKET, WEBSITE_BUCKET, FEDLEX_BUCKET
 from src.document_processing import extract_text, prepare_document_context, find_relevant_chunks
 from dotenv import load_dotenv
 
@@ -51,6 +51,7 @@ if "web_refs" not in st.session_state:
 BUCKET_EXTRACTED_TEXT = EXTRACTED_BUCKET
 BUCKET_PDF = PDF_BUCKET
 BUCKET_WEBSITE = WEBSITE_BUCKET
+BUCKET_FEDLEX = FEDLEX_BUCKET
 
 session_id = st.session_state.get("session_id", str(uuid.uuid4()))
 st.session_state["session_id"] = session_id
@@ -604,6 +605,25 @@ if s3_refs_collected or web_refs:
                               st.sidebar.write(f"🌐 {filename} (source URL not available)")
                   except Exception:
                         st.sidebar.write(f"🌐 {filename}")
+
+            # Fedlex law .txt → read .metadata.json for title and URL
+            elif bucket == BUCKET_FEDLEX:
+                  try:
+                        metadata_key = key + ".metadata.json"
+                        metadata_bytes = s3_get_object(bucket, metadata_key)
+                        metadata_json = json.loads(metadata_bytes)
+                        attrs = metadata_json.get("metadataAttributes", {})
+                        fedlex_url = attrs.get("fedlex_url", {}).get("value", {}).get("stringValue", "")
+                        title = attrs.get("title", {}).get("value", {}).get("stringValue", "")
+                        abbreviation = attrs.get("abbreviation", {}).get("value", {}).get("stringValue", "")
+                        label = f"{abbreviation} – {title}" if abbreviation and title else title or filename
+                        if fedlex_url and fedlex_url not in shown_urls:
+                              shown_urls.add(fedlex_url)
+                              st.sidebar.markdown(f"⚖️ [{label}]({fedlex_url})")
+                        elif not fedlex_url:
+                              st.sidebar.write(f"⚖️ {label}")
+                  except Exception:
+                        st.sidebar.write(f"⚖️ {filename}")
 
             # Extracted text .txt → download corresponding PDF
             elif bucket == BUCKET_EXTRACTED_TEXT:
