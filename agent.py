@@ -41,6 +41,37 @@ if _allowed_groups and not (_get_cognito_groups() & _allowed_groups):
     st.stop()
 
 
+def render_response_with_downloads(response_text):
+    """Render the agent response, replacing presigned S3 URLs with styled
+    download buttons. The browser downloads directly from S3 — no ECS
+    memory used."""
+    # Match presigned S3 URLs (contain X-Amz-Algorithm signature params)
+    pattern = r'(https://[^\s]+X-Amz-Algorithm[^\s]+)'
+    urls = re.findall(pattern, response_text)
+
+    if not urls:
+        st.markdown(response_text)
+        return
+
+    # Remove raw URLs from text
+    clean_text = response_text
+    for url in urls:
+        clean_text = clean_text.replace(url, "")
+
+    # Render the text
+    st.markdown(clean_text.strip())
+
+    # Render each URL as a styled download button
+    for url in urls:
+        st.markdown(
+            f'<a href="{url}" target="_blank" style="display:inline-block;'
+            f'padding:8px 16px;background-color:#003366;color:white;'
+            f'border-radius:4px;text-decoration:none;margin-top:8px;">'
+            f'📄 PDF herunterladen</a>',
+            unsafe_allow_html=True,
+        )
+
+
 # Initialize sources in session state (only last answer's sources are kept)
 if "s3_refs" not in st.session_state:
       st.session_state["s3_refs"] = []
@@ -80,7 +111,10 @@ with st.expander(":information_source: :construction:"):
 
 for idx, message in enumerate(st.session_state.messages):
       with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+            if message["role"] == "assistant":
+                  render_response_with_downloads(message["content"])
+            else:
+                  st.markdown(message["content"])
             if message["role"] == "assistant":
                   # Show collapsible reasoning steps if available
                   trace_steps = message.get("trace_steps", [])
@@ -544,7 +578,7 @@ if prompt:
             # Display the assistant's reply
             if reply:
                   with st.chat_message("assistant"):
-                        st.markdown(reply)
+                        render_response_with_downloads(reply)
                         st.session_state.messages.append({
                               "role": "assistant",
                               "content": reply,
