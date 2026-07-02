@@ -2,6 +2,7 @@
 Document upload processing: text extraction, summarization, and chunk retrieval.
 """
 
+import csv
 import io
 import logging
 import re
@@ -10,6 +11,7 @@ from typing import Optional
 import boto3
 from pypdf import PdfReader
 from docx import Document as DocxDocument
+from openpyxl import load_workbook
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +58,40 @@ def extract_text_from_docx(file_bytes: bytes) -> tuple[str, int]:
     return full_text, page_estimate
 
 
+def extract_text_from_xlsx(file_bytes: bytes) -> tuple[str, int]:
+    """Extract text from an Excel (.xlsx) file. Returns (text, sheet_count)."""
+    wb = load_workbook(io.BytesIO(file_bytes), read_only=True, data_only=True)
+    sheets_text = []
+    for sheet_name in wb.sheetnames:
+        ws = wb[sheet_name]
+        rows = []
+        for row in ws.iter_rows(values_only=True):
+            cell_values = [str(cell) if cell is not None else "" for cell in row]
+            # Skip completely empty rows
+            if any(v.strip() for v in cell_values):
+                rows.append(" | ".join(cell_values))
+        if rows:
+            header = f"--- Sheet: {sheet_name} ---"
+            sheets_text.append(f"{header}\n" + "\n".join(rows))
+    wb.close()
+    full_text = "\n\n".join(sheets_text)
+    full_text = _clean_text(full_text)
+    return full_text, len(wb.sheetnames)
+
+
+def extract_text_from_csv(file_bytes: bytes) -> tuple[str, int]:
+    """Extract text from a CSV file. Returns (text, 1)."""
+    text_content = file_bytes.decode("utf-8", errors="replace")
+    reader = csv.reader(io.StringIO(text_content))
+    rows = []
+    for row in reader:
+        if any(cell.strip() for cell in row):
+            rows.append(" | ".join(row))
+    full_text = "\n".join(rows)
+    full_text = _clean_text(full_text)
+    return full_text, 1
+
+
 def extract_text(file_bytes: bytes, filename: str) -> tuple[str, int]:
     """
     Extract text from an uploaded file based on its extension.
@@ -70,10 +106,15 @@ def extract_text(file_bytes: bytes, filename: str) -> tuple[str, int]:
         text, pages = extract_text_from_txt(file_bytes)
     elif ext == "docx":
         text, pages = extract_text_from_docx(file_bytes)
+    elif ext == "xlsx":
+        text, pages = extract_text_from_xlsx(file_bytes)
+    elif ext == "csv":
+        text, pages = extract_text_from_csv(file_bytes)
     else:
         raise ValueError(f"Unsupported file type: .{ext}")
 
-    if not text_quality_ok(text):
+    # Skip quality check for tabular files (often mostly numeric)
+    if ext not in ("xlsx", "csv") and not text_quality_ok(text):
         raise ValueError(
             "The extracted text appears to be of low quality (possibly a scanned PDF). "
             "Please upload a text-based document."
@@ -166,17 +207,33 @@ def summarize_document(text: str, region: Optional[str] = None) -> str:
 # Smart Context Strategy
 # ---------------------------------------------------------------------------
 
-def prepare_document_context(extracted_text: str) -> tuple[str, str]:
+def prepare_document_context(extracted_text: str, file_ext: str = "") -> tuple[str, str]:
     """
-    Decide whether to use full text or a summary based on size.
-    Returns (context_text, context_mode) where context_mode is "full" or "summary".
+    Decide whether to use full text, a summary, or chunk-only mode based on size and file type.
+    Returns (context_text, context_mode) where context_mode is "full", "summary", or "chunks_only".
+    
+    For tabular files (xlsx, csv), summarization is skipped — we rely on
+    targeted chunk retrieval at query time to preserve exact data values.
     """
-    if len(extracted_text) < CHAR_THRESHOLD:
-        # Still need to respect session attribute size limit
+    is_tabular = file_ext in ("xlsx", "csv")
+
+    if is_tabular:
+        # For tables: if small enough, send full text; otherwise use chunk-only mode
         if len(extracted_text) <= SESSION_ATTR_MAX_CHARS:
             return extracted_text, "full"
         else:
-            # Text fits in context window but exceeds session attribute limit
+            # Store a brief note as context; actual data comes from chunk retrieval
+            note = (
+                f"[Large tabular document — {len(extracted_text):,} characters. "
+                f"Relevant rows will be retrieved based on each question.]"
+            )
+            return note, "chunks_only"
+
+    # Non-tabular documents: existing logic
+    if len(extracted_text) < CHAR_THRESHOLD:
+        if len(extracted_text) <= SESSION_ATTR_MAX_CHARS:
+            return extracted_text, "full"
+        else:
             summary = summarize_document(extracted_text)
             return summary, "summary"
     else:
@@ -199,18 +256,94 @@ def chunk_text(text: str, chunk_size: int = CHUNK_SIZE) -> list[str]:
     return chunks
 
 
-def find_relevant_chunks(full_text: str, query: str, top_k: int = 3) -> str:
+def chunk_tabular_text(text: str, chunk_size: int = CHUNK_SIZE) -> list[str]:
+    """
+    Split tabular text into chunks that always include the header row(s).
+    
+    Handles multi-sheet Excel files (sections starting with '--- Sheet: ...') by
+    prepending the relevant sheet header + column header to each chunk.
+    """
+    lines = text.split("\n")
+    if not lines:
+        return []
+
+    chunks = []
+    current_sheet_header = ""
+    current_col_header = ""
+    current_chunk_lines: list[str] = []
+    current_size = 0
+
+    for line in lines:
+        # Detect sheet separator (e.g. "--- Sheet: Sales ---")
+        if line.startswith("--- Sheet:"):
+            # Flush current chunk if any
+            if current_chunk_lines:
+                chunks.append(_build_table_chunk(current_sheet_header, current_col_header, current_chunk_lines))
+                current_chunk_lines = []
+                current_size = 0
+            current_sheet_header = line
+            current_col_header = ""  # Reset — next data line becomes the header
+            continue
+
+        # First data line after a sheet header (or at start) is the column header
+        if not current_col_header:
+            current_col_header = line
+            continue
+
+        # Check if adding this line would exceed chunk size
+        line_len = len(line) + 1  # +1 for newline
+        header_overhead = len(current_sheet_header) + len(current_col_header) + 4
+        if current_size + line_len > (chunk_size - header_overhead) and current_chunk_lines:
+            chunks.append(_build_table_chunk(current_sheet_header, current_col_header, current_chunk_lines))
+            current_chunk_lines = []
+            current_size = 0
+
+        current_chunk_lines.append(line)
+        current_size += line_len
+
+    # Flush remaining
+    if current_chunk_lines:
+        chunks.append(_build_table_chunk(current_sheet_header, current_col_header, current_chunk_lines))
+
+    return chunks
+
+
+def _build_table_chunk(sheet_header: str, col_header: str, data_lines: list[str]) -> str:
+    """Assemble a table chunk with its header context."""
+    parts = []
+    if sheet_header:
+        parts.append(sheet_header)
+    if col_header:
+        parts.append(col_header)
+    parts.extend(data_lines)
+    return "\n".join(parts)
+
+
+def find_relevant_chunks(full_text: str, query: str, top_k: int = 3, is_tabular: bool = False) -> str:
     """
     Simple keyword-based chunk retrieval.
     Returns the top matching chunks concatenated.
+    
+    For tabular data, uses header-aware chunking so each chunk includes
+    column headers for context.
     """
-    chunks = chunk_text(full_text)
+    if is_tabular:
+        chunks = chunk_tabular_text(full_text)
+    else:
+        chunks = chunk_text(full_text)
+
     if not chunks:
         return ""
 
     # Extract keywords from query (words > 3 chars)
     keywords = [w.lower() for w in re.split(r"\W+", query) if len(w) > 3]
     if not keywords:
+        # For tabular data with no good keywords, return the first chunks (headers + start of data)
+        if is_tabular and chunks:
+            result = "\n\n---\n\n".join(chunks[:top_k])
+            if len(result) > SESSION_ATTR_MAX_CHARS:
+                result = result[:SESSION_ATTR_MAX_CHARS]
+            return result
         return ""
 
     # Score each chunk by keyword occurrence
@@ -223,6 +356,10 @@ def find_relevant_chunks(full_text: str, query: str, top_k: int = 3) -> str:
 
     scored.sort(key=lambda x: x[0], reverse=True)
     top_chunks = [chunk for _, chunk in scored[:top_k]]
+
+    # If no keyword matches for tabular, fall back to first chunks
+    if not top_chunks and is_tabular:
+        top_chunks = chunks[:top_k]
 
     result = "\n\n---\n\n".join(top_chunks)
     # Ensure it fits in session attributes
