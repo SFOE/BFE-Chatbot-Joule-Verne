@@ -104,7 +104,7 @@ st.caption("🔒 Your interactions are logged to help us improve this chatbot.")
 with st.expander(":information_source: :construction:"):
     st.write("""
     This is a demo application and will still be submitted to changes. The chatbot might not always be correct or precise. Do not hesitate to check the sources in the side bar if unsure. Please be careful not to upload any personal data in the chat.
-    You can upload a document (PDF, TXT, DOCX) via the sidebar to ask questions about it during your session.
+    You can upload a document (PDF, TXT, DOCX, XLSX, CSV) via the sidebar to ask questions about it during your session.
     You can rate answers with thumbs up/down and leave a short text comment via the 💬 button.
     For any questions or requests you can [contact us](mailto:digitalisierung@bfe.admin.ch) at the Digital Innovation & Geoinformation section :blush:
     """)
@@ -296,9 +296,9 @@ if web_search_enabled:
 else:
       uploaded_file = st.sidebar.file_uploader(
             "Upload a document to ask questions about it",
-            type=["pdf", "txt", "docx"],
+            type=["pdf", "txt", "docx", "xlsx", "csv"],
             key="doc_uploader",
-            help="Supported formats: PDF, TXT, DOCX (max 20 MB)",
+            help="Supported formats: PDF, TXT, DOCX, XLSX, CSV (max 20 MB)",
       )
 
 # Process newly uploaded file
@@ -316,7 +316,10 @@ if uploaded_file is not None:
                               st.session_state["doc_full_text"] = extracted_text
 
                               # Determine context strategy
-                              doc_context, context_mode = prepare_document_context(extracted_text)
+                              doc_context, context_mode = prepare_document_context(
+                                    extracted_text,
+                                    file_ext=uploaded_file.name.rsplit(".", 1)[-1].lower(),
+                              )
                               st.session_state["doc_context"] = doc_context
                               st.session_state["doc_context_mode"] = context_mode
                               st.session_state["uploaded_doc_name"] = uploaded_file.name
@@ -343,7 +346,7 @@ if st.session_state.get("uploaded_doc_name") and not web_search_enabled:
       doc_name = st.session_state["uploaded_doc_name"]
       page_count = st.session_state.get("uploaded_doc_pages", "?")
       context_mode = st.session_state.get("doc_context_mode", "full")
-      mode_label = "full text" if context_mode == "full" else "summary"
+      mode_label = "full text" if context_mode == "full" else ("chunk retrieval" if context_mode == "chunks_only" else "summary")
 
       st.sidebar.success(f"📄 **{doc_name}** ({page_count} pages, {mode_label})")
 
@@ -351,6 +354,10 @@ if st.session_state.get("uploaded_doc_name") and not web_search_enabled:
             st.sidebar.caption(
                   "ℹ️ Document is large — working from a summary. "
                   "Ask about specific sections for detailed answers."
+            )
+      elif context_mode == "chunks_only":
+            st.sidebar.caption(
+                  "ℹ️ Large table — relevant rows will be retrieved for each question."
             )
 
       if st.sidebar.button("Remove document", icon="🗑️", key="remove_doc"):
@@ -418,16 +425,20 @@ if prompt:
                   doc_context = st.session_state["doc_context"]
                   context_mode = st.session_state.get("doc_context_mode", "full")
 
-                  # For summary mode, try targeted chunk retrieval for relevant details
-                  if context_mode == "summary" and st.session_state.get("doc_full_text"):
+                  # For summary or chunks_only mode, try targeted chunk retrieval for relevant details
+                  if context_mode in ("summary", "chunks_only") and st.session_state.get("doc_full_text"):
+                        is_tabular = context_mode == "chunks_only"
                         relevant_chunks = find_relevant_chunks(
-                              st.session_state["doc_full_text"], prompt
+                              st.session_state["doc_full_text"], prompt, is_tabular=is_tabular
                         )
                         if relevant_chunks:
-                              doc_context = (
-                                    f"DOCUMENT SUMMARY:\n{doc_context}\n\n"
-                                    f"RELEVANT SECTIONS:\n{relevant_chunks}"
-                              )
+                              if context_mode == "chunks_only":
+                                    doc_context = f"RELEVANT DATA:\n{relevant_chunks}"
+                              else:
+                                    doc_context = (
+                                          f"DOCUMENT SUMMARY:\n{doc_context}\n\n"
+                                          f"RELEVANT SECTIONS:\n{relevant_chunks}"
+                                    )
 
                   session_attributes = {
                         "uploaded_document": doc_context,
