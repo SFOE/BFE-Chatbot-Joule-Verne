@@ -6,7 +6,7 @@ import base64
 import json
 import os
 from src.utils import parse_s3_uri, query_agent, s3_get_object, s3_head_object, save_feedback, AGENT_ID, AGENT_ALIAS_ID, AGENT_SEARCH_ID, AGENT_SEARCH_ALIAS_ID, PDF_BUCKET, EXTRACTED_BUCKET, WEBSITE_BUCKET, FEDLEX_BUCKET
-from src.document_processing import extract_text, prepare_document_context, find_relevant_chunks, extract_table_schema, chunk_tabular_text, embed_chunks, find_relevant_chunks_semantic
+from src.document_processing import extract_text, prepare_document_context, find_relevant_chunks
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -262,8 +262,7 @@ if web_search_toggle and not st.session_state.get("web_search_enabled", False) a
                         st.session_state.pop("doc_context_mode", None)
                         st.session_state.pop("uploaded_doc_name", None)
                         st.session_state.pop("uploaded_doc_pages", None)
-                        st.session_state.pop("doc_table_schema", None)
-                        st.session_state.pop("doc_chunk_embeddings", None)
+                        st.session_state.pop("doc_raw_bytes", None)
                         st.rerun()
             with col_no:
                   if st.button("Cancel", use_container_width=True):
@@ -322,29 +321,21 @@ if uploaded_file is not None:
                                     extracted_text,
                                     file_ext=uploaded_file.name.rsplit(".", 1)[-1].lower(),
                               )
-                              st.session_state["doc_context"] = doc_context
-                              st.session_state["doc_context_mode"] = context_mode
+
+                              # For large tabular files, use Code Interpreter instead of chunk retrieval
+                              file_ext = uploaded_file.name.rsplit(".", 1)[-1].lower()
+                              if file_ext in ("xlsx", "csv") and context_mode == "chunks_only":
+                                    # Store raw bytes for Code Interpreter
+                                    st.session_state["doc_raw_bytes"] = file_bytes
+                                    st.session_state["doc_context"] = doc_context
+                                    st.session_state["doc_context_mode"] = "code_interpreter"
+                              else:
+                                    st.session_state["doc_raw_bytes"] = None
+                                    st.session_state["doc_context"] = doc_context
+                                    st.session_state["doc_context_mode"] = context_mode
+
                               st.session_state["uploaded_doc_name"] = uploaded_file.name
                               st.session_state["uploaded_doc_pages"] = page_count
-
-                              # For tabular files, extract schema metadata and generate embeddings
-                              file_ext = uploaded_file.name.rsplit(".", 1)[-1].lower()
-                              if file_ext in ("xlsx", "csv"):
-                                    schema = extract_table_schema(extracted_text)
-                                    st.session_state["doc_table_schema"] = schema
-
-                                    # Generate embeddings for large tables (chunks_only mode)
-                                    if context_mode == "chunks_only":
-                                          chunks = chunk_tabular_text(extracted_text)
-                                          try:
-                                                chunk_embeddings = embed_chunks(chunks)
-                                                st.session_state["doc_chunk_embeddings"] = chunk_embeddings
-                                          except Exception as e:
-                                                logging.warning("Embedding generation failed, will use keyword fallback: %s", e)
-                                                st.session_state.pop("doc_chunk_embeddings", None)
-                              else:
-                                    st.session_state.pop("doc_table_schema", None)
-                                    st.session_state.pop("doc_chunk_embeddings", None)
 
                         except ValueError as e:
                               st.error(str(e))
@@ -353,8 +344,7 @@ if uploaded_file is not None:
                               st.session_state.pop("doc_context_mode", None)
                               st.session_state.pop("uploaded_doc_name", None)
                               st.session_state.pop("uploaded_doc_pages", None)
-                              st.session_state.pop("doc_table_schema", None)
-                              st.session_state.pop("doc_chunk_embeddings", None)
+                              st.session_state.pop("doc_raw_bytes", None)
                         except Exception as e:
                               logging.error("Document extraction failed: %s", e)
                               st.error("Failed to extract text from the document. Please try another file.")
@@ -363,15 +353,14 @@ if uploaded_file is not None:
                               st.session_state.pop("doc_context_mode", None)
                               st.session_state.pop("uploaded_doc_name", None)
                               st.session_state.pop("uploaded_doc_pages", None)
-                              st.session_state.pop("doc_table_schema", None)
-                              st.session_state.pop("doc_chunk_embeddings", None)
+                              st.session_state.pop("doc_raw_bytes", None)
 
 # Show document status and remove button
 if st.session_state.get("uploaded_doc_name") and not web_search_enabled:
       doc_name = st.session_state["uploaded_doc_name"]
       page_count = st.session_state.get("uploaded_doc_pages", "?")
       context_mode = st.session_state.get("doc_context_mode", "full")
-      mode_label = "full text" if context_mode == "full" else ("chunk retrieval" if context_mode == "chunks_only" else "summary")
+      mode_label = "full text" if context_mode == "full" else ("Code Interpreter" if context_mode == "code_interpreter" else "summary")
 
       st.sidebar.success(f"📄 **{doc_name}** ({page_count} pages, {mode_label})")
 
@@ -380,9 +369,9 @@ if st.session_state.get("uploaded_doc_name") and not web_search_enabled:
                   "ℹ️ Document is large — working from a summary. "
                   "Ask about specific sections for detailed answers."
             )
-      elif context_mode == "chunks_only":
+      elif context_mode == "code_interpreter":
             st.sidebar.caption(
-                  "ℹ️ Large table — relevant rows will be retrieved for each question."
+                  "ℹ️ Large table — will be analysed using Code Interpreter."
             )
 
       if st.sidebar.button("Remove document", icon="🗑️", key="remove_doc"):
@@ -391,8 +380,7 @@ if st.session_state.get("uploaded_doc_name") and not web_search_enabled:
             st.session_state.pop("doc_context_mode", None)
             st.session_state.pop("uploaded_doc_name", None)
             st.session_state.pop("uploaded_doc_pages", None)
-            st.session_state.pop("doc_table_schema", None)
-            st.session_state.pop("doc_chunk_embeddings", None)
+            st.session_state.pop("doc_raw_bytes", None)
             st.rerun()
 
 st.sidebar.divider()
@@ -413,8 +401,7 @@ if st.sidebar.button("Clear chat", icon="✏️"):
       st.session_state.pop("doc_context_mode", None)
       st.session_state.pop("uploaded_doc_name", None)
       st.session_state.pop("uploaded_doc_pages", None)
-      st.session_state.pop("doc_table_schema", None)
-      st.session_state.pop("doc_chunk_embeddings", None)
+      st.session_state.pop("doc_raw_bytes", None)
       # Clear pending/retry state
       st.session_state.pop("pending_query", None)
       st.session_state.pop("retry_prompt", None)
@@ -450,48 +437,54 @@ if prompt:
 
             # Build session attributes for document context
             session_attributes = None
+            agent_files = None
             if st.session_state.get("doc_context") and not web_search_enabled:
                   doc_context = st.session_state["doc_context"]
                   context_mode = st.session_state.get("doc_context_mode", "full")
 
-                  # For summary or chunks_only mode, try targeted chunk retrieval for relevant details
-                  if context_mode in ("summary", "chunks_only") and st.session_state.get("doc_full_text"):
-                        is_tabular = context_mode == "chunks_only"
+                  if context_mode == "code_interpreter" and st.session_state.get("doc_raw_bytes"):
+                        # Large tabular file → send raw bytes to Code Interpreter
+                        doc_name = st.session_state.get("uploaded_doc_name", "data.csv")
+                        file_ext = doc_name.rsplit(".", 1)[-1].lower()
+                        if file_ext == "csv":
+                              media_type = "text/csv"
+                        else:
+                              media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
-                        # Use semantic retrieval if embeddings are available, otherwise keyword fallback
-                        relevant_chunks = ""
-                        if is_tabular and st.session_state.get("doc_chunk_embeddings"):
-                              relevant_chunks = find_relevant_chunks_semantic(
-                                    st.session_state["doc_chunk_embeddings"], prompt
-                              )
+                        agent_files = [{
+                              "name": doc_name,
+                              "source": {
+                                    "byteContent": {
+                                          "data": st.session_state["doc_raw_bytes"],
+                                          "mediaType": media_type,
+                                    }
+                              },
+                              "useCase": "CODE_INTERPRETER",
+                        }]
 
-                        # Fallback to keyword-based retrieval
-                        if not relevant_chunks:
-                              relevant_chunks = find_relevant_chunks(
-                                    st.session_state["doc_full_text"], prompt, is_tabular=is_tabular
-                              )
+                  elif context_mode == "summary" and st.session_state.get("doc_full_text"):
+                        # For summary mode, try targeted chunk retrieval for relevant details
+                        relevant_chunks = find_relevant_chunks(
+                              st.session_state["doc_full_text"], prompt, is_tabular=False
+                        )
                         if relevant_chunks:
-                              if context_mode == "chunks_only":
-                                    # Include schema for tabular files
-                                    table_schema = st.session_state.get("doc_table_schema", "")
-                                    if table_schema:
-                                          doc_context = (
-                                                f"TABLE SCHEMA:\n{table_schema}\n\n"
-                                                f"RELEVANT DATA:\n{relevant_chunks}"
-                                          )
-                                    else:
-                                          doc_context = f"RELEVANT DATA:\n{relevant_chunks}"
-                              else:
-                                    doc_context = (
-                                          f"DOCUMENT SUMMARY:\n{doc_context}\n\n"
-                                          f"RELEVANT SECTIONS:\n{relevant_chunks}"
-                                    )
+                              doc_context = (
+                                    f"DOCUMENT SUMMARY:\n{doc_context}\n\n"
+                                    f"RELEVANT SECTIONS:\n{relevant_chunks}"
+                              )
+                        session_attributes = {
+                              "uploaded_document": doc_context,
+                              "document_name": st.session_state.get("uploaded_doc_name", ""),
+                              "context_mode": context_mode,
+                        }
 
-                  session_attributes = {
-                        "uploaded_document": doc_context,
-                        "document_name": st.session_state.get("uploaded_doc_name", ""),
-                        "context_mode": context_mode,
-                  }
+                  else:
+                        # Full text mode — pass as session attributes
+                        session_attributes = {
+                              "uploaded_document": doc_context,
+                              "document_name": st.session_state.get("uploaded_doc_name", ""),
+                              "context_mode": context_mode,
+                        }
 
             response = query_agent(
                   prompt,
@@ -499,6 +492,7 @@ if prompt:
                   active_agent_id,
                   active_alias_id,
                   session_attributes=session_attributes,
+                  files=agent_files,
             )
 
             # Show live progress, then transition to reasoning expander
