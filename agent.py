@@ -72,6 +72,27 @@ def render_response_with_downloads(response_text):
         )
 
 
+def _render_ci_file(ci_file, key_prefix=""):
+    """Render a Code Interpreter output file: images inline, others as download buttons."""
+    file_name = ci_file.get("name", "output")
+    file_type = ci_file.get("type", "application/octet-stream")
+    file_data = ci_file.get("data", b"")
+
+    if not file_data:
+        return
+
+    if file_type.startswith("image/"):
+        st.image(file_data, caption=file_name)
+    else:
+        st.download_button(
+            label=f"📥 {file_name}",
+            data=file_data,
+            file_name=file_name,
+            mime=file_type,
+            key=f"ci_dl_{key_prefix}_{file_name}",
+        )
+
+
 # Initialize sources in session state (only last answer's sources are kept)
 if "s3_refs" not in st.session_state:
       st.session_state["s3_refs"] = []
@@ -113,6 +134,11 @@ for idx, message in enumerate(st.session_state.messages):
       with st.chat_message(message["role"]):
             if message["role"] == "assistant":
                   render_response_with_downloads(message["content"])
+                  # Render saved Code Interpreter output files
+                  ci_files = message.get("ci_files", [])
+                  if ci_files:
+                        for ci_file in ci_files:
+                              _render_ci_file(ci_file, key_prefix=f"hist_{idx}")
             else:
                   st.markdown(message["content"])
             if message["role"] == "assistant":
@@ -500,6 +526,7 @@ if prompt:
                   trace_steps = []        # Steps with details for the expander
                   shown_labels = set()    # Dedup for live status display
                   reply = None
+                  code_interpreter_files = []  # Output files from Code Interpreter
 
                   for event in response.get("completion"):
 
@@ -602,6 +629,32 @@ if prompt:
                                                             if detail:
                                                                   trace_steps.append({"label": step_label, "detail": detail})
                                                             status.update(label="⚙️ Action completed")
+                                                      elif "codeInterpreterInvocationOutput" in obs:
+                                                            ci_output = obs["codeInterpreterInvocationOutput"]
+                                                            # Collect generated files
+                                                            ci_files = ci_output.get("files", [])
+                                                            for ci_file in ci_files:
+                                                                  file_name = ci_file.get("name", "output")
+                                                                  file_type = ci_file.get("type", "application/octet-stream")
+                                                                  file_bytes_b64 = ci_file.get("bytes", "")
+                                                                  if file_bytes_b64:
+                                                                        file_data = base64.b64decode(file_bytes_b64) if isinstance(file_bytes_b64, str) else file_bytes_b64
+                                                                        code_interpreter_files.append({
+                                                                              "name": file_name,
+                                                                              "type": file_type,
+                                                                              "data": file_data,
+                                                                        })
+                                                            # Log execution output/errors for trace
+                                                            exec_output = ci_output.get("executionOutput", "")
+                                                            exec_error = ci_output.get("executionError", "")
+                                                            if exec_error:
+                                                                  trace_steps.append({"label": "🖥️ Code Interpreter error", "detail": exec_error[:500]})
+                                                            elif exec_output:
+                                                                  trace_steps.append({"label": "🖥️ Code Interpreter", "detail": exec_output[:500]})
+                                                            if ci_files:
+                                                                  status.update(label=f"🖥️ Generated {len(ci_files)} file(s)")
+                                                            else:
+                                                                  status.update(label="🖥️ Code executed")
 
                                                 elif "modelInvocationInput" in value:
                                                       status.update(label="🤖 Thinking...")
@@ -631,11 +684,16 @@ if prompt:
             if reply:
                   with st.chat_message("assistant"):
                         render_response_with_downloads(reply)
+                        # Display Code Interpreter output files
+                        if code_interpreter_files:
+                              for ci_file in code_interpreter_files:
+                                    _render_ci_file(ci_file)
                         st.session_state.messages.append({
                               "role": "assistant",
                               "content": reply,
                               "retrieved_chunks": st.session_state.get("retrieved_chunks", []),
                               "trace_steps": trace_steps,
+                              "ci_files": code_interpreter_files,
                         })
 
             # Save interaction to feedback bucket (without rating) immediately
