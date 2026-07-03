@@ -140,6 +140,9 @@ def extract_table_schema(extracted_text: str) -> str:
     Parses the pipe-delimited format produced by extract_text_from_xlsx/csv,
     infers column types and value ranges, and returns a human-readable schema
     string suitable for LLM context.
+    
+    Detects matrix/crosstab layouts where the first column serves as a row
+    header (all unique text values labeling each row).
     """
     sheets = _parse_sheets(extracted_text)
     if not sheets:
@@ -150,8 +153,9 @@ def extract_table_schema(extracted_text: str) -> str:
         columns = [col.strip() for col in header_row.split(" | ")]
         col_descriptions = []
 
-        for col_idx, col_name in enumerate(columns):
-            # Collect values for this column across data rows
+        # Collect values per column for analysis
+        columns_values: list[list[str]] = []
+        for col_idx in range(len(columns)):
             values = []
             for row in data_rows[:_MAX_ROWS_FOR_INFERENCE]:
                 cells = row.split(" | ")
@@ -159,8 +163,20 @@ def extract_table_schema(extracted_text: str) -> str:
                     val = cells[col_idx].strip()
                     if val:
                         values.append(val)
+            columns_values.append(values)
 
-            col_desc = _describe_column(col_name, values)
+        # Detect if first column is a row header:
+        # - All values are unique text (not numeric)
+        # - At least one other column is numeric
+        is_row_header_col = _is_row_header(columns_values, columns)
+
+        for col_idx, col_name in enumerate(columns):
+            values = columns_values[col_idx]
+
+            if col_idx == 0 and is_row_header_col:
+                col_desc = _describe_row_header_column(col_name, values)
+            else:
+                col_desc = _describe_column(col_name, values)
             col_descriptions.append(col_desc)
 
         # Build sheet schema
@@ -176,6 +192,71 @@ def extract_table_schema(extracted_text: str) -> str:
         )
 
     return "\n\n".join(schema_parts)
+
+
+def _is_row_header(columns_values: list[list[str]], columns: list[str]) -> bool:
+    """
+    Detect if the first column serves as a row header (matrix/crosstab layout).
+    
+    Criteria:
+    - First column has values that are mostly unique text (not numeric)
+    - At least one other column is numeric
+    - More than 1 row of data exists
+    """
+    if not columns_values or len(columns_values) < 2:
+        return False
+
+    first_col = columns_values[0]
+    if len(first_col) < 2:
+        return False
+
+    # Check first column is non-numeric
+    for v in first_col[:_MAX_ROWS_FOR_INFERENCE]:
+        cleaned = v.replace(",", "").replace("'", "").strip()
+        try:
+            float(cleaned)
+            return False  # It's numeric — not a row header
+        except ValueError:
+            continue
+
+    # Check uniqueness (allow small number of duplicates for grouped tables)
+    unique_ratio = len(set(first_col)) / len(first_col)
+    if unique_ratio < 0.8:
+        return False  # Too many duplicates — more like a category column than a row identifier
+
+    # Check at least one other column is numeric
+    for col_values in columns_values[1:]:
+        all_numeric = True
+        for v in col_values[:50]:  # Quick check on first 50 values
+            cleaned = v.replace(",", "").replace("'", "").replace("%", "").strip()
+            try:
+                float(cleaned)
+            except ValueError:
+                all_numeric = False
+                break
+        if all_numeric and col_values:
+            return True
+
+    return False
+
+
+def _describe_row_header_column(col_name: str, values: list[str]) -> str:
+    """
+    Describe a column identified as a row header/identifier.
+    
+    Handles the common case where the column name is empty (top-left cell
+    in a matrix layout) by labeling it as 'Row identifier'.
+    """
+    display_name = col_name if col_name else "(row identifier)"
+    unique_values = list(dict.fromkeys(values))
+    unique_count = len(unique_values)
+
+    if unique_count <= _MAX_SAMPLE_VALUES:
+        samples = ", ".join(unique_values)
+        return f"{display_name} [ROW HEADER] (values: {samples})"
+    else:
+        samples = ", ".join(unique_values[:_MAX_SAMPLE_VALUES])
+        return f"{display_name} [ROW HEADER] ({unique_count} unique, e.g.: {samples})"
 
 
 def _parse_sheets(text: str) -> list[tuple[str, str, list[str]]]:
