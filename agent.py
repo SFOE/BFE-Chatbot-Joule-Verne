@@ -90,6 +90,7 @@ def _render_ci_file(ci_file, key_prefix="", file_idx=0):
             file_name=file_name,
             mime=file_type,
             key=f"ci_dl_{key_prefix}_{file_idx}_{file_name}",
+            on_click="ignore",
         )
 
 
