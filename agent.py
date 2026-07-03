@@ -72,7 +72,7 @@ def render_response_with_downloads(response_text):
         )
 
 
-def _render_ci_file(ci_file, key_prefix=""):
+def _render_ci_file(ci_file, key_prefix="", file_idx=0):
     """Render a Code Interpreter output file: images inline, others as download buttons."""
     file_name = ci_file.get("name", "output")
     file_type = ci_file.get("type", "application/octet-stream")
@@ -89,7 +89,7 @@ def _render_ci_file(ci_file, key_prefix=""):
             data=file_data,
             file_name=file_name,
             mime=file_type,
-            key=f"ci_dl_{key_prefix}_{file_name}",
+            key=f"ci_dl_{key_prefix}_{file_idx}_{file_name}",
         )
 
 
@@ -137,8 +137,8 @@ for idx, message in enumerate(st.session_state.messages):
                   # Render saved Code Interpreter output files
                   ci_files = message.get("ci_files", [])
                   if ci_files:
-                        for ci_file in ci_files:
-                              _render_ci_file(ci_file, key_prefix=f"hist_{idx}")
+                        for i, ci_file in enumerate(ci_files):
+                              _render_ci_file(ci_file, key_prefix=f"hist_{idx}", file_idx=i)
             else:
                   st.markdown(message["content"])
             if message["role"] == "assistant":
@@ -687,10 +687,6 @@ if prompt:
             if reply:
                   with st.chat_message("assistant"):
                         render_response_with_downloads(reply)
-                        # Display Code Interpreter output files
-                        if code_interpreter_files:
-                              for ci_file in code_interpreter_files:
-                                    _render_ci_file(ci_file)
                         st.session_state.messages.append({
                               "role": "assistant",
                               "content": reply,
