@@ -480,6 +480,7 @@ if prompt:
                         agent_files = [{
                               "name": doc_name,
                               "source": {
+                                    "sourceType": "BYTE_CONTENT",
                                     "byteContent": {
                                           "data": st.session_state["doc_raw_bytes"],
                                           "mediaType": media_type,
@@ -529,6 +530,20 @@ if prompt:
                   code_interpreter_files = []  # Output files from Code Interpreter
 
                   for event in response.get("completion"):
+
+                        # Collect output files from Code Interpreter (top-level event)
+                        if 'files' in event:
+                              files_event = event['files']
+                              for ci_file in files_event.get('files', []):
+                                    file_name = ci_file.get("name", "output")
+                                    file_type = ci_file.get("type", "application/octet-stream")
+                                    file_data = ci_file.get("bytes", b"")
+                                    if file_data:
+                                          code_interpreter_files.append({
+                                                "name": file_name,
+                                                "type": file_type,
+                                                "data": file_data,
+                                          })
 
                         # Collect agent output.
                         if 'chunk' in event:
@@ -631,28 +646,16 @@ if prompt:
                                                             status.update(label="⚙️ Action completed")
                                                       elif "codeInterpreterInvocationOutput" in obs:
                                                             ci_output = obs["codeInterpreterInvocationOutput"]
-                                                            # Collect generated files
-                                                            ci_files = ci_output.get("files", [])
-                                                            for ci_file in ci_files:
-                                                                  file_name = ci_file.get("name", "output")
-                                                                  file_type = ci_file.get("type", "application/octet-stream")
-                                                                  file_bytes_b64 = ci_file.get("bytes", "")
-                                                                  if file_bytes_b64:
-                                                                        file_data = base64.b64decode(file_bytes_b64) if isinstance(file_bytes_b64, str) else file_bytes_b64
-                                                                        code_interpreter_files.append({
-                                                                              "name": file_name,
-                                                                              "type": file_type,
-                                                                              "data": file_data,
-                                                                        })
                                                             # Log execution output/errors for trace
                                                             exec_output = ci_output.get("executionOutput", "")
                                                             exec_error = ci_output.get("executionError", "")
+                                                            ci_file_names = ci_output.get("files", [])
                                                             if exec_error:
                                                                   trace_steps.append({"label": "🖥️ Code Interpreter error", "detail": exec_error[:500]})
                                                             elif exec_output:
                                                                   trace_steps.append({"label": "🖥️ Code Interpreter", "detail": exec_output[:500]})
-                                                            if ci_files:
-                                                                  status.update(label=f"🖥️ Generated {len(ci_files)} file(s)")
+                                                            if ci_file_names:
+                                                                  status.update(label=f"🖥️ Generated {len(ci_file_names)} file(s)")
                                                             else:
                                                                   status.update(label="🖥️ Code executed")
 
