@@ -300,7 +300,7 @@ else:
             "Upload a document to ask questions about it",
             type=["pdf", "txt", "docx", "xlsx", "csv"],
             key="doc_uploader",
-            help="Supported formats: PDF, TXT, DOCX, XLSX, CSV (max 20 MB)",
+            help="Supported formats: PDF, TXT, DOCX, XLSX, CSV (max 10 MB)",
       )
 
 # Process newly uploaded file

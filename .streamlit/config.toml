@@ -10,7 +10,7 @@ linkColor="#8860bdff"
 
 [server]
 
-maxUploadSize=20
+maxUploadSize=10
 
 [client]
 
