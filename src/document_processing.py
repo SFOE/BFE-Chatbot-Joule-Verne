@@ -124,286 +124,6 @@ def extract_text(file_bytes: bytes, filename: str) -> tuple[str, int]:
 
 
 # ---------------------------------------------------------------------------
-# Table Schema Extraction
-# ---------------------------------------------------------------------------
-
-# Max unique text values to include as samples per column
-_MAX_SAMPLE_VALUES = 5
-# Max rows to scan for type inference (performance guard for very large tables)
-_MAX_ROWS_FOR_INFERENCE = 500
-
-
-def extract_table_schema(extracted_text: str) -> str:
-    """
-    Derive a compact schema description from already-extracted tabular text.
-    
-    Parses the pipe-delimited format produced by extract_text_from_xlsx/csv,
-    infers column types and value ranges, and returns a human-readable schema
-    string suitable for LLM context.
-    
-    Detects matrix/crosstab layouts where the first column serves as a row
-    header (all unique text values labeling each row).
-    
-    Falls back to a generic description if the table structure looks
-    non-standard (e.g. description rows before the actual header).
-    """
-    sheets = _parse_sheets(extracted_text)
-    if not sheets:
-        return ""
-
-    # Count total data rows across all sheets for fallback
-    total_rows = sum(len(dr) for _, _, dr in sheets)
-
-    schema_parts = []
-    has_nonsensical_schema = False
-
-    for sheet_name, header_row, data_rows in sheets:
-        columns = [col.strip() for col in header_row.split(" | ")]
-
-        # Detect nonsensical header: a single long string that looks like a sentence,
-        # or only 1 column when subsequent rows have more pipe separators
-        if _header_looks_invalid(columns, data_rows):
-            has_nonsensical_schema = True
-            break
-
-        col_descriptions = []
-
-        # Collect values per column for analysis
-        columns_values: list[list[str]] = []
-        for col_idx in range(len(columns)):
-            values = []
-            for row in data_rows[:_MAX_ROWS_FOR_INFERENCE]:
-                cells = row.split(" | ")
-                if col_idx < len(cells):
-                    val = cells[col_idx].strip()
-                    if val:
-                        values.append(val)
-            columns_values.append(values)
-
-        # Detect if first column is a row header:
-        # - All values are unique text (not numeric)
-        # - At least one other column is numeric
-        is_row_header_col = _is_row_header(columns_values, columns)
-
-        for col_idx, col_name in enumerate(columns):
-            values = columns_values[col_idx]
-
-            if col_idx == 0 and is_row_header_col:
-                col_desc = _describe_row_header_column(col_name, values)
-            else:
-                col_desc = _describe_column(col_name, values)
-            col_descriptions.append(col_desc)
-
-        # Build sheet schema
-        row_count = len(data_rows)
-        if sheet_name:
-            sheet_line = f"Sheet: {sheet_name} ({row_count} rows)"
-        else:
-            sheet_line = f"Table ({row_count} rows)"
-
-        schema_parts.append(
-            f"{sheet_line}\n"
-            f"Columns:\n" + "\n".join(f"  - {d}" for d in col_descriptions)
-        )
-
-    # If any sheet had a nonsensical header, return a generic fallback
-    if has_nonsensical_schema:
-        sheet_count = len(sheets)
-        sheet_names = [s[0] for s in sheets if s[0]]
-        fallback = f"Tabular data ({total_rows} rows, {sheet_count} sheet(s)). "
-        if sheet_names:
-            fallback += f"Sheets: {', '.join(sheet_names)}. "
-        fallback += "Content will be provided as relevant excerpts."
-        return fallback
-
-    return "\n\n".join(schema_parts)
-
-
-def _is_row_header(columns_values: list[list[str]], columns: list[str]) -> bool:
-    """
-    Detect if the first column serves as a row header (matrix/crosstab layout).
-    
-    Criteria:
-    - First column has values that are mostly unique text (not numeric)
-    - At least one other column is numeric
-    - More than 1 row of data exists
-    """
-    if not columns_values or len(columns_values) < 2:
-        return False
-
-    first_col = columns_values[0]
-    if len(first_col) < 2:
-        return False
-
-    # Check first column is non-numeric
-    for v in first_col[:_MAX_ROWS_FOR_INFERENCE]:
-        cleaned = v.replace(",", "").replace("'", "").strip()
-        try:
-            float(cleaned)
-            return False  # It's numeric — not a row header
-        except ValueError:
-            continue
-
-    # Check uniqueness (allow small number of duplicates for grouped tables)
-    unique_ratio = len(set(first_col)) / len(first_col)
-    if unique_ratio < 0.8:
-        return False  # Too many duplicates — more like a category column than a row identifier
-
-    # Check at least one other column is numeric
-    for col_values in columns_values[1:]:
-        all_numeric = True
-        for v in col_values[:50]:  # Quick check on first 50 values
-            cleaned = v.replace(",", "").replace("'", "").replace("%", "").strip()
-            try:
-                float(cleaned)
-            except ValueError:
-                all_numeric = False
-                break
-        if all_numeric and col_values:
-            return True
-
-    return False
-
-
-def _header_looks_invalid(columns: list[str], data_rows: list[str]) -> bool:
-    """
-    Detect if the detected header row is likely not a real table header.
-    
-    Signs of a bad header:
-    - A column name that's longer than 40 chars (looks like a sentence/description)
-    - Only 1 column detected but data rows have multiple pipe separators
-    - All column names are empty
-    """
-    # All columns empty
-    if all(not col for col in columns):
-        return True
-
-    # Any column name is suspiciously long (a full sentence, not a header label)
-    if any(len(col) > 40 for col in columns if col):
-        return True
-
-    # Header has 1 column but data rows consistently have more pipes
-    if len(columns) <= 1 and data_rows:
-        # Check first 10 data rows
-        pipe_counts = [row.count(" | ") for row in data_rows[:10]]
-        if pipe_counts and (sum(pipe_counts) / len(pipe_counts)) > 1:
-            return True
-
-    return False
-
-
-def _describe_row_header_column(col_name: str, values: list[str]) -> str:
-    """
-    Describe a column identified as a row header/identifier.
-    
-    Handles the common case where the column name is empty (top-left cell
-    in a matrix layout) by labeling it as 'Row identifier'.
-    """
-    display_name = col_name if col_name else "(row identifier)"
-    unique_values = list(dict.fromkeys(values))
-    unique_count = len(unique_values)
-
-    if unique_count <= _MAX_SAMPLE_VALUES:
-        samples = ", ".join(unique_values)
-        return f"{display_name} [ROW HEADER] (values: {samples})"
-    else:
-        samples = ", ".join(unique_values[:_MAX_SAMPLE_VALUES])
-        return f"{display_name} [ROW HEADER] ({unique_count} unique, e.g.: {samples})"
-
-
-def _parse_sheets(text: str) -> list[tuple[str, str, list[str]]]:
-    """
-    Parse extracted tabular text into sheets.
-    Returns list of (sheet_name, header_row, data_rows).
-    
-    For CSV (no sheet markers), returns a single entry with empty sheet_name.
-    """
-    lines = text.split("\n")
-    sheets = []
-
-    current_sheet_name = ""
-    current_header = ""
-    current_data: list[str] = []
-
-    for line in lines:
-        # Skip empty lines (sheet separators in multi-sheet files)
-        if not line.strip():
-            continue
-
-        # Detect sheet boundary
-        if line.startswith("--- Sheet:") and line.endswith("---"):
-            # Flush previous sheet
-            if current_header:
-                sheets.append((current_sheet_name, current_header, current_data))
-            current_sheet_name = line.replace("--- Sheet:", "").replace("---", "").strip()
-            current_header = ""
-            current_data = []
-            continue
-
-        # First non-empty line after sheet start (or at file start) is the header
-        if not current_header:
-            current_header = line
-        else:
-            current_data.append(line)
-
-    # Flush last sheet
-    if current_header:
-        sheets.append((current_sheet_name, current_header, current_data))
-
-    return sheets
-
-
-def _describe_column(col_name: str, values: list[str]) -> str:
-    """
-    Produce a short description of a column based on its values.
-    
-    Infers type as numeric, percentage, date-like, or text, then adds
-    range or sample values accordingly.
-    """
-    if not values:
-        return f"{col_name} (empty)"
-
-    # Try to classify the column
-    numeric_values = []
-    is_percentage = False
-
-    for v in values:
-        cleaned = v.replace(",", "").replace("'", "").strip()
-        # Detect percentage pattern
-        if cleaned.endswith("%"):
-            is_percentage = True
-            cleaned = cleaned[:-1]
-        try:
-            numeric_values.append(float(cleaned))
-        except ValueError:
-            break
-    else:
-        # All values were successfully parsed as numbers
-        if numeric_values:
-            min_val = min(numeric_values)
-            max_val = max(numeric_values)
-            suffix = "%" if is_percentage else ""
-            # Format as integers if all are whole numbers
-            if all(v == int(v) for v in numeric_values):
-                return f"{col_name} (numeric, range: {int(min_val)}{suffix}–{int(max_val)}{suffix})"
-            else:
-                return f"{col_name} (numeric, range: {min_val}{suffix}–{max_val}{suffix})"
-
-    # Not all numeric — treat as text/categorical
-    unique_values = list(dict.fromkeys(values))  # Preserves order, deduplicates
-    unique_count = len(unique_values)
-
-    if unique_count <= _MAX_SAMPLE_VALUES:
-        # Few unique values — show them all (likely categorical)
-        samples = ", ".join(unique_values)
-        return f"{col_name} (text, values: {samples})"
-    else:
-        # Many unique values — show count + a few samples
-        samples = ", ".join(unique_values[:_MAX_SAMPLE_VALUES])
-        return f"{col_name} (text, {unique_count} unique, e.g.: {samples})"
-
-
-# ---------------------------------------------------------------------------
 # Text Quality & Cleaning
 # ---------------------------------------------------------------------------
 
@@ -489,25 +209,25 @@ def summarize_document(text: str, region: Optional[str] = None) -> str:
 
 def prepare_document_context(extracted_text: str, file_ext: str = "") -> tuple[str, str]:
     """
-    Decide whether to use full text, a summary, or chunk-only mode based on size and file type.
-    Returns (context_text, context_mode) where context_mode is "full", "summary", or "chunks_only".
-    
-    For tabular files (xlsx, csv), summarization is skipped — we rely on
-    targeted chunk retrieval at query time to preserve exact data values.
+    Decide whether to use full text, a summary, or Code Interpreter based on size and file type.
+    Returns (context_text, context_mode) where context_mode is "full", "summary", or "code_interpreter".
+
+    For tabular files (xlsx, csv), summarization is skipped — large tables are
+    routed to Code Interpreter by the caller.
     """
     is_tabular = file_ext in ("xlsx", "csv")
 
     if is_tabular:
-        # For tables: if small enough, send full text; otherwise use chunk-only mode
+        # For tables: if small enough, send full text; otherwise flag as oversized
         if len(extracted_text) <= SESSION_ATTR_MAX_CHARS:
             return extracted_text, "full"
         else:
-            # Store a brief note as context; actual data comes from chunk retrieval
+            # Caller will route this to Code Interpreter
             note = (
                 f"[Large tabular document — {len(extracted_text):,} characters. "
-                f"Relevant rows will be retrieved based on each question.]"
+                f"File will be sent to Code Interpreter for analysis.]"
             )
-            return note, "chunks_only"
+            return note, "code_interpreter"
 
     # Non-tabular documents: existing logic
     if len(extracted_text) < CHAR_THRESHOLD:
@@ -536,81 +256,12 @@ def chunk_text(text: str, chunk_size: int = CHUNK_SIZE) -> list[str]:
     return chunks
 
 
-def chunk_tabular_text(text: str, chunk_size: int = CHUNK_SIZE) -> list[str]:
-    """
-    Split tabular text into chunks that always include the header row(s).
-    
-    Handles multi-sheet Excel files (sections starting with '--- Sheet: ...') by
-    prepending the relevant sheet header + column header to each chunk.
-    """
-    lines = text.split("\n")
-    if not lines:
-        return []
-
-    chunks = []
-    current_sheet_header = ""
-    current_col_header = ""
-    current_chunk_lines: list[str] = []
-    current_size = 0
-
-    for line in lines:
-        # Detect sheet separator (e.g. "--- Sheet: Sales ---")
-        if line.startswith("--- Sheet:"):
-            # Flush current chunk if any
-            if current_chunk_lines:
-                chunks.append(_build_table_chunk(current_sheet_header, current_col_header, current_chunk_lines))
-                current_chunk_lines = []
-                current_size = 0
-            current_sheet_header = line
-            current_col_header = ""  # Reset — next data line becomes the header
-            continue
-
-        # First data line after a sheet header (or at start) is the column header
-        if not current_col_header:
-            current_col_header = line
-            continue
-
-        # Check if adding this line would exceed chunk size
-        line_len = len(line) + 1  # +1 for newline
-        header_overhead = len(current_sheet_header) + len(current_col_header) + 4
-        if current_size + line_len > (chunk_size - header_overhead) and current_chunk_lines:
-            chunks.append(_build_table_chunk(current_sheet_header, current_col_header, current_chunk_lines))
-            current_chunk_lines = []
-            current_size = 0
-
-        current_chunk_lines.append(line)
-        current_size += line_len
-
-    # Flush remaining
-    if current_chunk_lines:
-        chunks.append(_build_table_chunk(current_sheet_header, current_col_header, current_chunk_lines))
-
-    return chunks
-
-
-def _build_table_chunk(sheet_header: str, col_header: str, data_lines: list[str]) -> str:
-    """Assemble a table chunk with its header context."""
-    parts = []
-    if sheet_header:
-        parts.append(sheet_header)
-    if col_header:
-        parts.append(col_header)
-    parts.extend(data_lines)
-    return "\n".join(parts)
-
-
 def find_relevant_chunks(full_text: str, query: str, top_k: int = 3, is_tabular: bool = False) -> str:
     """
     Simple keyword-based chunk retrieval.
     Returns the top matching chunks concatenated.
-    
-    For tabular data, uses header-aware chunking so each chunk includes
-    column headers for context.
     """
-    if is_tabular:
-        chunks = chunk_tabular_text(full_text)
-    else:
-        chunks = chunk_text(full_text)
+    chunks = chunk_text(full_text)
 
     if not chunks:
         return ""
@@ -618,12 +269,6 @@ def find_relevant_chunks(full_text: str, query: str, top_k: int = 3, is_tabular:
     # Extract keywords from query (words > 3 chars)
     keywords = [w.lower() for w in re.split(r"\W+", query) if len(w) > 3]
     if not keywords:
-        # For tabular data with no good keywords, return the first chunks (headers + start of data)
-        if is_tabular and chunks:
-            result = "\n\n---\n\n".join(chunks[:top_k])
-            if len(result) > SESSION_ATTR_MAX_CHARS:
-                result = result[:SESSION_ATTR_MAX_CHARS]
-            return result
         return ""
 
     # Score each chunk by keyword occurrence
@@ -637,138 +282,11 @@ def find_relevant_chunks(full_text: str, query: str, top_k: int = 3, is_tabular:
     scored.sort(key=lambda x: x[0], reverse=True)
     top_chunks = [chunk for _, chunk in scored[:top_k]]
 
-    # If no keyword matches for tabular, fall back to first chunks
-    if not top_chunks and is_tabular:
-        top_chunks = chunks[:top_k]
+    if not top_chunks:
+        return ""
 
     result = "\n\n---\n\n".join(top_chunks)
     # Ensure it fits in session attributes
     if len(result) > SESSION_ATTR_MAX_CHARS:
         result = result[:SESSION_ATTR_MAX_CHARS]
     return result
-
-
-# ---------------------------------------------------------------------------
-# Embedding-based Retrieval (for tabular data)
-# ---------------------------------------------------------------------------
-
-# Embedding model config
-_EMBED_MODEL_ID = "amazon.titan-embed-text-v2:0"
-_EMBED_DIMENSIONS = 1024  # Titan v2 supports 256, 512, or 1024
-
-
-def _get_bedrock_runtime(region: Optional[str] = None):
-    """Get or create a Bedrock Runtime client."""
-    import os
-    region = region or os.getenv("AWS_REGION", "us-east-1")
-    return boto3.client("bedrock-runtime", region_name=region)
-
-
-def embed_text(text: str, client=None) -> list[float]:
-    """
-    Generate an embedding vector for a single text using Bedrock Titan.
-    
-    Returns a list of floats (the embedding vector).
-    Raises RuntimeError if the API call fails.
-    """
-    import json
-
-    if client is None:
-        client = _get_bedrock_runtime()
-
-    body = json.dumps({
-        "inputText": text[:10_000],  # Titan v2 limit is ~10K chars
-        "dimensions": _EMBED_DIMENSIONS,
-        "normalize": True,
-    })
-
-    try:
-        response = client.invoke_model(
-            modelId=_EMBED_MODEL_ID,
-            contentType="application/json",
-            accept="application/json",
-            body=body,
-        )
-        result = json.loads(response["body"].read())
-        return result["embedding"]
-    except Exception as e:
-        logger.error("Embedding generation failed: %s", e)
-        raise RuntimeError(f"Embedding failed: {e}") from e
-
-
-def embed_chunks(chunks: list[str], region: Optional[str] = None) -> list[tuple[str, list[float]]]:
-    """
-    Generate embeddings for a list of text chunks.
-    
-    Called once at upload time. Each chunk is embedded individually to stay
-    within the Titan model's input limit.
-    
-    Returns a list of (chunk_text, embedding_vector) tuples.
-    If embedding fails for a chunk, it is skipped with a warning.
-    """
-    client = _get_bedrock_runtime(region)
-    results = []
-
-    for i, chunk in enumerate(chunks):
-        try:
-            embedding = embed_text(chunk, client=client)
-            results.append((chunk, embedding))
-        except RuntimeError:
-            logger.warning("Skipping chunk %d/%d — embedding failed", i + 1, len(chunks))
-            continue
-
-    logger.info("Embedded %d/%d chunks successfully", len(results), len(chunks))
-    return results
-
-
-def find_relevant_chunks_semantic(
-    chunk_embeddings: list[tuple[str, list[float]]],
-    query: str,
-    top_k: int = 3,
-    region: Optional[str] = None,
-) -> str:
-    """
-    Retrieve the most relevant chunks using cosine similarity against the query.
-    
-    Called at query time. Embeds the query (1 API call), then computes similarity
-    against all pre-computed chunk embeddings stored in session state.
-    
-    Falls back to empty string if query embedding fails.
-    
-    Returns the top-k chunks concatenated, capped at SESSION_ATTR_MAX_CHARS.
-    """
-    if not chunk_embeddings:
-        return ""
-
-    # Embed the query
-    try:
-        client = _get_bedrock_runtime(region)
-        query_embedding = embed_text(query, client=client)
-    except RuntimeError:
-        logger.error("Query embedding failed — falling back to keyword search")
-        return ""
-
-    # Compute cosine similarity (vectors are already normalized by Titan)
-    scored = []
-    for chunk_text, chunk_embedding in chunk_embeddings:
-        similarity = _cosine_similarity(query_embedding, chunk_embedding)
-        scored.append((similarity, chunk_text))
-
-    # Sort by similarity (highest first)
-    scored.sort(key=lambda x: x[0], reverse=True)
-    top_chunks = [chunk for _, chunk in scored[:top_k]]
-
-    result = "\n\n---\n\n".join(top_chunks)
-    if len(result) > SESSION_ATTR_MAX_CHARS:
-        result = result[:SESSION_ATTR_MAX_CHARS]
-    return result
-
-
-def _cosine_similarity(vec_a: list[float], vec_b: list[float]) -> float:
-    """
-    Compute cosine similarity between two vectors.
-    
-    Since Titan embeddings are normalized (unit vectors), cosine similarity
-    reduces to the dot product — no need for magnitude division.
-    """
-    return sum(a * b for a, b in zip(vec_a, vec_b))

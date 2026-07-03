@@ -39,7 +39,7 @@ bedrock_client = boto3.client(
     region_name=AWS_REGION
     )
 
-def query_agent(prompt, session_id, agent_id=None, agent_alias_id=None, session_attributes=None):
+def query_agent(prompt, session_id, agent_id=None, agent_alias_id=None, session_attributes=None, files=None):
       kwargs = dict(
             agentAliasId=agent_alias_id or AGENT_ALIAS_ID,
             agentId=agent_id or AGENT_ID,
@@ -47,10 +47,13 @@ def query_agent(prompt, session_id, agent_id=None, agent_alias_id=None, session_
             sessionId=session_id,
             inputText=prompt,
       )
+      session_state = {}
       if session_attributes:
-            kwargs["sessionState"] = {
-                  "promptSessionAttributes": session_attributes
-            }
+            session_state["promptSessionAttributes"] = session_attributes
+      if files:
+            session_state["files"] = files
+      if session_state:
+            kwargs["sessionState"] = session_state
       response = bedrock_client.invoke_agent(**kwargs)
       return response
 
