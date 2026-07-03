@@ -6,7 +6,7 @@ import base64
 import json
 import os
 from src.utils import parse_s3_uri, query_agent, s3_get_object, s3_head_object, save_feedback, AGENT_ID, AGENT_ALIAS_ID, AGENT_SEARCH_ID, AGENT_SEARCH_ALIAS_ID, PDF_BUCKET, EXTRACTED_BUCKET, WEBSITE_BUCKET, FEDLEX_BUCKET
-from src.document_processing import extract_text, prepare_document_context, find_relevant_chunks
+from src.document_processing import extract_text, prepare_document_context, find_relevant_chunks, extract_table_schema
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -262,6 +262,7 @@ if web_search_toggle and not st.session_state.get("web_search_enabled", False) a
                         st.session_state.pop("doc_context_mode", None)
                         st.session_state.pop("uploaded_doc_name", None)
                         st.session_state.pop("uploaded_doc_pages", None)
+                        st.session_state.pop("doc_table_schema", None)
                         st.rerun()
             with col_no:
                   if st.button("Cancel", use_container_width=True):
@@ -325,6 +326,14 @@ if uploaded_file is not None:
                               st.session_state["uploaded_doc_name"] = uploaded_file.name
                               st.session_state["uploaded_doc_pages"] = page_count
 
+                              # For tabular files, extract schema metadata
+                              file_ext = uploaded_file.name.rsplit(".", 1)[-1].lower()
+                              if file_ext in ("xlsx", "csv"):
+                                    schema = extract_table_schema(extracted_text)
+                                    st.session_state["doc_table_schema"] = schema
+                              else:
+                                    st.session_state.pop("doc_table_schema", None)
+
                         except ValueError as e:
                               st.error(str(e))
                               st.session_state.pop("doc_full_text", None)
@@ -332,6 +341,7 @@ if uploaded_file is not None:
                               st.session_state.pop("doc_context_mode", None)
                               st.session_state.pop("uploaded_doc_name", None)
                               st.session_state.pop("uploaded_doc_pages", None)
+                              st.session_state.pop("doc_table_schema", None)
                         except Exception as e:
                               logging.error("Document extraction failed: %s", e)
                               st.error("Failed to extract text from the document. Please try another file.")
@@ -340,6 +350,7 @@ if uploaded_file is not None:
                               st.session_state.pop("doc_context_mode", None)
                               st.session_state.pop("uploaded_doc_name", None)
                               st.session_state.pop("uploaded_doc_pages", None)
+                              st.session_state.pop("doc_table_schema", None)
 
 # Show document status and remove button
 if st.session_state.get("uploaded_doc_name") and not web_search_enabled:
@@ -366,6 +377,7 @@ if st.session_state.get("uploaded_doc_name") and not web_search_enabled:
             st.session_state.pop("doc_context_mode", None)
             st.session_state.pop("uploaded_doc_name", None)
             st.session_state.pop("uploaded_doc_pages", None)
+            st.session_state.pop("doc_table_schema", None)
             st.rerun()
 
 st.sidebar.divider()
@@ -386,6 +398,7 @@ if st.sidebar.button("Clear chat", icon="✏️"):
       st.session_state.pop("doc_context_mode", None)
       st.session_state.pop("uploaded_doc_name", None)
       st.session_state.pop("uploaded_doc_pages", None)
+      st.session_state.pop("doc_table_schema", None)
       # Clear pending/retry state
       st.session_state.pop("pending_query", None)
       st.session_state.pop("retry_prompt", None)
@@ -433,7 +446,15 @@ if prompt:
                         )
                         if relevant_chunks:
                               if context_mode == "chunks_only":
-                                    doc_context = f"RELEVANT DATA:\n{relevant_chunks}"
+                                    # Include schema for tabular files
+                                    table_schema = st.session_state.get("doc_table_schema", "")
+                                    if table_schema:
+                                          doc_context = (
+                                                f"TABLE SCHEMA:\n{table_schema}\n\n"
+                                                f"RELEVANT DATA:\n{relevant_chunks}"
+                                          )
+                                    else:
+                                          doc_context = f"RELEVANT DATA:\n{relevant_chunks}"
                               else:
                                     doc_context = (
                                           f"DOCUMENT SUMMARY:\n{doc_context}\n\n"

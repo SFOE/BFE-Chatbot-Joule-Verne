@@ -124,6 +124,153 @@ def extract_text(file_bytes: bytes, filename: str) -> tuple[str, int]:
 
 
 # ---------------------------------------------------------------------------
+# Table Schema Extraction
+# ---------------------------------------------------------------------------
+
+# Max unique text values to include as samples per column
+_MAX_SAMPLE_VALUES = 5
+# Max rows to scan for type inference (performance guard for very large tables)
+_MAX_ROWS_FOR_INFERENCE = 500
+
+
+def extract_table_schema(extracted_text: str) -> str:
+    """
+    Derive a compact schema description from already-extracted tabular text.
+    
+    Parses the pipe-delimited format produced by extract_text_from_xlsx/csv,
+    infers column types and value ranges, and returns a human-readable schema
+    string suitable for LLM context.
+    """
+    sheets = _parse_sheets(extracted_text)
+    if not sheets:
+        return ""
+
+    schema_parts = []
+    for sheet_name, header_row, data_rows in sheets:
+        columns = [col.strip() for col in header_row.split(" | ")]
+        col_descriptions = []
+
+        for col_idx, col_name in enumerate(columns):
+            # Collect values for this column across data rows
+            values = []
+            for row in data_rows[:_MAX_ROWS_FOR_INFERENCE]:
+                cells = row.split(" | ")
+                if col_idx < len(cells):
+                    val = cells[col_idx].strip()
+                    if val:
+                        values.append(val)
+
+            col_desc = _describe_column(col_name, values)
+            col_descriptions.append(col_desc)
+
+        # Build sheet schema
+        row_count = len(data_rows)
+        if sheet_name:
+            sheet_line = f"Sheet: {sheet_name} ({row_count} rows)"
+        else:
+            sheet_line = f"Table ({row_count} rows)"
+
+        schema_parts.append(
+            f"{sheet_line}\n"
+            f"Columns:\n" + "\n".join(f"  - {d}" for d in col_descriptions)
+        )
+
+    return "\n\n".join(schema_parts)
+
+
+def _parse_sheets(text: str) -> list[tuple[str, str, list[str]]]:
+    """
+    Parse extracted tabular text into sheets.
+    Returns list of (sheet_name, header_row, data_rows).
+    
+    For CSV (no sheet markers), returns a single entry with empty sheet_name.
+    """
+    lines = text.split("\n")
+    sheets = []
+
+    current_sheet_name = ""
+    current_header = ""
+    current_data: list[str] = []
+
+    for line in lines:
+        # Skip empty lines (sheet separators in multi-sheet files)
+        if not line.strip():
+            continue
+
+        # Detect sheet boundary
+        if line.startswith("--- Sheet:") and line.endswith("---"):
+            # Flush previous sheet
+            if current_header:
+                sheets.append((current_sheet_name, current_header, current_data))
+            current_sheet_name = line.replace("--- Sheet:", "").replace("---", "").strip()
+            current_header = ""
+            current_data = []
+            continue
+
+        # First non-empty line after sheet start (or at file start) is the header
+        if not current_header:
+            current_header = line
+        else:
+            current_data.append(line)
+
+    # Flush last sheet
+    if current_header:
+        sheets.append((current_sheet_name, current_header, current_data))
+
+    return sheets
+
+
+def _describe_column(col_name: str, values: list[str]) -> str:
+    """
+    Produce a short description of a column based on its values.
+    
+    Infers type as numeric, percentage, date-like, or text, then adds
+    range or sample values accordingly.
+    """
+    if not values:
+        return f"{col_name} (empty)"
+
+    # Try to classify the column
+    numeric_values = []
+    is_percentage = False
+
+    for v in values:
+        cleaned = v.replace(",", "").replace("'", "").strip()
+        # Detect percentage pattern
+        if cleaned.endswith("%"):
+            is_percentage = True
+            cleaned = cleaned[:-1]
+        try:
+            numeric_values.append(float(cleaned))
+        except ValueError:
+            break
+    else:
+        # All values were successfully parsed as numbers
+        if numeric_values:
+            min_val = min(numeric_values)
+            max_val = max(numeric_values)
+            suffix = "%" if is_percentage else ""
+            # Format as integers if all are whole numbers
+            if all(v == int(v) for v in numeric_values):
+                return f"{col_name} (numeric, range: {int(min_val)}{suffix}–{int(max_val)}{suffix})"
+            else:
+                return f"{col_name} (numeric, range: {min_val}{suffix}–{max_val}{suffix})"
+
+    # Not all numeric — treat as text/categorical
+    unique_values = list(dict.fromkeys(values))  # Preserves order, deduplicates
+    unique_count = len(unique_values)
+
+    if unique_count <= _MAX_SAMPLE_VALUES:
+        # Few unique values — show them all (likely categorical)
+        samples = ", ".join(unique_values)
+        return f"{col_name} (text, values: {samples})"
+    else:
+        # Many unique values — show count + a few samples
+        samples = ", ".join(unique_values[:_MAX_SAMPLE_VALUES])
+        return f"{col_name} (text, {unique_count} unique, e.g.: {samples})"
+
+
+# ---------------------------------------------------------------------------
 # Text Quality & Cleaning
 # ---------------------------------------------------------------------------
 
