@@ -143,14 +143,29 @@ def extract_table_schema(extracted_text: str) -> str:
     
     Detects matrix/crosstab layouts where the first column serves as a row
     header (all unique text values labeling each row).
+    
+    Falls back to a generic description if the table structure looks
+    non-standard (e.g. description rows before the actual header).
     """
     sheets = _parse_sheets(extracted_text)
     if not sheets:
         return ""
 
+    # Count total data rows across all sheets for fallback
+    total_rows = sum(len(dr) for _, _, dr in sheets)
+
     schema_parts = []
+    has_nonsensical_schema = False
+
     for sheet_name, header_row, data_rows in sheets:
         columns = [col.strip() for col in header_row.split(" | ")]
+
+        # Detect nonsensical header: a single long string that looks like a sentence,
+        # or only 1 column when subsequent rows have more pipe separators
+        if _header_looks_invalid(columns, data_rows):
+            has_nonsensical_schema = True
+            break
+
         col_descriptions = []
 
         # Collect values per column for analysis
@@ -190,6 +205,16 @@ def extract_table_schema(extracted_text: str) -> str:
             f"{sheet_line}\n"
             f"Columns:\n" + "\n".join(f"  - {d}" for d in col_descriptions)
         )
+
+    # If any sheet had a nonsensical header, return a generic fallback
+    if has_nonsensical_schema:
+        sheet_count = len(sheets)
+        sheet_names = [s[0] for s in sheets if s[0]]
+        fallback = f"Tabular data ({total_rows} rows, {sheet_count} sheet(s)). "
+        if sheet_names:
+            fallback += f"Sheets: {', '.join(sheet_names)}. "
+        fallback += "Content will be provided as relevant excerpts."
+        return fallback
 
     return "\n\n".join(schema_parts)
 
@@ -235,6 +260,33 @@ def _is_row_header(columns_values: list[list[str]], columns: list[str]) -> bool:
                 all_numeric = False
                 break
         if all_numeric and col_values:
+            return True
+
+    return False
+
+
+def _header_looks_invalid(columns: list[str], data_rows: list[str]) -> bool:
+    """
+    Detect if the detected header row is likely not a real table header.
+    
+    Signs of a bad header:
+    - A column name that's longer than 40 chars (looks like a sentence/description)
+    - Only 1 column detected but data rows have multiple pipe separators
+    - All column names are empty
+    """
+    # All columns empty
+    if all(not col for col in columns):
+        return True
+
+    # Any column name is suspiciously long (a full sentence, not a header label)
+    if any(len(col) > 40 for col in columns if col):
+        return True
+
+    # Header has 1 column but data rows consistently have more pipes
+    if len(columns) <= 1 and data_rows:
+        # Check first 10 data rows
+        pipe_counts = [row.count(" | ") for row in data_rows[:10]]
+        if pipe_counts and (sum(pipe_counts) / len(pipe_counts)) > 1:
             return True
 
     return False
