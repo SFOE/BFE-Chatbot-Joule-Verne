@@ -72,7 +72,7 @@ def render_response_with_downloads(response_text):
         )
 
 
-def _render_ci_file(ci_file, key_prefix=""):
+def _render_ci_file(ci_file, key_prefix="", file_idx=0):
     """Render a Code Interpreter output file: images inline, others as download buttons."""
     file_name = ci_file.get("name", "output")
     file_type = ci_file.get("type", "application/octet-stream")
@@ -89,7 +89,8 @@ def _render_ci_file(ci_file, key_prefix=""):
             data=file_data,
             file_name=file_name,
             mime=file_type,
-            key=f"ci_dl_{key_prefix}_{file_name}",
+            key=f"ci_dl_{key_prefix}_{file_idx}_{file_name}",
+            on_click="ignore",
         )
 
 
@@ -137,8 +138,8 @@ for idx, message in enumerate(st.session_state.messages):
                   # Render saved Code Interpreter output files
                   ci_files = message.get("ci_files", [])
                   if ci_files:
-                        for ci_file in ci_files:
-                              _render_ci_file(ci_file, key_prefix=f"hist_{idx}")
+                        for i, ci_file in enumerate(ci_files):
+                              _render_ci_file(ci_file, key_prefix=f"hist_{idx}", file_idx=i)
             else:
                   st.markdown(message["content"])
             if message["role"] == "assistant":
@@ -289,6 +290,7 @@ if web_search_toggle and not st.session_state.get("web_search_enabled", False) a
                         st.session_state.pop("uploaded_doc_name", None)
                         st.session_state.pop("uploaded_doc_pages", None)
                         st.session_state.pop("doc_raw_bytes", None)
+                        st.session_state["doc_uploader_key"] = st.session_state.get("doc_uploader_key", 0) + 1
                         st.rerun()
             with col_no:
                   if st.button("Cancel", use_container_width=True):
@@ -324,7 +326,7 @@ else:
       uploaded_file = st.sidebar.file_uploader(
             "Upload a document to ask questions about it",
             type=["pdf", "txt", "docx", "xlsx", "csv"],
-            key="doc_uploader",
+            key=f"doc_uploader_{st.session_state.get('doc_uploader_key', 0)}",
             help="Supported formats: PDF, TXT, DOCX, XLSX, CSV (max 10 MB)",
       )
 
@@ -380,6 +382,14 @@ if uploaded_file is not None:
                               st.session_state.pop("uploaded_doc_name", None)
                               st.session_state.pop("uploaded_doc_pages", None)
                               st.session_state.pop("doc_raw_bytes", None)
+elif uploaded_file is None and st.session_state.get("uploaded_doc_name") and not web_search_enabled:
+      # User cleared the file via the ✕ button on the uploader widget
+      st.session_state.pop("doc_full_text", None)
+      st.session_state.pop("doc_context", None)
+      st.session_state.pop("doc_context_mode", None)
+      st.session_state.pop("uploaded_doc_name", None)
+      st.session_state.pop("uploaded_doc_pages", None)
+      st.session_state.pop("doc_raw_bytes", None)
 
 # Show document status and remove button
 if st.session_state.get("uploaded_doc_name") and not web_search_enabled:
@@ -407,6 +417,8 @@ if st.session_state.get("uploaded_doc_name") and not web_search_enabled:
             st.session_state.pop("uploaded_doc_name", None)
             st.session_state.pop("uploaded_doc_pages", None)
             st.session_state.pop("doc_raw_bytes", None)
+            # Reset file uploader widget so it doesn't re-trigger processing
+            st.session_state["doc_uploader_key"] = st.session_state.get("doc_uploader_key", 0) + 1
             st.rerun()
 
 st.sidebar.divider()
@@ -428,6 +440,7 @@ if st.sidebar.button("Clear chat", icon="✏️"):
       st.session_state.pop("uploaded_doc_name", None)
       st.session_state.pop("uploaded_doc_pages", None)
       st.session_state.pop("doc_raw_bytes", None)
+      st.session_state["doc_uploader_key"] = st.session_state.get("doc_uploader_key", 0) + 1
       # Clear pending/retry state
       st.session_state.pop("pending_query", None)
       st.session_state.pop("retry_prompt", None)
@@ -687,10 +700,6 @@ if prompt:
             if reply:
                   with st.chat_message("assistant"):
                         render_response_with_downloads(reply)
-                        # Display Code Interpreter output files
-                        if code_interpreter_files:
-                              for ci_file in code_interpreter_files:
-                                    _render_ci_file(ci_file)
                         st.session_state.messages.append({
                               "role": "assistant",
                               "content": reply,
