@@ -513,3 +513,129 @@ def find_relevant_chunks(full_text: str, query: str, top_k: int = 3, is_tabular:
     if len(result) > SESSION_ATTR_MAX_CHARS:
         result = result[:SESSION_ATTR_MAX_CHARS]
     return result
+
+
+# ---------------------------------------------------------------------------
+# Embedding-based Retrieval (for tabular data)
+# ---------------------------------------------------------------------------
+
+# Embedding model config
+_EMBED_MODEL_ID = "amazon.titan-embed-text-v2:0"
+_EMBED_DIMENSIONS = 1024  # Titan v2 supports 256, 512, or 1024
+
+
+def _get_bedrock_runtime(region: Optional[str] = None):
+    """Get or create a Bedrock Runtime client."""
+    import os
+    region = region or os.getenv("AWS_REGION", "us-east-1")
+    return boto3.client("bedrock-runtime", region_name=region)
+
+
+def embed_text(text: str, client=None) -> list[float]:
+    """
+    Generate an embedding vector for a single text using Bedrock Titan.
+    
+    Returns a list of floats (the embedding vector).
+    Raises RuntimeError if the API call fails.
+    """
+    import json
+
+    if client is None:
+        client = _get_bedrock_runtime()
+
+    body = json.dumps({
+        "inputText": text[:10_000],  # Titan v2 limit is ~10K chars
+        "dimensions": _EMBED_DIMENSIONS,
+        "normalize": True,
+    })
+
+    try:
+        response = client.invoke_model(
+            modelId=_EMBED_MODEL_ID,
+            contentType="application/json",
+            accept="application/json",
+            body=body,
+        )
+        result = json.loads(response["body"].read())
+        return result["embedding"]
+    except Exception as e:
+        logger.error("Embedding generation failed: %s", e)
+        raise RuntimeError(f"Embedding failed: {e}") from e
+
+
+def embed_chunks(chunks: list[str], region: Optional[str] = None) -> list[tuple[str, list[float]]]:
+    """
+    Generate embeddings for a list of text chunks.
+    
+    Called once at upload time. Each chunk is embedded individually to stay
+    within the Titan model's input limit.
+    
+    Returns a list of (chunk_text, embedding_vector) tuples.
+    If embedding fails for a chunk, it is skipped with a warning.
+    """
+    client = _get_bedrock_runtime(region)
+    results = []
+
+    for i, chunk in enumerate(chunks):
+        try:
+            embedding = embed_text(chunk, client=client)
+            results.append((chunk, embedding))
+        except RuntimeError:
+            logger.warning("Skipping chunk %d/%d — embedding failed", i + 1, len(chunks))
+            continue
+
+    logger.info("Embedded %d/%d chunks successfully", len(results), len(chunks))
+    return results
+
+
+def find_relevant_chunks_semantic(
+    chunk_embeddings: list[tuple[str, list[float]]],
+    query: str,
+    top_k: int = 3,
+    region: Optional[str] = None,
+) -> str:
+    """
+    Retrieve the most relevant chunks using cosine similarity against the query.
+    
+    Called at query time. Embeds the query (1 API call), then computes similarity
+    against all pre-computed chunk embeddings stored in session state.
+    
+    Falls back to empty string if query embedding fails.
+    
+    Returns the top-k chunks concatenated, capped at SESSION_ATTR_MAX_CHARS.
+    """
+    if not chunk_embeddings:
+        return ""
+
+    # Embed the query
+    try:
+        client = _get_bedrock_runtime(region)
+        query_embedding = embed_text(query, client=client)
+    except RuntimeError:
+        logger.error("Query embedding failed — falling back to keyword search")
+        return ""
+
+    # Compute cosine similarity (vectors are already normalized by Titan)
+    scored = []
+    for chunk_text, chunk_embedding in chunk_embeddings:
+        similarity = _cosine_similarity(query_embedding, chunk_embedding)
+        scored.append((similarity, chunk_text))
+
+    # Sort by similarity (highest first)
+    scored.sort(key=lambda x: x[0], reverse=True)
+    top_chunks = [chunk for _, chunk in scored[:top_k]]
+
+    result = "\n\n---\n\n".join(top_chunks)
+    if len(result) > SESSION_ATTR_MAX_CHARS:
+        result = result[:SESSION_ATTR_MAX_CHARS]
+    return result
+
+
+def _cosine_similarity(vec_a: list[float], vec_b: list[float]) -> float:
+    """
+    Compute cosine similarity between two vectors.
+    
+    Since Titan embeddings are normalized (unit vectors), cosine similarity
+    reduces to the dot product — no need for magnitude division.
+    """
+    return sum(a * b for a, b in zip(vec_a, vec_b))
