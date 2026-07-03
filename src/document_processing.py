@@ -209,8 +209,8 @@ def summarize_document(text: str, region: Optional[str] = None) -> str:
 
 def prepare_document_context(extracted_text: str, file_ext: str = "") -> tuple[str, str]:
     """
-    Decide whether to use full text, a summary, or chunk-only mode based on size and file type.
-    Returns (context_text, context_mode) where context_mode is "full", "summary", or "chunks_only".
+    Decide whether to use full text, a summary, or Code Interpreter based on size and file type.
+    Returns (context_text, context_mode) where context_mode is "full", "summary", or "code_interpreter".
 
     For tabular files (xlsx, csv), summarization is skipped — large tables are
     routed to Code Interpreter by the caller.
@@ -218,16 +218,16 @@ def prepare_document_context(extracted_text: str, file_ext: str = "") -> tuple[s
     is_tabular = file_ext in ("xlsx", "csv")
 
     if is_tabular:
-        # For tables: if small enough, send full text; otherwise use chunk-only mode
+        # For tables: if small enough, send full text; otherwise flag as oversized
         if len(extracted_text) <= SESSION_ATTR_MAX_CHARS:
             return extracted_text, "full"
         else:
-            # Store a brief note as context; actual data goes to Code Interpreter
+            # Caller will route this to Code Interpreter
             note = (
                 f"[Large tabular document — {len(extracted_text):,} characters. "
                 f"File will be sent to Code Interpreter for analysis.]"
             )
-            return note, "chunks_only"
+            return note, "code_interpreter"
 
     # Non-tabular documents: existing logic
     if len(extracted_text) < CHAR_THRESHOLD:

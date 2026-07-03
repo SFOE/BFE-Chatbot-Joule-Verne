@@ -350,7 +350,7 @@ if uploaded_file is not None:
 
                               # For large tabular files, use Code Interpreter instead of chunk retrieval
                               file_ext = uploaded_file.name.rsplit(".", 1)[-1].lower()
-                              if file_ext in ("xlsx", "csv") and context_mode == "chunks_only":
+                              if file_ext in ("xlsx", "csv") and context_mode == "code_interpreter":
                                     # Store raw bytes for Code Interpreter
                                     st.session_state["doc_raw_bytes"] = file_bytes
                                     st.session_state["doc_context"] = doc_context
