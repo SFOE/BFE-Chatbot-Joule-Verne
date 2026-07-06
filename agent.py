@@ -72,28 +72,6 @@ def render_response_with_downloads(response_text):
         )
 
 
-def _render_ci_file(ci_file, key_prefix="", file_idx=0):
-    """Render a Code Interpreter output file: images inline, others as download buttons."""
-    file_name = ci_file.get("name", "output")
-    file_type = ci_file.get("type", "application/octet-stream")
-    file_data = ci_file.get("data", b"")
-
-    if not file_data:
-        return
-
-    if file_type.startswith("image/"):
-        st.image(file_data, caption=file_name)
-    else:
-        st.download_button(
-            label=f"📥 {file_name}",
-            data=file_data,
-            file_name=file_name,
-            mime=file_type,
-            key=f"ci_dl_{key_prefix}_{file_idx}_{file_name}",
-            on_click="ignore",
-        )
-
-
 # Initialize sources in session state (only last answer's sources are kept)
 if "s3_refs" not in st.session_state:
       st.session_state["s3_refs"] = []
@@ -135,11 +113,6 @@ for idx, message in enumerate(st.session_state.messages):
       with st.chat_message(message["role"]):
             if message["role"] == "assistant":
                   render_response_with_downloads(message["content"])
-                  # Render saved Code Interpreter output files
-                  ci_files = message.get("ci_files", [])
-                  if ci_files:
-                        for i, ci_file in enumerate(ci_files):
-                              _render_ci_file(ci_file, key_prefix=f"hist_{idx}", file_idx=i)
             else:
                   st.markdown(message["content"])
             if message["role"] == "assistant":
@@ -540,23 +513,8 @@ if prompt:
                   trace_steps = []        # Steps with details for the expander
                   shown_labels = set()    # Dedup for live status display
                   reply = None
-                  code_interpreter_files = []  # Output files from Code Interpreter
 
                   for event in response.get("completion"):
-
-                        # Collect output files from Code Interpreter (top-level event)
-                        if 'files' in event:
-                              files_event = event['files']
-                              for ci_file in files_event.get('files', []):
-                                    file_name = ci_file.get("name", "output")
-                                    file_type = ci_file.get("type", "application/octet-stream")
-                                    file_data = ci_file.get("bytes", b"")
-                                    if file_data:
-                                          code_interpreter_files.append({
-                                                "name": file_name,
-                                                "type": file_type,
-                                                "data": file_data,
-                                          })
 
                         # Collect agent output.
                         if 'chunk' in event:
@@ -705,7 +663,6 @@ if prompt:
                               "content": reply,
                               "retrieved_chunks": st.session_state.get("retrieved_chunks", []),
                               "trace_steps": trace_steps,
-                              "ci_files": code_interpreter_files,
                         })
 
             # Save interaction to feedback bucket (without rating) immediately
