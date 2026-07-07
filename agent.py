@@ -37,7 +37,7 @@ def _get_cognito_groups() -> set:
         return set()
 
 if _allowed_groups and not (_get_cognito_groups() & _allowed_groups):
-    st.error("403 - Access Denied: you are not authorised to access this application.")
+    st.error("403 - Zugriff verweigert: Sie sind nicht berechtigt, auf diese Anwendung zuzugreifen.")
     st.stop()
 
 
@@ -90,6 +90,39 @@ st.session_state["session_id"] = session_id
 if "messages" not in st.session_state:
       st.session_state.messages = []
 
+# Streamlit bietet keine Spracheinstellung — Widget-Texte per CSS auf Deutsch überschreiben
+st.markdown("""
+<style>
+[data-testid='stFileUploaderDropzone'] > [data-testid='baseButton-secondary'] {
+    text-indent: -9999px;
+    line-height: 0;
+}
+[data-testid='stFileUploaderDropzone'] > [data-testid='baseButton-secondary']::after {
+    content: "Durchsuchen";
+    text-indent: 0;
+    line-height: initial;
+    display: block;
+}
+[data-testid='stFileUploaderDropzoneInstructions'] > div > span {
+    display: none;
+}
+[data-testid='stFileUploaderDropzoneInstructions'] > div::before {
+    content: "Datei hierher ziehen";
+    display: block;
+}
+[data-testid='stFileUploaderDropzoneInstructions'] > div > small {
+    display: none;
+}
+[data-testid='stFileUploaderDropzoneInstructions'] > div::after {
+    content: "PDF, TXT, DOCX, XLSX, CSV" "\\A" "Max. 10 MB pro Datei";
+    white-space: pre-wrap;
+    display: block;
+    font-size: 0.8em;
+    color: rgba(49, 51, 63, 0.6);
+}
+</style>
+""", unsafe_allow_html=True)
+
 col1, col2 = st.columns([1,8])
 
 with col1:
@@ -97,16 +130,16 @@ with col1:
       st.image("./img/bundesamt_logo.jpeg", width=60)
 
 with col2:
-      st.title("BFE Assistent Joule Verne 1.0 :zap:")
+      st.title("BFE Assistent Joule Verne 1.0")
 
-st.caption("🔒 Your interactions are logged to help us improve this chatbot.")
+st.caption("🔒 Ihre Interaktionen werden protokolliert, um diesen Chatbot zu verbessern.")
 
 with st.expander(":information_source: :construction:"):
     st.write("""
-    This is a demo application and will still be submitted to changes. The chatbot might not always be correct or precise. Do not hesitate to check the sources in the side bar if unsure. Please be careful not to upload any personal data in the chat.
-    You can upload a document (PDF, TXT, DOCX, XLSX, CSV) via the sidebar to ask questions about it during your session.
-    You can rate answers with thumbs up/down and leave a short text comment via the 💬 button.
-    For any questions or requests you can [contact us](mailto:digitalisierung@bfe.admin.ch) at the Digital Innovation & Geoinformation section :blush:
+    Dies ist eine Demo-Anwendung, die noch weiterentwickelt wird. Der Chatbot ist nicht immer korrekt oder präzise. Bitte überprüfen Sie die Quellen in der Seitenleiste, wenn Sie unsicher sind. Achten Sie darauf, keine persönlichen Daten im Chat hochzuladen.
+    Sie können ein Dokument (PDF, TXT, DOCX, XLSX, CSV) über die Seitenleiste hochladen, um während Ihrer Sitzung Fragen dazu zu stellen.
+    Sie können Antworten mit Daumen hoch/runter bewerten und über die 💬-Schaltfläche einen kurzen Textkommentar hinterlassen.
+    Bei Fragen oder Anliegen können Sie uns bei der Sektion Digitalisierung & Informatik [kontaktieren](mailto:digitalisierung@bfe.admin.ch) :blush:
     """)
 
 for idx, message in enumerate(st.session_state.messages):
@@ -119,12 +152,15 @@ for idx, message in enumerate(st.session_state.messages):
                   # Show collapsible reasoning steps if available
                   trace_steps = message.get("trace_steps", [])
                   if trace_steps:
-                        with st.expander("🔎 Show reasoning", expanded=False):
-                              for step in trace_steps:
-                                    st.markdown(f"**{step['label']}**")
-                                    if step.get("detail"):
-                                          st.code(step["detail"], language=None)
-                                    st.markdown("---")
+                        display_prefixes = ("💭", "⚙️", "🖥️", "⚠️")
+                        filtered_steps = [s for s in trace_steps if s["label"].startswith(display_prefixes)]
+                        if filtered_steps:
+                              with st.expander("🔎 Denkprozess anzeigen", expanded=False):
+                                    for step in filtered_steps:
+                                          st.markdown(f"**{step['label']}**")
+                                          if step.get("detail"):
+                                                st.code(step["detail"], language=None)
+                                          st.markdown("---")
 
                   feedback_key = f"feedback_{idx}"
                   comment_key = f"comment_{idx}"
@@ -136,9 +172,9 @@ for idx, message in enumerate(st.session_state.messages):
                   with comment_btn_col:
                         # Show ✅ if comment already saved, otherwise show 💬 toggle
                         if st.session_state.get(f"{comment_key}_saved"):
-                              st.markdown("✅ Comment saved")
+                              st.markdown("✅ Kommentar gespeichert")
                         else:
-                              if st.button("💬", key=f"{comment_key}_btn", help="Add a text comment about this answer"):
+                              if st.button("💬", key=f"{comment_key}_btn", help="Einen Textkommentar zu dieser Antwort hinzufügen"):
                                     st.session_state[f"{comment_key}_open"] = not st.session_state.get(f"{comment_key}_open", False)
 
                   # Handle thumbs feedback save
@@ -169,12 +205,12 @@ for idx, message in enumerate(st.session_state.messages):
                   # Show text comment area when toggled open
                   if st.session_state.get(f"{comment_key}_open"):
                         comment_text = st.text_area(
-                              "What worked or didn't work?",
+                              "Was hat funktioniert oder nicht funktioniert?",
                               key=f"{comment_key}_text",
-                              placeholder="e.g. The answer was mostly correct but missed...",
+                              placeholder="z.B. Die Antwort war grösstenteils korrekt, aber es fehlte...",
                               max_chars=1000,
                         )
-                        if st.button("Send feedback", key=f"{comment_key}_send", type="primary"):
+                        if st.button("Feedback senden", key=f"{comment_key}_send", type="primary"):
                               if comment_text and comment_text.strip():
                                     # Find the preceding user message
                                     user_query = ""
@@ -208,7 +244,7 @@ for idx, message in enumerate(st.session_state.messages):
                                     st.session_state[f"{comment_key}_open"] = False
                                     st.rerun()
 
-st.sidebar.write("**Settings**  :pushpin:")
+st.sidebar.write("**Einstellungen**  :pushpin:")
 
 # Detect interrupted query — show warning and retry button
 pending_query = st.session_state.get("pending_query")
@@ -216,8 +252,8 @@ if pending_query:
       # Check if the last message is still the user's question (no assistant reply followed)
       messages = st.session_state.get("messages", [])
       if messages and messages[-1]["role"] == "user":
-            st.warning("⚠️ The response was interrupted (e.g. by a button click). Your question was not answered.")
-            if st.button("🔄 Retry last question", type="primary"):
+            st.warning("⚠️ Die Antwort wurde unterbrochen (z.B. durch einen Klick). Ihre Frage wurde nicht beantwortet.")
+            if st.button("🔄 Letzte Frage erneut stellen", type="primary"):
                   # Remove the pending user message so it gets re-added cleanly
                   st.session_state.messages.pop()
                   st.session_state.pop("pending_query", None)
@@ -228,34 +264,37 @@ if pending_query:
             # The reply was actually saved — clean up stale flag
             st.session_state.pop("pending_query", None)
 
-# Web search toggle — disabled once conversation has started
+# Suchmodus-Auswahl — gesperrt sobald die Konversation gestartet ist
 has_messages = len(st.session_state.get("messages", [])) > 0
 
-# Initialize toggle key to match web_search_enabled state
-if "web_search_toggle_value" not in st.session_state:
-      st.session_state["web_search_toggle_value"] = st.session_state.get("web_search_enabled", False)
+# Initialize search mode
+if "search_mode" not in st.session_state:
+      st.session_state["search_mode"] = "knowledge_base"
 
-web_search_toggle = st.sidebar.toggle(
-      "🔍 Enable web search",
-      key="web_search_toggle_value",
+search_mode = st.sidebar.radio(
+      "🔍 Suchmodus",
+      options=["knowledge_base", "web_search"],
+      format_func=lambda x: "📚 Wissensdatenbank" if x == "knowledge_base" else "🌐 Websuche",
+      index=0 if st.session_state.get("search_mode") == "knowledge_base" else 1,
       disabled=has_messages,
-      help="Enables web search for current news and events. Can only be selected before the first message."
+      help="Wählen Sie zwischen interner Wissensdatenbank und externer Websuche. Kann nur vor der ersten Nachricht geändert werden.",
 )
 
-# Confirmation dialog when user enables web search
-if web_search_toggle and not st.session_state.get("web_search_enabled", False) and not st.session_state.pop("web_search_cancelled", False):
-      @st.dialog("⚠️ Enable web search?")
+# Confirmation dialog when user selects web search
+if search_mode == "web_search" and not st.session_state.get("web_search_enabled", False) and not st.session_state.pop("web_search_cancelled", False):
+      @st.dialog("⚠️ Websuche aktivieren?")
       def confirm_web_search():
             st.write(
-                  "When web search is enabled, your queries may be sent to external search services. "
-                  "Results may include unverified information from the internet. "
-                  "It is your responsibility to not share any internal information and to verify the output. "
-                  "Are you sure you want to proceed?"
+                  "Wenn die Websuche aktiviert ist, können Ihre Anfragen an externe Suchdienste gesendet werden. "
+                  "Ergebnisse können ungeprüfte Informationen aus dem Internet enthalten. "
+                  "Es liegt in Ihrer Verantwortung, keine internen Informationen zu teilen und die Ergebnisse zu überprüfen. "
+                  "Möchten Sie fortfahren?"
             )
             col_yes, col_no = st.columns(2)
             with col_yes:
-                  if st.button("Yes, enable", use_container_width=True):
+                  if st.button("Ja, aktivieren", use_container_width=True):
                         st.session_state["web_search_enabled"] = True
+                        st.session_state["search_mode"] = "web_search"
                         # Clear document upload state — not compatible with web search
                         st.session_state.pop("doc_full_text", None)
                         st.session_state.pop("doc_context", None)
@@ -266,14 +305,15 @@ if web_search_toggle and not st.session_state.get("web_search_enabled", False) a
                         st.session_state["doc_uploader_key"] = st.session_state.get("doc_uploader_key", 0) + 1
                         st.rerun()
             with col_no:
-                  if st.button("Cancel", use_container_width=True):
+                  if st.button("Abbrechen", use_container_width=True):
                         st.session_state["web_search_enabled"] = False
-                        st.session_state["web_search_toggle_value"] = False
+                        st.session_state["search_mode"] = "knowledge_base"
                         st.session_state["web_search_cancelled"] = True
                         st.rerun()
       confirm_web_search()
-elif not web_search_toggle and not has_messages:
+elif search_mode == "knowledge_base" and not has_messages:
       st.session_state["web_search_enabled"] = False
+      st.session_state["search_mode"] = "knowledge_base"
       st.session_state.pop("web_search_cancelled", None)
 
 web_search_enabled = st.session_state.get("web_search_enabled", False)
@@ -290,17 +330,17 @@ else:
 # Document Upload
 # ---------------------------------------------------------------------------
 st.sidebar.divider()
-st.sidebar.write("**Document Upload** :page_facing_up:")
+st.sidebar.write("**Dokument hochladen** :page_facing_up:")
 
 if web_search_enabled:
-      st.sidebar.info("Document upload is not available when web search is enabled.")
+      st.sidebar.info("Dokument-Upload ist nicht verfügbar, wenn die Websuche aktiviert ist.")
       uploaded_file = None
 else:
       uploaded_file = st.sidebar.file_uploader(
-            "Upload a document to ask questions about it",
+            "Laden Sie ein Dokument hoch, um Fragen dazu zu stellen",
             type=["pdf", "txt", "docx", "xlsx", "csv"],
             key=f"doc_uploader_{st.session_state.get('doc_uploader_key', 0)}",
-            help="Supported formats: PDF, TXT, DOCX, XLSX, CSV (max 10 MB)",
+            help="Unterstützte Formate: PDF, TXT, DOCX, XLSX, CSV (max. 10 MB)",
       )
 
 # Process newly uploaded file
@@ -309,7 +349,7 @@ if uploaded_file is not None:
       current_doc_name = st.session_state.get("uploaded_doc_name")
       if current_doc_name != uploaded_file.name:
             with st.sidebar:
-                  with st.spinner("Extracting text…"):
+                  with st.spinner("Text wird extrahiert…"):
                         try:
                               file_bytes = uploaded_file.read()
                               extracted_text, page_count = extract_text(file_bytes, uploaded_file.name)
@@ -348,7 +388,7 @@ if uploaded_file is not None:
                               st.session_state.pop("doc_raw_bytes", None)
                         except Exception as e:
                               logging.error("Document extraction failed: %s", e)
-                              st.error("Failed to extract text from the document. Please try another file.")
+                              st.error("Text konnte nicht aus dem Dokument extrahiert werden. Bitte versuchen Sie eine andere Datei.")
                               st.session_state.pop("doc_full_text", None)
                               st.session_state.pop("doc_context", None)
                               st.session_state.pop("doc_context_mode", None)
@@ -369,21 +409,21 @@ if st.session_state.get("uploaded_doc_name") and not web_search_enabled:
       doc_name = st.session_state["uploaded_doc_name"]
       page_count = st.session_state.get("uploaded_doc_pages", "?")
       context_mode = st.session_state.get("doc_context_mode", "full")
-      mode_label = "full text" if context_mode == "full" else ("Code Interpreter" if context_mode == "code_interpreter" else "summary")
+      mode_label = "Volltext" if context_mode == "full" else ("Code Interpreter" if context_mode == "code_interpreter" else "Zusammenfassung")
 
-      st.sidebar.success(f"📄 **{doc_name}** ({page_count} pages, {mode_label})")
+      st.sidebar.success(f"📄 **{doc_name}** ({page_count} Seiten, {mode_label})")
 
       if context_mode == "summary":
             st.sidebar.caption(
-                  "ℹ️ Document is large — working from a summary. "
-                  "Ask about specific sections for detailed answers."
+                  "ℹ️ Das Dokument ist gross — es wird mit einer Zusammenfassung gearbeitet. "
+                  "Fragen Sie nach bestimmten Abschnitten für detaillierte Antworten."
             )
       elif context_mode == "code_interpreter":
             st.sidebar.caption(
-                  "ℹ️ Large table — will be analysed using Code Interpreter."
+                  "ℹ️ Grosse Tabelle — wird mit Code Interpreter analysiert."
             )
 
-      if st.sidebar.button("Remove document", icon="🗑️", key="remove_doc"):
+      if st.sidebar.button("Dokument entfernen", icon="🗑️", key="remove_doc"):
             st.session_state.pop("doc_full_text", None)
             st.session_state.pop("doc_context", None)
             st.session_state.pop("doc_context_mode", None)
@@ -396,14 +436,15 @@ if st.session_state.get("uploaded_doc_name") and not web_search_enabled:
 
 st.sidebar.divider()
 
-keep_session = st.sidebar.toggle("Session history", value=True, key="keep_session")
+keep_session = st.sidebar.toggle("Sitzungsverlauf", value=True, key="keep_session")
 
 if not keep_session:
       st.session_state["session_id"] = str(uuid.uuid4())
 
-if st.sidebar.button("Clear chat", icon="✏️"):
+if st.sidebar.button("Chat löschen", icon="✏️"):
       st.session_state["messages"] = []
       st.session_state["web_search_enabled"] = False
+      st.session_state["search_mode"] = "knowledge_base"
       st.session_state["s3_refs"] = []
       st.session_state["web_refs"] = []
       # Clear document upload state
@@ -424,7 +465,7 @@ if st.sidebar.button("Clear chat", icon="✏️"):
       st.rerun()
       
 prompt = st.chat_input(
-      "Type your question here..."
+      "Geben Sie hier Ihre Frage ein..."
 )
 
 # Check if there's a retry prompt from an interrupted query
@@ -433,7 +474,7 @@ if not prompt and st.session_state.get("retry_prompt"):
 
 if prompt:
       if prompt.strip() == "": 
-            st.chat_message("assistant").markdown("Please enter your question before submitting.")
+            st.chat_message("assistant").markdown("Bitte geben Sie Ihre Frage ein, bevor Sie absenden.")
             
       else:
             st.chat_message("user").markdown(prompt)
@@ -509,7 +550,7 @@ if prompt:
             )
 
             # Show live progress, then transition to reasoning expander
-            with st.status("Processing your question...", expanded=False) as status:
+            with st.status("Ihre Frage wird verarbeitet...", expanded=False) as status:
                   trace_steps = []        # Steps with details for the expander
                   shown_labels = set()    # Dedup for live status display
                   reply = None
@@ -548,7 +589,7 @@ if prompt:
 
                                     # Map trace keys to human-readable labels with details
                                     if key == "preProcessingTrace":
-                                          live_label = "🧠 Analyzing your question..."
+                                          live_label = "🧠 Ihre Frage wird analysiert..."
                                           if live_label not in shown_labels:
                                                 shown_labels.add(live_label)
                                                 status.update(label=live_label)
@@ -556,11 +597,11 @@ if prompt:
                                     elif key == "orchestrationTrace":
                                           if isinstance(value, dict):
                                                 if "rationale" in value:
-                                                      step_label = "💭 Reasoning"
+                                                      step_label = "💭 Überlegung"
                                                       detail = value["rationale"].get("text", "")
                                                       if detail:
                                                             trace_steps.append({"label": step_label, "detail": detail})
-                                                      live_label = "💭 Reasoning..."
+                                                      live_label = "💭 Überlege..."
                                                       if live_label not in shown_labels:
                                                             shown_labels.add(live_label)
                                                             status.update(label=live_label)
@@ -571,27 +612,27 @@ if prompt:
                                                             kb_input = inv["knowledgeBaseLookupInput"]
                                                             kb_id = kb_input.get("knowledgeBaseId", "")
                                                             query_text = kb_input.get("text", "")
-                                                            step_label = "📚 Knowledge base query"
-                                                            detail = f"Knowledge Base: {kb_id}\nQuery: {query_text}"
+                                                            step_label = "📚 Wissensdatenbank-Abfrage"
+                                                            detail = f"Wissensdatenbank: {kb_id}\nAbfrage: {query_text}"
                                                             trace_steps.append({"label": step_label, "detail": detail})
-                                                            status.update(label="📚 Searching knowledge base...")
+                                                            status.update(label="📚 Wissensdatenbank wird durchsucht...")
                                                       elif "actionGroupInvocationInput" in inv:
                                                             ag_input = inv["actionGroupInvocationInput"]
-                                                            ag_name = ag_input.get("actionGroupName", "unknown")
+                                                            ag_name = ag_input.get("actionGroupName", "unbekannt")
                                                             api_path = ag_input.get("apiPath", ag_input.get("function", ""))
-                                                            step_label = f"⚙️ Calling: {ag_name}"
-                                                            detail = f"Action: {ag_name}\nAPI path: {api_path}" if api_path else f"Action: {ag_name}"
+                                                            step_label = f"⚙️ Aufruf: {ag_name}"
+                                                            detail = f"Aktion: {ag_name}\nAPI-Pfad: {api_path}" if api_path else f"Aktion: {ag_name}"
                                                             trace_steps.append({"label": step_label, "detail": detail})
-                                                            status.update(label=f"⚙️ Calling {ag_name}...")
+                                                            status.update(label=f"⚙️ {ag_name} wird aufgerufen...")
                                                       else:
-                                                            status.update(label="🔍 Gathering information...")
+                                                            status.update(label="🔍 Informationen werden gesammelt...")
 
                                                 elif "observation" in value:
                                                       obs = value["observation"]
                                                       if "knowledgeBaseLookupOutput" in obs:
                                                             kb_output = obs["knowledgeBaseLookupOutput"]
                                                             refs = kb_output.get("retrievedReferences", [])
-                                                            step_label = f"📚 Retrieved {len(refs)} result(s)"
+                                                            step_label = f"📚 {len(refs)} Ergebnis(se) gefunden"
                                                             previews = []
                                                             for i, ref in enumerate(refs[:5]):
                                                                   text = ref.get("content", {}).get("text", "")
@@ -602,19 +643,19 @@ if prompt:
                                                                   elif loc.get("type") == "WEB":
                                                                         source = loc.get("webLocation", {}).get("url", "")
                                                                   preview = text[:150] + "..." if len(text) > 150 else text
-                                                                  previews.append(f"[{i+1}] {preview}\n    Source: {source}")
+                                                                  previews.append(f"[{i+1}] {preview}\n    Quelle: {source}")
                                                             detail = "\n".join(previews) if previews else None
                                                             if detail:
                                                                   trace_steps.append({"label": step_label, "detail": detail})
-                                                            status.update(label=f"📚 Retrieved {len(refs)} result(s)")
+                                                            status.update(label=f"📚 {len(refs)} Ergebnis(se) gefunden")
                                                       elif "actionGroupInvocationOutput" in obs:
                                                             ag_output = obs["actionGroupInvocationOutput"]
                                                             output_text = ag_output.get("text", "")
-                                                            step_label = "⚙️ Action result"
+                                                            step_label = "⚙️ Aktionsergebnis"
                                                             detail = output_text[:500] if output_text else None
                                                             if detail:
                                                                   trace_steps.append({"label": step_label, "detail": detail})
-                                                            status.update(label="⚙️ Action completed")
+                                                            status.update(label="⚙️ Aktion abgeschlossen")
                                                       elif "codeInterpreterInvocationOutput" in obs:
                                                             ci_output = obs["codeInterpreterInvocationOutput"]
                                                             # Log execution output/errors for trace
@@ -622,37 +663,40 @@ if prompt:
                                                             exec_error = ci_output.get("executionError", "")
                                                             ci_file_names = ci_output.get("files", [])
                                                             if exec_error:
-                                                                  trace_steps.append({"label": "🖥️ Code Interpreter error", "detail": exec_error[:500]})
+                                                                  trace_steps.append({"label": "🖥️ Code Interpreter Fehler", "detail": exec_error[:500]})
                                                             elif exec_output:
                                                                   trace_steps.append({"label": "🖥️ Code Interpreter", "detail": exec_output[:500]})
                                                             if ci_file_names:
-                                                                  status.update(label=f"🖥️ Generated {len(ci_file_names)} file(s)")
+                                                                  status.update(label=f"🖥️ {len(ci_file_names)} Datei(en) generiert")
                                                             else:
-                                                                  status.update(label="🖥️ Code executed")
+                                                                  status.update(label="🖥️ Code ausgeführt")
 
                                                 elif "modelInvocationInput" in value:
-                                                      status.update(label="🤖 Thinking...")
+                                                      status.update(label="🤖 Denke nach...")
 
                                     elif key == "postProcessingTrace":
-                                          live_label = "✍️ Formulating response..."
+                                          live_label = "✍️ Antwort wird formuliert..."
                                           if live_label not in shown_labels:
                                                 shown_labels.add(live_label)
                                                 status.update(label=live_label)
 
                                     elif key == "failureTrace":
-                                          reason = value.get("failureReason", "Unknown error") if isinstance(value, dict) else "Unknown error"
-                                          trace_steps.append({"label": "⚠️ Error", "detail": reason})
-                                          status.update(label="⚠️ An error occurred")
+                                          reason = value.get("failureReason", "Unbekannter Fehler") if isinstance(value, dict) else "Unbekannter Fehler"
+                                          trace_steps.append({"label": "⚠️ Fehler", "detail": reason})
+                                          status.update(label="⚠️ Ein Fehler ist aufgetreten")
 
                   # Collapse the status widget and show reasoning details inside
-                  if trace_steps:
-                        for step in trace_steps:
+                  # Filter: nur wesentliche Schritte im Expander anzeigen
+                  display_prefixes = ("💭", "⚙️", "🖥️", "⚠️")
+                  filtered_steps = [s for s in trace_steps if s["label"].startswith(display_prefixes)]
+                  if filtered_steps:
+                        for step in filtered_steps:
                               st.markdown(f"**{step['label']}**")
                               if step.get("detail"):
                                     st.code(step["detail"], language=None)
-                        status.update(label="🔎 Show reasoning", state="complete", expanded=False)
+                        status.update(label="🔎 Denkprozess anzeigen", state="complete", expanded=False)
                   else:
-                        status.update(label="✅ Done", state="complete", expanded=False)
+                        status.update(label="✅ Fertig", state="complete", expanded=False)
 
             # Display the assistant's reply
             if reply:
@@ -686,7 +730,7 @@ if prompt:
             st.session_state.pop("pending_query", None)
             st.rerun()
 
-st.sidebar.write("**Sources** :bulb:")
+st.sidebar.write("**Quellen** :bulb:")
 s3_refs_collected = st.session_state.get("s3_refs", [])
 web_refs = st.session_state.get("web_refs", [])
 
@@ -715,7 +759,7 @@ if s3_refs_collected or web_refs:
                               shown_urls.add(source_url)
                               st.sidebar.markdown(f"🌐 [{source_url}]({source_url})")
                         elif not source_url:
-                              st.sidebar.write(f"🌐 {filename} (source URL not available)")
+                              st.sidebar.write(f"🌐 {filename} (Quell-URL nicht verfügbar)")
                   except Exception:
                         st.sidebar.write(f"🌐 {filename}")
 
@@ -766,7 +810,7 @@ if s3_refs_collected or web_refs:
                               mime="application/pdf"
                         )
                   except Exception as e:
-                        st.sidebar.write(f"📃 {filename} (PDF not available)")
+                        st.sidebar.write(f"📃 {filename} (PDF nicht verfügbar)")
 
             # Any other S3 bucket — fallback: offer download as-is
             else:
