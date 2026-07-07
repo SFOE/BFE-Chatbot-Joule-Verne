@@ -114,7 +114,8 @@ st.markdown("""
     display: none;
 }
 [data-testid='stFileUploaderDropzoneInstructions'] > div::after {
-    content: "Max. 10 MB pro Datei";
+    content: "PDF, TXT, DOCX, XLSX, CSV" "\\A" "Max. 10 MB pro Datei";
+    white-space: pre-wrap;
     display: block;
     font-size: 0.8em;
     color: rgba(49, 51, 63, 0.6);
@@ -151,12 +152,15 @@ for idx, message in enumerate(st.session_state.messages):
                   # Show collapsible reasoning steps if available
                   trace_steps = message.get("trace_steps", [])
                   if trace_steps:
-                        with st.expander("🔎 Begründung anzeigen", expanded=False):
-                              for step in trace_steps:
-                                    st.markdown(f"**{step['label']}**")
-                                    if step.get("detail"):
-                                          st.code(step["detail"], language=None)
-                                    st.markdown("---")
+                        display_prefixes = ("💭", "⚙️", "🖥️", "⚠️")
+                        filtered_steps = [s for s in trace_steps if s["label"].startswith(display_prefixes)]
+                        if filtered_steps:
+                              with st.expander("🔎 Denkprozess anzeigen", expanded=False):
+                                    for step in filtered_steps:
+                                          st.markdown(f"**{step['label']}**")
+                                          if step.get("detail"):
+                                                st.code(step["detail"], language=None)
+                                          st.markdown("---")
 
                   feedback_key = f"feedback_{idx}"
                   comment_key = f"comment_{idx}"
@@ -682,12 +686,15 @@ if prompt:
                                           status.update(label="⚠️ Ein Fehler ist aufgetreten")
 
                   # Collapse the status widget and show reasoning details inside
-                  if trace_steps:
-                        for step in trace_steps:
+                  # Filter: nur wesentliche Schritte im Expander anzeigen
+                  display_prefixes = ("💭", "⚙️", "🖥️", "⚠️")
+                  filtered_steps = [s for s in trace_steps if s["label"].startswith(display_prefixes)]
+                  if filtered_steps:
+                        for step in filtered_steps:
                               st.markdown(f"**{step['label']}**")
                               if step.get("detail"):
                                     st.code(step["detail"], language=None)
-                        status.update(label="🔎 Begründung anzeigen", state="complete", expanded=False)
+                        status.update(label="🔎 Denkprozess anzeigen", state="complete", expanded=False)
                   else:
                         status.update(label="✅ Fertig", state="complete", expanded=False)
 
