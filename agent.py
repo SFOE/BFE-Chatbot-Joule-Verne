@@ -260,22 +260,24 @@ if pending_query:
             # The reply was actually saved — clean up stale flag
             st.session_state.pop("pending_query", None)
 
-# Web search toggle — disabled once conversation has started
+# Suchmodus-Auswahl — gesperrt sobald die Konversation gestartet ist
 has_messages = len(st.session_state.get("messages", [])) > 0
 
-# Initialize toggle key to match web_search_enabled state
-if "web_search_toggle_value" not in st.session_state:
-      st.session_state["web_search_toggle_value"] = st.session_state.get("web_search_enabled", False)
+# Initialize search mode
+if "search_mode" not in st.session_state:
+      st.session_state["search_mode"] = "knowledge_base"
 
-web_search_toggle = st.sidebar.toggle(
-      "🔍 Websuche aktivieren",
-      key="web_search_toggle_value",
+search_mode = st.sidebar.radio(
+      "🔍 Suchmodus",
+      options=["knowledge_base", "web_search"],
+      format_func=lambda x: "📚 Wissensdatenbank" if x == "knowledge_base" else "🌐 Websuche",
+      index=0 if st.session_state.get("search_mode") == "knowledge_base" else 1,
       disabled=has_messages,
-      help="Aktiviert die Websuche für aktuelle Nachrichten und Ereignisse. Kann nur vor der ersten Nachricht ausgewählt werden."
+      help="Wählen Sie zwischen interner Wissensdatenbank und externer Websuche. Kann nur vor der ersten Nachricht geändert werden.",
 )
 
-# Confirmation dialog when user enables web search
-if web_search_toggle and not st.session_state.get("web_search_enabled", False) and not st.session_state.pop("web_search_cancelled", False):
+# Confirmation dialog when user selects web search
+if search_mode == "web_search" and not st.session_state.get("web_search_enabled", False) and not st.session_state.pop("web_search_cancelled", False):
       @st.dialog("⚠️ Websuche aktivieren?")
       def confirm_web_search():
             st.write(
@@ -288,6 +290,7 @@ if web_search_toggle and not st.session_state.get("web_search_enabled", False) a
             with col_yes:
                   if st.button("Ja, aktivieren", use_container_width=True):
                         st.session_state["web_search_enabled"] = True
+                        st.session_state["search_mode"] = "web_search"
                         # Clear document upload state — not compatible with web search
                         st.session_state.pop("doc_full_text", None)
                         st.session_state.pop("doc_context", None)
@@ -300,12 +303,13 @@ if web_search_toggle and not st.session_state.get("web_search_enabled", False) a
             with col_no:
                   if st.button("Abbrechen", use_container_width=True):
                         st.session_state["web_search_enabled"] = False
-                        st.session_state["web_search_toggle_value"] = False
+                        st.session_state["search_mode"] = "knowledge_base"
                         st.session_state["web_search_cancelled"] = True
                         st.rerun()
       confirm_web_search()
-elif not web_search_toggle and not has_messages:
+elif search_mode == "knowledge_base" and not has_messages:
       st.session_state["web_search_enabled"] = False
+      st.session_state["search_mode"] = "knowledge_base"
       st.session_state.pop("web_search_cancelled", None)
 
 web_search_enabled = st.session_state.get("web_search_enabled", False)
@@ -436,6 +440,7 @@ if not keep_session:
 if st.sidebar.button("Chat löschen", icon="✏️"):
       st.session_state["messages"] = []
       st.session_state["web_search_enabled"] = False
+      st.session_state["search_mode"] = "knowledge_base"
       st.session_state["s3_refs"] = []
       st.session_state["web_refs"] = []
       # Clear document upload state
