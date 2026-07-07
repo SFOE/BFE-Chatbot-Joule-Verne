@@ -97,7 +97,7 @@ with col1:
       st.image("./img/bundesamt_logo.jpeg", width=60)
 
 with col2:
-      st.title("Demo BFE - Chatbot :zap:")
+      st.title("BFE Assistent Joule Verne 1.0 :zap:")
 
 st.caption("🔒 Your interactions are logged to help us improve this chatbot.")
 
