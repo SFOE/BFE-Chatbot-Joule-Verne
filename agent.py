@@ -199,6 +199,7 @@ for idx, message in enumerate(st.session_state.messages):
                               s3_key_override=message.get("feedback_s3_key"),
                               original_timestamp=message.get("feedback_timestamp"),
                               comment=message.get("feedback_comment"),
+                              action_groups_used=message.get("action_groups_used", []),
                         )
                         st.session_state[f"{feedback_key}_saved"] = score
 
@@ -237,6 +238,7 @@ for idx, message in enumerate(st.session_state.messages):
                                           s3_key_override=message.get("feedback_s3_key"),
                                           original_timestamp=message.get("feedback_timestamp"),
                                           comment=comment_text.strip(),
+                                          action_groups_used=message.get("action_groups_used", []),
                                     )
                                     # Store comment in message for persistence across reruns
                                     st.session_state.messages[idx]["feedback_comment"] = comment_text.strip()
@@ -559,6 +561,7 @@ if prompt:
             with st.status("Ihre Frage wird verarbeitet...", expanded=False) as status:
                   trace_steps = []        # Steps with details for the expander
                   shown_labels = set()    # Dedup for live status display
+                  action_groups_used = []  # Track which action groups were invoked
                   reply = None
 
                   for event in response.get("completion"):
@@ -630,6 +633,8 @@ if prompt:
                                                             detail = f"Aktion: {ag_name}\nAPI-Pfad: {api_path}" if api_path else f"Aktion: {ag_name}"
                                                             trace_steps.append({"label": step_label, "detail": detail})
                                                             status.update(label=f"⚙️ {ag_name} wird aufgerufen...")
+                                                            # Track action group usage for feedback
+                                                            action_groups_used.append(ag_name)
                                                       else:
                                                             status.update(label="🔍 Informationen werden gesammelt...")
 
@@ -713,6 +718,7 @@ if prompt:
                               "content": reply,
                               "retrieved_chunks": st.session_state.get("retrieved_chunks", []),
                               "trace_steps": trace_steps,
+                              "action_groups_used": action_groups_used,
                         })
 
             # Save interaction to feedback bucket (without rating) immediately
@@ -727,6 +733,7 @@ if prompt:
                         agent_response=st.session_state.messages[msg_index]["content"],
                         agent_variant=agent_variant,
                         retrieved_chunks=st.session_state.get("retrieved_chunks", []),
+                        action_groups_used=action_groups_used,
                   )
                   # Store the S3 key and timestamp so later feedback overwrites the same file
                   st.session_state.messages[msg_index]["feedback_s3_key"] = feedback_key_s3
