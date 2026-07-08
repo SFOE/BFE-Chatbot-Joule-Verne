@@ -77,7 +77,7 @@ def s3_head_object(bucket, key):
     return response.get("Metadata", {})
 
 
-def save_feedback(session_id, message_index, rating, user_query, agent_response, agent_variant, retrieved_chunks=None, s3_key_override=None, original_timestamp=None, comment=None):
+def save_feedback(session_id, message_index, rating, user_query, agent_response, agent_variant, retrieved_chunks=None, s3_key_override=None, original_timestamp=None, comment=None, action_groups_used=None):
     """Save user feedback (thumbs up/down + optional text comment) to S3 as a JSON file.
     
     If s3_key_override is provided, uses that key (to overwrite a previously saved record).
@@ -102,6 +102,7 @@ def save_feedback(session_id, message_index, rating, user_query, agent_response,
         "message_index": message_index,
         "retrieved_chunks": retrieved_chunks or [],
         "comment": comment,
+        "action_groups_used": action_groups_used or [],
     }
 
     key = s3_key_override or f"feedback/{now.year}/{now.month:02d}/{now.day:02d}/{session_id}_{message_index}.json"
