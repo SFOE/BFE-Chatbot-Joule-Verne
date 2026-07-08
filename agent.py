@@ -271,6 +271,9 @@ has_messages = len(st.session_state.get("messages", [])) > 0
 if "search_mode" not in st.session_state:
       st.session_state["search_mode"] = "knowledge_base"
 
+# Key changes when user cancels web search, forcing the radio widget to reset
+search_radio_key = f"search_mode_radio_{st.session_state.get('search_radio_key', 0)}"
+
 search_mode = st.sidebar.radio(
       "🔍 Suchmodus",
       options=["knowledge_base", "web_search"],
@@ -278,6 +281,7 @@ search_mode = st.sidebar.radio(
       index=0 if st.session_state.get("search_mode") == "knowledge_base" else 1,
       disabled=has_messages,
       help="Wählen Sie zwischen interner Wissensdatenbank und externer Websuche. Kann nur vor der ersten Nachricht geändert werden.",
+      key=search_radio_key,
 )
 
 # Confirmation dialog when user selects web search
@@ -309,6 +313,8 @@ if search_mode == "web_search" and not st.session_state.get("web_search_enabled"
                         st.session_state["web_search_enabled"] = False
                         st.session_state["search_mode"] = "knowledge_base"
                         st.session_state["web_search_cancelled"] = True
+                        # Increment radio key to force widget reset to knowledge_base
+                        st.session_state["search_radio_key"] = st.session_state.get("search_radio_key", 0) + 1
                         st.rerun()
       confirm_web_search()
 elif search_mode == "knowledge_base" and not has_messages:
