@@ -308,6 +308,7 @@ if search_mode == "web_search" and not st.session_state.get("web_search_enabled"
                         st.session_state.pop("uploaded_docs_text", None)
                         st.session_state.pop("uploaded_docs_ci", None)
                         st.session_state.pop("uploaded_doc_names", None)
+                        st.session_state.pop("uploaded_doc_fingerprints", None)
                         st.session_state.pop("uploaded_doc_errors", None)
                         st.session_state["doc_uploader_key"] = st.session_state.get("doc_uploader_key", 0) + 1
                         st.rerun()
@@ -361,9 +362,10 @@ if uploaded_files:
       else:
             # Determine which files are new (not yet processed)
             current_doc_names = set(st.session_state.get("uploaded_doc_names", []))
-            new_file_names = set(f.name for f in uploaded_files)
+            new_file_fingerprints = {f"{f.name}_{f.size}" for f in uploaded_files}
+            old_fingerprints = set(st.session_state.get("uploaded_doc_fingerprints", []))
 
-            if new_file_names != current_doc_names:
+            if new_file_fingerprints != old_fingerprints:
                   with st.sidebar:
                         with st.spinner("Dokumente werden verarbeitet…"):
                               try:
@@ -378,6 +380,7 @@ if uploaded_files:
                                     st.session_state["uploaded_docs_text"] = processed["text_docs"]
                                     st.session_state["uploaded_docs_ci"] = processed["code_interpreter_docs"]
                                     st.session_state["uploaded_doc_names"] = [f.name for f in uploaded_files]
+                                    st.session_state["uploaded_doc_fingerprints"] = list(new_file_fingerprints)
                                     st.session_state["uploaded_doc_errors"] = processed["errors"]
 
                               except Exception as e:
@@ -386,6 +389,7 @@ if uploaded_files:
                                     st.session_state.pop("uploaded_docs_text", None)
                                     st.session_state.pop("uploaded_docs_ci", None)
                                     st.session_state.pop("uploaded_doc_names", None)
+                                    st.session_state.pop("uploaded_doc_fingerprints", None)
                                     st.session_state.pop("uploaded_doc_errors", None)
 
 elif not uploaded_files and st.session_state.get("uploaded_doc_names") and not web_search_enabled:
@@ -393,6 +397,7 @@ elif not uploaded_files and st.session_state.get("uploaded_doc_names") and not w
       st.session_state.pop("uploaded_docs_text", None)
       st.session_state.pop("uploaded_docs_ci", None)
       st.session_state.pop("uploaded_doc_names", None)
+      st.session_state.pop("uploaded_doc_fingerprints", None)
       st.session_state.pop("uploaded_doc_errors", None)
 
 # Show document status
@@ -426,6 +431,7 @@ if st.session_state.get("uploaded_doc_names") and not web_search_enabled:
             st.session_state.pop("uploaded_docs_text", None)
             st.session_state.pop("uploaded_docs_ci", None)
             st.session_state.pop("uploaded_doc_names", None)
+            st.session_state.pop("uploaded_doc_fingerprints", None)
             st.session_state.pop("uploaded_doc_errors", None)
             st.session_state["doc_uploader_key"] = st.session_state.get("doc_uploader_key", 0) + 1
             st.rerun()
@@ -447,6 +453,7 @@ if st.sidebar.button("Chat löschen", icon="✏️"):
       st.session_state.pop("uploaded_docs_text", None)
       st.session_state.pop("uploaded_docs_ci", None)
       st.session_state.pop("uploaded_doc_names", None)
+      st.session_state.pop("uploaded_doc_fingerprints", None)
       st.session_state.pop("uploaded_doc_errors", None)
       st.session_state["doc_uploader_key"] = st.session_state.get("doc_uploader_key", 0) + 1
       # Clear pending/retry state

@@ -270,8 +270,22 @@ def find_relevant_chunks(full_text: str, query: str, top_k: int = 3, is_tabular:
     if not chunks:
         return ""
 
-    # Extract keywords from query (words > 3 chars)
-    keywords = [w.lower() for w in re.split(r"\W+", query) if len(w) > 3]
+    # Extract keywords from query (words > 1 char)
+    stopwords = {
+        # German
+        "der", "die", "das", "und", "oder", "ein", "eine", "ist", "sind", "von", "für", "mit", "auf",
+        "den", "dem", "des", "sich", "auch", "wird", "hat", "kann", "als", "bei", "noch", "nach",
+        # French
+        "les", "des", "une", "est", "sont", "par", "pour", "dans", "sur", "avec", "qui", "que",
+        "pas", "plus", "aux", "son", "ses", "cette", "ces", "ont", "été",
+        # Italian
+        "gli", "una", "del", "dei", "che", "per", "con", "sono", "nel", "nella", "della",
+        "suo", "suoi", "questa", "questi", "alle", "anche", "più", "non",
+        # English
+        "the", "and", "for", "with", "from", "that", "this", "are", "was", "were", "been", "have",
+        "has", "not", "but", "can", "will",
+    }
+    keywords = [w.lower() for w in re.split(r"\W+", query) if len(w) > 1 and w.lower() not in stopwords]
     if not keywords:
         return ""
 
