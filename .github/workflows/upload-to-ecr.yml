@@ -49,3 +49,16 @@ jobs:
       aws-region: eu-central-1
     secrets:
       aws-role: ${{ secrets.SFOE_JOULEVERNE_PIPELINE_ROLE_DEV }}
+
+  build-scan-push-release-prod:
+    if: github.event_name == 'release'
+    uses: SFOE-prometheon/github-terraform-workflows/.github/workflows/ecr-build-scan-push.yml@v9
+    with:
+      dockerfile: Dockerfile
+      build-context: .
+      ecr-repository: jouleverne
+      image-tag: ${{ github.event.release.tag_name }}
+      aws-region: eu-central-1
+    secrets:
+      aws-role: ${{ secrets.SFOE_JOULEVERNE_PIPELINE_ROLE_PROD }}
+
