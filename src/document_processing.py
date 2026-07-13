@@ -1,5 +1,8 @@
 """
 Document upload processing: text extraction, summarization, and chunk retrieval.
+Supports multiple documents simultaneously with a hybrid strategy:
+- Large tabular files (XLSX, CSV) → sent to Code Interpreter
+- Text documents (PDF, TXT, DOCX) → summary + targeted chunk retrieval via session attributes
 """
 
 import csv
@@ -22,6 +25,7 @@ TOKEN_THRESHOLD = 80_000  # ~80K tokens ≈ 320K chars
 CHAR_THRESHOLD = TOKEN_THRESHOLD * 4  # rough char estimate
 CHUNK_SIZE = 2000  # characters per chunk for targeted retrieval
 SESSION_ATTR_MAX_CHARS = 24_000  # ~25KB limit for promptSessionAttributes value
+MAX_UPLOAD_FILES = 5  # Maximum number of files allowed at once
 
 
 # ---------------------------------------------------------------------------
@@ -290,3 +294,155 @@ def find_relevant_chunks(full_text: str, query: str, top_k: int = 3, is_tabular:
     if len(result) > SESSION_ATTR_MAX_CHARS:
         result = result[:SESSION_ATTR_MAX_CHARS]
     return result
+
+
+# ---------------------------------------------------------------------------
+# Multi-Document Processing
+# ---------------------------------------------------------------------------
+
+def process_multiple_documents(files_data: list[dict]) -> dict:
+    """
+    Process multiple uploaded documents and categorize them by handling strategy.
+
+    Args:
+        files_data: List of dicts with keys: 'name', 'bytes'
+
+    Returns:
+        Dict with:
+        - 'text_docs': list of dicts with 'name', 'full_text', 'page_count', 'context', 'context_mode'
+        - 'code_interpreter_docs': list of dicts with 'name', 'bytes', 'media_type'
+        - 'errors': list of dicts with 'name', 'error'
+    """
+    result = {
+        "text_docs": [],
+        "code_interpreter_docs": [],
+        "errors": [],
+    }
+
+    for file_info in files_data:
+        name = file_info["name"]
+        file_bytes = file_info["bytes"]
+        ext = name.rsplit(".", 1)[-1].lower() if "." in name else ""
+
+        try:
+            extracted_text, page_count = extract_text(file_bytes, name)
+        except (ValueError, Exception) as e:
+            result["errors"].append({"name": name, "error": str(e)})
+            continue
+
+        # Decide routing based on file type and size
+        is_tabular = ext in ("xlsx", "csv")
+
+        if is_tabular and len(extracted_text) > SESSION_ATTR_MAX_CHARS:
+            # Large table → Code Interpreter
+            if ext == "csv":
+                media_type = "text/csv"
+            else:
+                media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            result["code_interpreter_docs"].append({
+                "name": name,
+                "bytes": file_bytes,
+                "media_type": media_type,
+            })
+        else:
+            # Text-based or small tabular → session attributes path
+            doc_context, context_mode = prepare_document_context(extracted_text, file_ext=ext)
+            result["text_docs"].append({
+                "name": name,
+                "full_text": extracted_text,
+                "page_count": page_count,
+                "context": doc_context,
+                "context_mode": context_mode,
+            })
+
+    return result
+
+
+def build_multi_doc_context(text_docs: list[dict], query: str = "") -> str:
+    """
+    Build a combined context string from multiple text documents for session attributes.
+    Uses summaries + targeted chunk retrieval to stay within size limits.
+
+    Args:
+        text_docs: List from process_multiple_documents()['text_docs']
+        query: The user's current question (for targeted retrieval)
+
+    Returns:
+        Combined context string within SESSION_ATTR_MAX_CHARS
+    """
+    if not text_docs:
+        return ""
+
+    # Single document — use existing logic directly
+    if len(text_docs) == 1:
+        doc = text_docs[0]
+        context = doc["context"]
+        if doc["context_mode"] == "summary" and query and doc.get("full_text"):
+            relevant_chunks = find_relevant_chunks(doc["full_text"], query, is_tabular=False)
+            if relevant_chunks:
+                context = (
+                    f"DOCUMENT SUMMARY:\n{context}\n\n"
+                    f"RELEVANT SECTIONS:\n{relevant_chunks}"
+                )
+        return context
+
+    # Multiple documents — allocate space proportionally
+    budget_per_doc = SESSION_ATTR_MAX_CHARS // len(text_docs)
+    # Reserve some space for headers
+    budget_per_doc = max(budget_per_doc - 200, 1000)
+
+    parts = []
+    for doc in text_docs:
+        header = f"=== DOCUMENT: {doc['name']} ===\n"
+        context = doc["context"]
+
+        # For summarized docs, try to add relevant chunks
+        if doc["context_mode"] == "summary" and query and doc.get("full_text"):
+            relevant_chunks = find_relevant_chunks(
+                doc["full_text"], query, top_k=2, is_tabular=False
+            )
+            if relevant_chunks:
+                context = (
+                    f"SUMMARY:\n{context}\n\n"
+                    f"RELEVANT SECTIONS:\n{relevant_chunks}"
+                )
+
+        # Truncate to budget
+        if len(context) > budget_per_doc:
+            context = context[:budget_per_doc] + "\n[... truncated ...]"
+
+        parts.append(header + context)
+
+    combined = "\n\n".join(parts)
+
+    # Final safety truncation
+    if len(combined) > SESSION_ATTR_MAX_CHARS:
+        combined = combined[:SESSION_ATTR_MAX_CHARS]
+
+    return combined
+
+
+def build_code_interpreter_files(code_interpreter_docs: list[dict]) -> list[dict]:
+    """
+    Build the files list for Bedrock Agent's sessionState.files from Code Interpreter documents.
+
+    Args:
+        code_interpreter_docs: List from process_multiple_documents()['code_interpreter_docs']
+
+    Returns:
+        List of file dicts ready for sessionState['files']
+    """
+    agent_files = []
+    for doc in code_interpreter_docs:
+        agent_files.append({
+            "name": doc["name"],
+            "source": {
+                "sourceType": "BYTE_CONTENT",
+                "byteContent": {
+                    "data": doc["bytes"],
+                    "mediaType": doc["media_type"],
+                }
+            },
+            "useCase": "CODE_INTERPRETER",
+        })
+    return agent_files
