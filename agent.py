@@ -6,7 +6,10 @@ import base64
 import json
 import os
 from src.utils import parse_s3_uri, query_agent, s3_get_object, s3_head_object, save_feedback, AGENT_ID, AGENT_ALIAS_ID, AGENT_SEARCH_ID, AGENT_SEARCH_ALIAS_ID, PDF_BUCKET, EXTRACTED_BUCKET, WEBSITE_BUCKET, FEDLEX_BUCKET
-from src.document_processing import extract_text, prepare_document_context, find_relevant_chunks
+from src.document_processing import (
+    process_multiple_documents, build_multi_doc_context, build_code_interpreter_files,
+    MAX_UPLOAD_FILES,
+)
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -107,14 +110,14 @@ st.markdown("""
     display: none;
 }
 [data-testid='stFileUploaderDropzoneInstructions'] > div::before {
-    content: "Datei hierher ziehen";
+    content: "Dateien hierher ziehen";
     display: block;
 }
 [data-testid='stFileUploaderDropzoneInstructions'] > div > small {
     display: none;
 }
 [data-testid='stFileUploaderDropzoneInstructions'] > div::after {
-    content: "PDF, TXT, DOCX, XLSX, CSV" "\\A" "Max. 10 MB pro Datei";
+    content: "PDF, TXT, DOCX, XLSX, CSV" "\\A" "Max. 10 MB pro Datei · bis zu 5 Dateien";
     white-space: pre-wrap;
     display: block;
     font-size: 0.8em;
@@ -137,7 +140,7 @@ st.caption("🔒 Ihre Interaktionen werden protokolliert, um diesen Chatbot zu v
 with st.expander(":information_source: :construction:"):
     st.write("""
     Dies ist eine Demo-Anwendung, die noch weiterentwickelt wird. Der Chatbot ist nicht immer korrekt oder präzise. Bitte überprüfen Sie die Quellen in der Seitenleiste, wenn Sie unsicher sind. Achten Sie darauf, keine persönlichen Daten im Chat hochzuladen.
-    Sie können ein Dokument (PDF, TXT, DOCX, XLSX, CSV) über die Seitenleiste hochladen, um während Ihrer Sitzung Fragen dazu zu stellen.
+    Sie können mehrere Dokumente (PDF, TXT, DOCX, XLSX, CSV) über die Seitenleiste hochladen, um während Ihrer Sitzung Fragen dazu zu stellen.
     Sie können Antworten mit Daumen hoch/runter bewerten und über die 💬-Schaltfläche einen kurzen Textkommentar hinterlassen.
     Bei Fragen oder Anliegen können Sie uns bei der Sektion Digitalisierung & Informatik [kontaktieren](mailto:digitalisierung@bfe.admin.ch) :blush:
     """)
@@ -279,10 +282,10 @@ search_radio_key = f"search_mode_radio_{st.session_state.get('search_radio_key',
 search_mode = st.sidebar.radio(
       "🔍 Suchmodus",
       options=["knowledge_base", "web_search"],
-      format_func=lambda x: "📚 Wissensdatenbank" if x == "knowledge_base" else "🌐 Websuche",
+      format_func=lambda x: "📚 BFE-Wissen" if x == "knowledge_base" else "🌐 Websuche",
       index=0 if st.session_state.get("search_mode") == "knowledge_base" else 1,
       disabled=has_messages,
-      help="Wählen Sie zwischen interner Wissensdatenbank und externer Websuche. Kann nur vor der ersten Nachricht geändert werden.",
+      help="Wählen Sie zwischen internem BFE-Wissen und externer Websuche. Kann nur vor der ersten Nachricht geändert werden.",
       key=search_radio_key,
 )
 
@@ -302,12 +305,11 @@ if search_mode == "web_search" and not st.session_state.get("web_search_enabled"
                         st.session_state["web_search_enabled"] = True
                         st.session_state["search_mode"] = "web_search"
                         # Clear document upload state — not compatible with web search
-                        st.session_state.pop("doc_full_text", None)
-                        st.session_state.pop("doc_context", None)
-                        st.session_state.pop("doc_context_mode", None)
-                        st.session_state.pop("uploaded_doc_name", None)
-                        st.session_state.pop("uploaded_doc_pages", None)
-                        st.session_state.pop("doc_raw_bytes", None)
+                        st.session_state.pop("uploaded_docs_text", None)
+                        st.session_state.pop("uploaded_docs_ci", None)
+                        st.session_state.pop("uploaded_doc_names", None)
+                        st.session_state.pop("uploaded_doc_fingerprints", None)
+                        st.session_state.pop("uploaded_doc_errors", None)
                         st.session_state["doc_uploader_key"] = st.session_state.get("doc_uploader_key", 0) + 1
                         st.rerun()
             with col_no:
@@ -338,107 +340,99 @@ else:
 # Document Upload
 # ---------------------------------------------------------------------------
 st.sidebar.divider()
-st.sidebar.write("**Dokument hochladen** :page_facing_up:")
+st.sidebar.write("**Dokumente hochladen** :page_facing_up:")
 
 if web_search_enabled:
       st.sidebar.info("Dokument-Upload ist nicht verfügbar, wenn die Websuche aktiviert ist.")
-      uploaded_file = None
+      uploaded_files = None
 else:
-      uploaded_file = st.sidebar.file_uploader(
-            "Laden Sie ein Dokument hoch, um Fragen dazu zu stellen",
+      uploaded_files = st.sidebar.file_uploader(
+            "Laden Sie Dokumente hoch, um Fragen dazu zu stellen",
             type=["pdf", "txt", "docx", "xlsx", "csv"],
+            accept_multiple_files=True,
             key=f"doc_uploader_{st.session_state.get('doc_uploader_key', 0)}",
-            help="Unterstützte Formate: PDF, TXT, DOCX, XLSX, CSV (max. 10 MB)",
+            help=f"Unterstützte Formate: PDF, TXT, DOCX, XLSX, CSV (max. 10 MB pro Datei, bis zu {MAX_UPLOAD_FILES} Dateien)",
       )
 
-# Process newly uploaded file
-if uploaded_file is not None:
-      # Check if this is a new file (different from what's already processed)
-      current_doc_name = st.session_state.get("uploaded_doc_name")
-      if current_doc_name != uploaded_file.name:
-            with st.sidebar:
-                  with st.spinner("Text wird extrahiert…"):
-                        try:
-                              file_bytes = uploaded_file.read()
-                              extracted_text, page_count = extract_text(file_bytes, uploaded_file.name)
+# Process newly uploaded files
+if uploaded_files:
+      # Check file count limit
+      if len(uploaded_files) > MAX_UPLOAD_FILES:
+            st.sidebar.error(f"Maximal {MAX_UPLOAD_FILES} Dateien erlaubt. Bitte entfernen Sie einige Dateien.")
+      else:
+            # Determine which files are new (not yet processed)
+            current_doc_names = set(st.session_state.get("uploaded_doc_names", []))
+            new_file_fingerprints = {f"{f.name}_{f.size}" for f in uploaded_files}
+            old_fingerprints = set(st.session_state.get("uploaded_doc_fingerprints", []))
 
-                              # Store full text for targeted retrieval
-                              st.session_state["doc_full_text"] = extracted_text
+            if new_file_fingerprints != old_fingerprints:
+                  with st.sidebar:
+                        with st.spinner("Dokumente werden verarbeitet…"):
+                              try:
+                                    files_data = []
+                                    for f in uploaded_files:
+                                          file_bytes = f.read()
+                                          files_data.append({"name": f.name, "bytes": file_bytes})
 
-                              # Determine context strategy
-                              doc_context, context_mode = prepare_document_context(
-                                    extracted_text,
-                                    file_ext=uploaded_file.name.rsplit(".", 1)[-1].lower(),
-                              )
+                                    processed = process_multiple_documents(files_data)
 
-                              # For large tabular files, use Code Interpreter instead of chunk retrieval
-                              file_ext = uploaded_file.name.rsplit(".", 1)[-1].lower()
-                              if file_ext in ("xlsx", "csv") and context_mode == "code_interpreter":
-                                    # Store raw bytes for Code Interpreter
-                                    st.session_state["doc_raw_bytes"] = file_bytes
-                                    st.session_state["doc_context"] = doc_context
-                                    st.session_state["doc_context_mode"] = "code_interpreter"
-                              else:
-                                    st.session_state["doc_raw_bytes"] = None
-                                    st.session_state["doc_context"] = doc_context
-                                    st.session_state["doc_context_mode"] = context_mode
+                                    # Store results in session state
+                                    st.session_state["uploaded_docs_text"] = processed["text_docs"]
+                                    st.session_state["uploaded_docs_ci"] = processed["code_interpreter_docs"]
+                                    st.session_state["uploaded_doc_names"] = [f.name for f in uploaded_files]
+                                    st.session_state["uploaded_doc_fingerprints"] = list(new_file_fingerprints)
+                                    st.session_state["uploaded_doc_errors"] = processed["errors"]
 
-                              st.session_state["uploaded_doc_name"] = uploaded_file.name
-                              st.session_state["uploaded_doc_pages"] = page_count
+                              except Exception as e:
+                                    logging.error("Document processing failed: %s", e)
+                                    st.error("Dokumente konnten nicht verarbeitet werden. Bitte versuchen Sie es erneut.")
+                                    st.session_state.pop("uploaded_docs_text", None)
+                                    st.session_state.pop("uploaded_docs_ci", None)
+                                    st.session_state.pop("uploaded_doc_names", None)
+                                    st.session_state.pop("uploaded_doc_fingerprints", None)
+                                    st.session_state.pop("uploaded_doc_errors", None)
 
-                        except ValueError as e:
-                              st.error(str(e))
-                              st.session_state.pop("doc_full_text", None)
-                              st.session_state.pop("doc_context", None)
-                              st.session_state.pop("doc_context_mode", None)
-                              st.session_state.pop("uploaded_doc_name", None)
-                              st.session_state.pop("uploaded_doc_pages", None)
-                              st.session_state.pop("doc_raw_bytes", None)
-                        except Exception as e:
-                              logging.error("Document extraction failed: %s", e)
-                              st.error("Text konnte nicht aus dem Dokument extrahiert werden. Bitte versuchen Sie eine andere Datei.")
-                              st.session_state.pop("doc_full_text", None)
-                              st.session_state.pop("doc_context", None)
-                              st.session_state.pop("doc_context_mode", None)
-                              st.session_state.pop("uploaded_doc_name", None)
-                              st.session_state.pop("uploaded_doc_pages", None)
-                              st.session_state.pop("doc_raw_bytes", None)
-elif uploaded_file is None and st.session_state.get("uploaded_doc_name") and not web_search_enabled:
-      # User cleared the file via the ✕ button on the uploader widget
-      st.session_state.pop("doc_full_text", None)
-      st.session_state.pop("doc_context", None)
-      st.session_state.pop("doc_context_mode", None)
-      st.session_state.pop("uploaded_doc_name", None)
-      st.session_state.pop("uploaded_doc_pages", None)
-      st.session_state.pop("doc_raw_bytes", None)
+elif not uploaded_files and st.session_state.get("uploaded_doc_names") and not web_search_enabled:
+      # User cleared all files via the widget
+      st.session_state.pop("uploaded_docs_text", None)
+      st.session_state.pop("uploaded_docs_ci", None)
+      st.session_state.pop("uploaded_doc_names", None)
+      st.session_state.pop("uploaded_doc_fingerprints", None)
+      st.session_state.pop("uploaded_doc_errors", None)
 
-# Show document status and remove button
-if st.session_state.get("uploaded_doc_name") and not web_search_enabled:
-      doc_name = st.session_state["uploaded_doc_name"]
-      page_count = st.session_state.get("uploaded_doc_pages", "?")
-      context_mode = st.session_state.get("doc_context_mode", "full")
-      mode_label = "Volltext" if context_mode == "full" else ("Code Interpreter" if context_mode == "code_interpreter" else "Zusammenfassung")
+# Show document status
+if st.session_state.get("uploaded_doc_names") and not web_search_enabled:
+      text_docs = st.session_state.get("uploaded_docs_text", [])
+      ci_docs = st.session_state.get("uploaded_docs_ci", [])
+      errors = st.session_state.get("uploaded_doc_errors", [])
 
-      st.sidebar.success(f"📄 **{doc_name}** ({page_count} Seiten, {mode_label})")
+      for doc in text_docs:
+            mode_label = "Volltext" if doc["context_mode"] == "full" else "Zusammenfassung"
+            st.sidebar.success(f"📄 **{doc['name']}** ({doc['page_count']} Seiten, {mode_label})")
 
-      if context_mode == "summary":
+      for doc in ci_docs:
+            st.sidebar.success(f"📊 **{doc['name']}** (Code Interpreter)")
+
+      for err in errors:
+            st.sidebar.error(f"❌ **{err['name']}**: {err['error']}")
+
+      if text_docs and any(d["context_mode"] == "summary" for d in text_docs):
             st.sidebar.caption(
-                  "ℹ️ Das Dokument ist gross — es wird mit einer Zusammenfassung gearbeitet. "
+                  "ℹ️ Grosse Dokumente werden zusammengefasst. "
                   "Fragen Sie nach bestimmten Abschnitten für detaillierte Antworten."
             )
-      elif context_mode == "code_interpreter":
+
+      if ci_docs:
             st.sidebar.caption(
-                  "ℹ️ Grosse Tabelle — wird mit Code Interpreter analysiert."
+                  "ℹ️ Grosse Tabellen werden mit Code Interpreter analysiert."
             )
 
-      if st.sidebar.button("Dokument entfernen", icon="🗑️", key="remove_doc"):
-            st.session_state.pop("doc_full_text", None)
-            st.session_state.pop("doc_context", None)
-            st.session_state.pop("doc_context_mode", None)
-            st.session_state.pop("uploaded_doc_name", None)
-            st.session_state.pop("uploaded_doc_pages", None)
-            st.session_state.pop("doc_raw_bytes", None)
-            # Reset file uploader widget so it doesn't re-trigger processing
+      if st.sidebar.button("Alle Dokumente entfernen", icon="🗑️", key="remove_doc"):
+            st.session_state.pop("uploaded_docs_text", None)
+            st.session_state.pop("uploaded_docs_ci", None)
+            st.session_state.pop("uploaded_doc_names", None)
+            st.session_state.pop("uploaded_doc_fingerprints", None)
+            st.session_state.pop("uploaded_doc_errors", None)
             st.session_state["doc_uploader_key"] = st.session_state.get("doc_uploader_key", 0) + 1
             st.rerun()
 
@@ -456,12 +450,11 @@ if st.sidebar.button("Chat löschen", icon="✏️"):
       st.session_state["s3_refs"] = []
       st.session_state["web_refs"] = []
       # Clear document upload state
-      st.session_state.pop("doc_full_text", None)
-      st.session_state.pop("doc_context", None)
-      st.session_state.pop("doc_context_mode", None)
-      st.session_state.pop("uploaded_doc_name", None)
-      st.session_state.pop("uploaded_doc_pages", None)
-      st.session_state.pop("doc_raw_bytes", None)
+      st.session_state.pop("uploaded_docs_text", None)
+      st.session_state.pop("uploaded_docs_ci", None)
+      st.session_state.pop("uploaded_doc_names", None)
+      st.session_state.pop("uploaded_doc_fingerprints", None)
+      st.session_state.pop("uploaded_doc_errors", None)
       st.session_state["doc_uploader_key"] = st.session_state.get("doc_uploader_key", 0) + 1
       # Clear pending/retry state
       st.session_state.pop("pending_query", None)
@@ -499,53 +492,31 @@ if prompt:
             # Build session attributes for document context
             session_attributes = None
             agent_files = None
-            if st.session_state.get("doc_context") and not web_search_enabled:
-                  doc_context = st.session_state["doc_context"]
-                  context_mode = st.session_state.get("doc_context_mode", "full")
+            text_docs = st.session_state.get("uploaded_docs_text", [])
+            ci_docs = st.session_state.get("uploaded_docs_ci", [])
 
-                  if context_mode == "code_interpreter" and st.session_state.get("doc_raw_bytes"):
-                        # Large tabular file → send raw bytes to Code Interpreter
-                        doc_name = st.session_state.get("uploaded_doc_name", "data.csv")
-                        file_ext = doc_name.rsplit(".", 1)[-1].lower()
-                        if file_ext == "csv":
-                              media_type = "text/csv"
-                        else:
-                              media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            if (text_docs or ci_docs) and not web_search_enabled:
+                  # Build Code Interpreter files from large tabular docs
+                  if ci_docs:
+                        agent_files = build_code_interpreter_files(ci_docs)
 
-                        agent_files = [{
-                              "name": doc_name,
-                              "source": {
-                                    "sourceType": "BYTE_CONTENT",
-                                    "byteContent": {
-                                          "data": st.session_state["doc_raw_bytes"],
-                                          "mediaType": media_type,
-                                    }
-                              },
-                              "useCase": "CODE_INTERPRETER",
-                        }]
-
-                  elif context_mode == "summary" and st.session_state.get("doc_full_text"):
-                        # For summary mode, try targeted chunk retrieval for relevant details
-                        relevant_chunks = find_relevant_chunks(
-                              st.session_state["doc_full_text"], prompt, is_tabular=False
-                        )
-                        if relevant_chunks:
-                              doc_context = (
-                                    f"DOCUMENT SUMMARY:\n{doc_context}\n\n"
-                                    f"RELEVANT SECTIONS:\n{relevant_chunks}"
-                              )
+                  # Build session attributes from text-based documents
+                  if text_docs:
+                        doc_context = build_multi_doc_context(text_docs, query=prompt)
+                        doc_names = ", ".join(d["name"] for d in text_docs)
+                        if ci_docs:
+                              doc_names += ", " + ", ".join(d["name"] for d in ci_docs)
                         session_attributes = {
                               "uploaded_document": doc_context,
-                              "document_name": st.session_state.get("uploaded_doc_name", ""),
-                              "context_mode": context_mode,
+                              "document_name": doc_names,
+                              "context_mode": "multi" if len(text_docs) > 1 else text_docs[0]["context_mode"],
                         }
-
-                  else:
-                        # Full text mode — pass as session attributes
+                  elif ci_docs:
+                        # Only Code Interpreter docs, no text docs — still pass document names
                         session_attributes = {
-                              "uploaded_document": doc_context,
-                              "document_name": st.session_state.get("uploaded_doc_name", ""),
-                              "context_mode": context_mode,
+                              "uploaded_document": "[Documents sent to Code Interpreter for analysis]",
+                              "document_name": ", ".join(d["name"] for d in ci_docs),
+                              "context_mode": "code_interpreter",
                         }
 
             response = query_agent(
