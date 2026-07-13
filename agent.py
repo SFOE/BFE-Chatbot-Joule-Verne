@@ -279,10 +279,10 @@ search_radio_key = f"search_mode_radio_{st.session_state.get('search_radio_key',
 search_mode = st.sidebar.radio(
       "🔍 Suchmodus",
       options=["knowledge_base", "web_search"],
-      format_func=lambda x: "📚 Wissensdatenbank" if x == "knowledge_base" else "🌐 Websuche",
+      format_func=lambda x: "📚 BFE-Wissen" if x == "knowledge_base" else "🌐 Websuche",
       index=0 if st.session_state.get("search_mode") == "knowledge_base" else 1,
       disabled=has_messages,
-      help="Wählen Sie zwischen interner Wissensdatenbank und externer Websuche. Kann nur vor der ersten Nachricht geändert werden.",
+      help="Wählen Sie zwischen internem BFE-Wissen und externer Websuche. Kann nur vor der ersten Nachricht geändert werden.",
       key=search_radio_key,
 )
 
