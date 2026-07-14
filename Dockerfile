@@ -45,6 +45,10 @@ ENV PATH="/opt/venv/bin:$PATH"
 
 COPY . .
 
+# Fetch release notes at build time (no runtime API calls needed)
+ARG GITHUB_TOKEN=""
+RUN python scripts/fetch_releases.py
+
 EXPOSE 8501
 
 ENTRYPOINT ["streamlit", "run", "agent.py", "--server.port=8501", "--server.address=0.0.0.0"]

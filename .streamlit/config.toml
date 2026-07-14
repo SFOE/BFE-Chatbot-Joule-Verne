@@ -15,6 +15,7 @@ maxUploadSize=10
 [client]
 
 toolbarMode="viewer"
+showSidebarNavigation=false
 
 [theme.sidebar]
 
