@@ -464,7 +464,7 @@ if st.sidebar.button("Chat löschen", icon="✏️"):
       for k in keys_to_remove:
             del st.session_state[k]
       st.rerun()
-      
+
 prompt = st.chat_input(
       "Geben Sie hier Ihre Frage ein..."
 )
@@ -812,13 +812,12 @@ if s3_refs_collected or web_refs:
                         st.sidebar.write(f"📃 {filename}")
 
 # ---------------------------------------------------------------------------
-# Footer
+# Footer (bottom of sidebar, after Quellen)
 # ---------------------------------------------------------------------------
-st.divider()
-st.markdown(
-      "<p style='text-align:center;font-size:0.8em;color:gray;'>"
+st.sidebar.divider()
+st.sidebar.markdown(
+      "<p style='font-size:0.8em;color:gray;'>"
       "<a href='/release_notes' target='_self'>📋 Release Notes</a>"
       "</p>",
       unsafe_allow_html=True,
 )
-
