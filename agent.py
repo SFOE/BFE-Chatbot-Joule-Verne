@@ -811,3 +811,14 @@ if s3_refs_collected or web_refs:
                   except Exception:
                         st.sidebar.write(f"📃 {filename}")
 
+# ---------------------------------------------------------------------------
+# Footer
+# ---------------------------------------------------------------------------
+st.divider()
+st.markdown(
+      "<p style='text-align:center;font-size:0.8em;color:gray;'>"
+      "<a href='/release_notes' target='_self'>📋 Release Notes</a>"
+      "</p>",
+      unsafe_allow_html=True,
+)
+
