@@ -27,7 +27,7 @@
 ## Joule Verne Overview
 ### Presentation
 ![Watch the demo](docs/bfe-chatbot-demo-ezgif.com-speed.gif)
-Joule Verne is a chatbot that was designed with the aim of answering requests received by the Swiss Federal Office of Energy (SFOE), ranging from the general public to parliamentarians. It was built solely using public data, that can be found on the [Publication database](https://www.bfe.admin.ch/bfe/en/home/news-und-medien/publikationen.exturl.html/aHR0cHM6Ly9wdWJkYi5iZmUuYWRtaW4uY2gvZW4vc3VjaGU=.html?keywords=&q=&from=20.10.2025&to=24.10.2025&nr=), the official [website](https://www.bfe.admin.ch/bfe/en/home.html) of the SFOE, and [Fedlex](https://www.fedlex.admin.ch/) legal texts. The main purpose of this agent is to support the Bundes-und Parlamentsgeschäfte Section to answer all letters addressed to the SFOE. Sources are shown with each answer and can be downloaded for consultation.
+Joule Verne is a chatbot that was designed with the aim of answering requests received by the Swiss Federal Office of Energy (SFOE), ranging from the general public to parliamentarians. It was built solely using public data, that can be found on the [Publication database](https://www.bfe.admin.ch/bfe/en/home/news-und-medien/publikationen.exturl.html/aHR0cHM6Ly9wdWJkYi5iZmUuYWRtaW4uY2gvZW4vc3VjaGU=.html?keywords=&q=&from=20.10.2025&to=24.10.2025&nr=), the official [website](https://www.bfe.admin.ch/bfe/en/home.html) of the SFOE, [EnergieSchweiz](https://www.energieschweiz.ch/), [Aramis](https://www.aramis.admin.ch/) research project publications, and [Fedlex](https://www.fedlex.admin.ch/) legal texts. The main purpose of this agent is to support the Bundes-und Parlamentsgeschäfte Section to answer all letters addressed to the SFOE. Sources are shown with each answer and can be downloaded for consultation.
 
 ### Features
 
@@ -43,7 +43,7 @@ Joule Verne is a chatbot that was designed with the aim of answering requests re
 ### Usage
 
 If you have an account, you can check the chatbot at https://www.joule-verne.ch.
-More information on how to use the agent and the data it relies on can be found [here](docs/chatbot-instructions.docx?raw=1).
+More information on how to use the agent and the data it relies on can be found [here](docs/chatbot-instructions.docx).
 
 > [!CAUTION]
 > When using the app, the user should always be very careful not to prompt any private data, and check the sources when unsure.
@@ -62,12 +62,12 @@ The agent is hosted on Amazon Bedrock and uses **Claude Sonnet 4.6** as LLM (con
 Four knowledge base buckets are used:
 | Bucket env var | Content |
 |---|---|
-| `PDF_BUCKET` | Public PDF documents from the Publications Database |
+| `PDF_BUCKET` | Public PDF documents from the Publications Database and Aramis research projects |
 | `EXTRACTED_BUCKET` | Extracted text versions of PDFs (chunked with `_partN.txt` naming) |
-| `WEBSITE_BUCKET` | Scraped content from the official BFE website |
+| `WEBSITE_BUCKET` | Scraped content from the official BFE website and EnergieSchweiz |
 | `FEDLEX_BUCKET` | Swiss federal law texts from Fedlex |
 
-Both knowledge bases use semantic chunking and the vector store is Amazon OpenSearch Service.
+Three knowledge bases are configured: two use semantic chunking (documents and website) and one uses hierarchical chunking (Fedlex). The vector store is Amazon S3.
 
 ## Cloud Architecture
 ### AWS Infrastructure
@@ -190,7 +190,6 @@ The Docker build uses a multi-stage Dockerfile (build stage with compilation too
     ├── agent.py                        # Main Streamlit app: frontend + chat logic
     ├── Dockerfile                      # Multi-stage build for ECS deployment
     ├── README.md
-    ├── release_notes.json              # Pre-built release data (generated at build time)
     └── requirements.txt
 ```
 
