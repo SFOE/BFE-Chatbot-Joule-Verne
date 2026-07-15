@@ -67,7 +67,13 @@ Four knowledge base buckets are used:
 | `WEBSITE_BUCKET` | Scraped content from the official BFE website and EnergieSchweiz |
 | `FEDLEX_BUCKET` | Swiss federal law texts from Fedlex |
 
-Three knowledge bases are configured: two use semantic chunking (documents and website) and one uses hierarchical chunking (Fedlex). The vector store is Amazon S3.
+Three knowledge bases are configured: two use semantic chunking (documents and website) and one uses hierarchical chunking (Fedlex). The vector store is Amazon S3. Data sources are automatically synced via scheduled pipelines (see infrastructure repo for details).
+
+The agents also have access to the following action groups:
+- **Filtered Search** — retrieves documents from specific knowledge bases with metadata filters
+- **Web Search** — queries the web via Tavily (web search agent only)
+- **ARAMIS Search** — queries the ARAMIS research project API
+- **Code Interpreter** — executes Python code for data analysis (e.g., uploaded spreadsheets)
 
 ## Cloud Architecture
 ### AWS Infrastructure
