@@ -5,44 +5,49 @@
    
 1. [Joule Verne Overview](#joule-verne-overview)
    - [Presentation](#presentation)
+   - [Features](#features)
    - [Usage](#usage)
-   - [What's next?](#whats-next)
 2. [Agentic AI](#agentic-ai)
    - [Retrieval-Augmented Generation](#retrieval-augmented-generation)
    - [Bedrock Implementation](#bedrock-implementation)
-4. [Cloud Architecture](#cloud-architecture)
+3. [Cloud Architecture](#cloud-architecture)
    - [AWS Infrastructure](#aws-infrastructure)  
    - [Components](#components-overview)
    - [Request Flow](#request-flow)
    - [Security Groups](#security-groups)
-   - [Deployement Flow](#deployment-flow)
-5. [How to Install & Run Project for Data Updates](#how-to-install--run-project)
+   - [CI/CD Pipeline](#cicd-pipeline)
+4. [How to Install & Run Project](#how-to-install--run-project)
    - [Folder Structure](#folder-structure)
    - [Environment & Local Run](#environment--local-run)
-   - [Updating Data](#updating-data)
    - [Environment Variables](#environment-variables)    
-6. [References](#references)
+5. [References](#references)
     
 </details>
 
 ## Joule Verne Overview
 ### Presentation
 ![Watch the demo](docs/bfe-chatbot-demo-ezgif.com-speed.gif)
-Joule Verne is a chatbot that was designed with the aim of answering requests received by the Swiss Federal Office of Energy (SFOE), ranging from the general public to parliamentaries. It was built solely using public data, that can be found on the [Publication database](https://www.bfe.admin.ch/bfe/en/home/news-und-medien/publikationen.exturl.html/aHR0cHM6Ly9wdWJkYi5iZmUuYWRtaW4uY2gvZW4vc3VjaGU=.html?keywords=&q=&from=20.10.2025&to=24.10.2025&nr=), as well as the official [website](https://www.bfe.admin.ch/bfe/en/home.html) of the SFOE. The main purpose of this agent is to support the Bundes-und Parliamentsgeschäfte Section to answer all letters addressed to the SFOE. Sources are explicited with each answer and can be downloaded for consultation.
+Joule Verne is a chatbot that was designed with the aim of answering requests received by the Swiss Federal Office of Energy (SFOE), ranging from the general public to parliamentarians. It was built solely using public data, that can be found on the [Publication database](https://www.bfe.admin.ch/bfe/en/home/news-und-medien/publikationen.exturl.html/aHR0cHM6Ly9wdWJkYi5iZmUuYWRtaW4uY2gvZW4vc3VjaGU=.html?keywords=&q=&from=20.10.2025&to=24.10.2025&nr=), the official [website](https://www.bfe.admin.ch/bfe/en/home.html) of the SFOE, [EnergieSchweiz](https://www.energieschweiz.ch/), [Aramis](https://www.aramis.admin.ch/) research project publications, and [Fedlex](https://www.fedlex.admin.ch/) legal texts. The main purpose of this agent is to support the Bundes-und Parlamentsgeschäfte Section to answer all letters addressed to the SFOE. Sources are shown with each answer and can be downloaded for consultation.
 
+### Features
+
+- **Document upload** — Upload up to 5 documents (PDF, TXT, DOCX, XLSX, CSV, max 10 MB each) to ask questions about them during the session. Large text documents are automatically summarized; large tabular files (XLSX, CSV) are routed to Code Interpreter for analysis.
+- **Web search mode** — Switch between the internal BFE knowledge base and an external web search agent. The mode is locked once a conversation starts.
+- **Source display** — The sidebar shows all cited sources: PDF downloads, website links, and Fedlex law references.
+- **Feedback system** — Rate answers with thumbs up/down and leave optional text comments. Feedback is stored in S3 for evaluation.
+- **Reasoning trace** — Expand the "Denkprozess" section to see the agent's reasoning steps, knowledge base lookups, and action group calls.
+- **Interrupted query recovery** — If processing is interrupted (e.g., by a page interaction), the app detects it and offers a retry button.
+- **Release notes** — Available via the sidebar footer link, automatically fetched from GitHub releases at build time.
+- **Group-based authorization** — Access is restricted via Cognito groups (`ALLOWED_COGNITO_GROUPS`).
 
 ### Usage
 
-If you have an account, you can check the chatbot by yourself at https://www.joule-verne.ch.
-More information useful to the user on how to use the agent and the used data can be found [here](docs/chatbot-instructions.docx?raw=1).
+If you have an account, you can check the chatbot at https://www.joule-verne.ch.
+More information on how to use the agent and the data it relies on can be found [here](docs/chatbot-instructions.docx).
 
 > [!CAUTION]
 > When using the app, the user should always be very careful not to prompt any private data, and check the sources when unsure.
 
-
-### What's next?
-
-As of today (November 2025), only the documents in pdf format have been added to the workflow. For future use, we could consider adding more datatypes (such as Excel for instance) and automatically upload the data to the Vector knowledge base stored on AWS, after agreement over the update frequency and whether older data should be deleted, in order to keep the costs low and the information provided to the chatbot up-to-date. We will also integrate the authentication system with the Smartcard, so that access can be extended to all people working at the SFOE and as well as at other offices. In the long term, a newer version of the chatbot might be rendered public.
 
 ## Agentic AI
 ### Retrieval-Augmented Generation (RAG)
@@ -50,11 +55,28 @@ The technique used to design the agent is called Retrieval-Augmented Generation.
 
 
 ### Bedrock Implementation
-The LLM leveraged by the agent is Claude Sonnet 3.5. The agent is hosted on Bedrock and called `BFE-agent`. Two knowledge bases are provided, one containing the data of the official BFE website `bfe-website-knowledge-base`, the other containing the public pdf documents of the Publications Database `knowledge-base-documents-s3`. Both knowledge bases use semantic chunking, basic parsing and a token size of 512. The pdf documents are 1000 in total and contained between the 29th of August 2022 and the 24th of October 2025, and for 500 of them advanced parsing was performed using the LLM parser from LlamaIndex. This solution could nonetheless not be implemented for the whole dataset, as only a handful of documents can be treated this way using free-tier, and no entreprise account was deemed necessary to open at the time. The vector store used was Amazon OpenSearch Service's vector database for both knowledge bases. In the future one might consider to use the S3 native vector store, which is still in its beta version today and recommended against for production at the time.
+The agent is hosted on Amazon Bedrock and uses **Claude Sonnet 4.6** as LLM (configured in the infrastructure repo, not here). Two agents are configured:
+- **Default agent** (`AGENT_ID` / `AGENT_ALIAS_ID`) — uses the internal knowledge bases
+- **Web search agent** (`AGENT_SEARCH_ID` / `AGENT_SEARCH_ALIAS_ID`) — extends retrieval with external web search
+
+Four knowledge base buckets are used:
+| Bucket env var | Content |
+|---|---|
+| `PDF_BUCKET` | Public PDF documents from the Publications Database and Aramis research projects |
+| `EXTRACTED_BUCKET` | Extracted text versions of PDFs (chunked with `_partN.txt` naming) |
+| `WEBSITE_BUCKET` | Scraped content from the official BFE website and EnergieSchweiz |
+| `FEDLEX_BUCKET` | Swiss federal law texts from Fedlex |
+
+Three knowledge bases are configured: two use semantic chunking (documents and website) and one uses hierarchical chunking (Fedlex). The vector store is Amazon S3. Data sources are automatically synced via scheduled pipelines (see infrastructure repo for details).
+
+The agents also have access to the following action groups:
+- **Filtered Search** — retrieves documents from specific knowledge bases with metadata filters
+- **Web Search** — queries the web via Tavily (web search agent only)
+- **ARAMIS Search** — queries the ARAMIS research project API
+- **Code Interpreter** — executes Python code for data analysis (e.g., uploaded spreadsheets)
 
 ## Cloud Architecture
 ### AWS Infrastructure
-The architecture was deployed with the AWS infrastructure.
 <img width="1600" height="900" alt="image" src="https://github.com/user-attachments/assets/e58f5881-1750-4406-9015-31d50055ad4c" />
 
 
@@ -74,7 +96,7 @@ The architecture was deployed with the AWS infrastructure.
   - Associated Security Group: allows inbound traffic on port 443 from CloudFront
     
 > [!TIP]
-> Another option for the ALB would be to put it in a private subnet for enhanced security. If doing this, a NAT Gateway should also be added so that it can communicate through a secure internet connexion the tokens to Cognito. It was decided to opt for this public option as it is still safe and including a NAT Gateway is more expensive
+> Another option for the ALB would be to put it in a private subnet for enhanced security. If doing this, a NAT Gateway should also be added so that it can communicate through a secure internet connexion the tokens to Cognito. It was decided to opt for this public option as it is still safe and including a NAT Gateway is more expensive.
 
 - **Elastic Container Service (ECS) using Fargate**
   - Runs Docker containers inside private subnets for security
@@ -94,10 +116,10 @@ The architecture was deployed with the AWS infrastructure.
     - CloudWatch for logging and monitoring
       
 > [!NOTE]
-> The Endpoint type of S3 is Gateway, so instead of being only attached to the corresponding subnets and security groups, the routing table of the         > (private in this case) subnets must be modified to include the endpoint.
+> The Endpoint type of S3 is Gateway, so instead of being only attached to the corresponding subnets and security groups, the routing table of the private subnets must be modified to include the endpoint.
 
 - **AWS Cognito**  
-  Handles user authentication and authorization through a User pool (as the access is restrained right now we can add the users manually)
+  Handles user authentication and authorization through a User Pool. Access is restricted to specific Cognito groups defined in the `ALLOWED_COGNITO_GROUPS` environment variable.
 
 - **CloudWatch**
   Aggregates logs and metrics from ECS for observability
@@ -130,86 +152,80 @@ The architecture was deployed with the AWS infrastructure.
 
 > [!IMPORTANT]
 > To allow a route 443 all the way through (in and out) is primordial to allow the JWT exchange between the ALB and Cognito.
->  The VPC endpoints are contained in the ECS Security group, so opening an https inside of the ECS SG is necessary to allow traffic with the S3 Gateway Endpoint.
+> The VPC endpoints are contained in the ECS Security group, so opening an https inside of the ECS SG is necessary to allow traffic with the S3 Gateway Endpoint.
 
 
+### CI/CD Pipeline
 
-### Deployment Flow
+The repository uses GitHub Actions (`.github/workflows/upload-to-ecr.yml`) with reusable workflows from `SFOE-prometheon/github-terraform-workflows`:
 
-1. The Docker image of the app is uploaded on the **Elastic Container Registry** (ECR).
-2. A task is created on ECS that chooses the image to use and takes the environment variables and the exposed port as parameters.
-3. A service is created on ECS that specify the task that will run and that Fargate will be used.
-4. Fargate provides the computing ressources and the containers defined on the service are launched.
-5. Because an ALB is used, the service automatically registers the IPs/ports of the launched task in the target group so that the ALB can route traffic to the app.
+| Trigger | Image tag | Target |
+|---------|-----------|--------|
+| Pull Request (opened/sync/reopen) | `pr-<number>` | Dev ECR |
+| Push to `main` | `latest` | Dev ECR |
+| GitHub Release created | `<tag_name>` | Dev + Prod ECR |
 
-## How to Install & Run Project for Data Updates
+The Docker build uses a multi-stage Dockerfile (build stage with compilation tools, slim runtime stage) and fetches release notes from GitHub at build time.
+
+## How to Install & Run Project
 ### Folder structure
 ```
 .
-└── AWS-AgenticAI/
-    ├── streamlit/
-    │   └── config.toml 
-    ├── data/
-    │   └── metadata.jsonl
-    ├── docs
-    ├── img
+└── BFE-Chatbot-Joule-Verne/
+    ├── .github/
+    │   └── workflows/
+    │       └── upload-to-ecr.yml       # CI/CD: build, scan, push Docker image to ECR
+    ├── .streamlit/
+    │   └── config.toml                 # Streamlit theme and server settings
+    ├── docs/
+    │   ├── bfe-chatbot-demo-ezgif.com-speed.gif
+    │   └── chatbot-instructions.docx
+    ├── img/
+    │   └── bundesamt_logo.jpeg         # Swiss Federal Office logo for the frontend
+    ├── pages/
+    │   └── release_notes.py            # Streamlit page: displays release notes
+    ├── scripts/
+    │   └── fetch_releases.py           # Fetches GitHub releases → release_notes.json
     ├── src/
-    │   ├── archive/
-    │   │   └── batch_loading.py 
     │   ├── __init__.py
-    │   ├── upload_data_to_s3.py 
-    │   ├── utils.py
-    │   └── webscraping.py 
+    │   ├── document_processing.py      # Multi-document upload: extraction, summarization, chunking
+    │   └── utils.py                    # AWS clients, agent invocation, S3 helpers, feedback
     ├── .dockerignore
-    ├── .env
+    ├── .env                            # Local environment variables (not committed)
     ├── .gitignore
-    ├── agent.py 
-    ├── Dockerfile
+    ├── agent.py                        # Main Streamlit app: frontend + chat logic
+    ├── Dockerfile                      # Multi-stage build for ECS deployment
     ├── README.md
     └── requirements.txt
 ```
-`streamlit/config.toml` : custom settings for the frontend
-
-`data/metadata.jsonl` : the metadata downloaded from the publishing website, ready to be uploaded to S3
-     
-`docs/` : the docs needed to produce the README
-     
-`img/` : the Swiss vignette for the frontend
-
-`src/` :
-   - `archive/batch_loading.py` : used to parse data with LlamaParse, not free if CI/CD implemented (restricted free usage)
-   - `webscraping.py` : scrape publishing website and adds most recent pdfs from a certain date DATE to the metadata.jsonl
-   - `upload_data_to_s3.py` :  upload data with their metadata to S3 under bfe-public-data-pdf/pdfs-batch/. Use Athena queries to filter what data to upload
-     
-`agent.py` : the streamlit script containing the frontend design
-
 
 ### Environment & Local Run
 
-In order to create an environment, install the required dependencies and run the app locally you can use the following commands:
 ```bash
-python -m venv venv #create the environment
-# Activate the environment
+python -m venv venv
 source venv/bin/activate         # macOS / Linux
-venv\Scripts\activate            # Windows
-pip install -r requirements.txt #install dependencies
-streamlit run agent.py # run the app locally on port 8501
+# venv\Scripts\activate          # Windows
+pip install -r requirements.txt
+streamlit run agent.py           # runs on http://localhost:8501
 ```
-
-### Updating Data
-
-If there is a need to update the data from the Publishing website manually, you can follow the following steps:
-
-1. Create the environment as explained above.
-2. Run script `webscraping.py` with the parameter DATE updated. The metadata.jsonl will then be updated with all pdf published between DATE and now.
-3. Modify the QUERY in `upload_data_to_S3.py` at your convenience to filter the data. If the filtered files are not already present in S3, they will be uploaded.
-4. Sync an existing data source that points to the correct S3 bucket in the `knowledge-base-documents-s3` Knowledge base in Bedrock.
-5. Now you are all set ! 🎉
-
 
 ### Environment Variables
 
-The environment variables can be found under the task definition `chatbot-server-task` and `Environment and secrets` of the SFOE AWS Data Science account.
+The following environment variables are required (set in `.env` locally, or in the ECS task definition for deployment):
+
+| Variable | Description |
+|----------|-------------|
+| `AWS_REGION` | AWS region (e.g. `eu-central-1`) |
+| `AGENT_ID` | Bedrock Agent ID (default/knowledge base agent) |
+| `AGENT_ALIAS_ID` | Alias ID for the default agent |
+| `AGENT_SEARCH_ID` | Bedrock Agent ID (web search agent) |
+| `AGENT_SEARCH_ALIAS_ID` | Alias ID for the web search agent |
+| `PDF_BUCKET` | S3 bucket containing the PDF documents |
+| `EXTRACTED_BUCKET` | S3 bucket with extracted text files |
+| `WEBSITE_BUCKET` | S3 bucket with scraped BFE website content |
+| `FEDLEX_BUCKET` | S3 bucket with Fedlex law texts |
+| `FEEDBACK_BUCKET` | S3 bucket for storing user feedback |
+| `ALLOWED_COGNITO_GROUPS` | Comma-separated Cognito group names allowed to access the app |
 
 ## References
 - Gao, Yunfan, et al. "Retrieval-augmented generation for large language models: A survey." arXiv preprint arXiv:2312.10997 2.1 (2023).
