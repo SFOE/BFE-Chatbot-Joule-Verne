@@ -96,7 +96,7 @@ def stream_agent_response(
                                 source = ""
 
                             if source and chunk_text:
-                                evt = CitationEvent(source=source, text=chunk_text[:200])
+                                evt = CitationEvent(source=source, text=chunk_text)
                                 yield "citation", evt.model_dump_json()
 
                 # Token text
