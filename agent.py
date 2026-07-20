@@ -135,14 +135,14 @@ with col1:
 with col2:
       st.title("BFE Assistent Joule Verne 1.0")
 
-st.caption("🔒 Ihre Interaktionen werden protokolliert, um diesen Chatbot zu verbessern.")
+st.caption("🔒 Um diesen Chatbot zu verbessern, werden Ihre anonymisierten Interaktionen protokolliert und maximal 1 Jahr gespeichert.")
 
 with st.expander(":information_source: :construction:"):
     st.write("""
-    Dies ist eine Demo-Anwendung, die noch weiterentwickelt wird. Der Chatbot ist nicht immer korrekt oder präzise. Bitte überprüfen Sie die Quellen in der Seitenleiste, wenn Sie unsicher sind. Achten Sie darauf, keine persönlichen Daten im Chat hochzuladen.
+    Diese Anwendung befindet sich noch in der Weiterentwicklung. Der Chatbot ist nicht immer korrekt oder präzise. Bitte überprüfen Sie die Quellen in der Seitenleiste, wenn Sie unsicher sind. Achten Sie darauf, keine persönlichen Daten im Chat einzugeben.
     Sie können mehrere Dokumente (PDF, TXT, DOCX, XLSX, CSV) über die Seitenleiste hochladen, um während Ihrer Sitzung Fragen dazu zu stellen.
     Sie können Antworten mit Daumen hoch/runter bewerten und über die 💬-Schaltfläche einen kurzen Textkommentar hinterlassen.
-    Bei Fragen oder Anliegen können Sie uns bei der Sektion Digitalisierung & Informatik [kontaktieren](mailto:digitalisierung@bfe.admin.ch) :blush:
+    Bei Fragen oder Anliegen können Sie die Sektion Digitalisierung & Informatik [kontaktieren](mailto:digitalisierung@bfe.admin.ch). :blush:
     """)
 
 for idx, message in enumerate(st.session_state.messages):
