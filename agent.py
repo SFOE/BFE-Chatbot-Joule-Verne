@@ -414,7 +414,10 @@ if st.session_state.get("uploaded_doc_names") and not web_search_enabled:
             st.sidebar.success(f"📊 **{doc['name']}** (Code Interpreter)")
 
       for err in errors:
-            st.sidebar.error(f"❌ **{err['name']}**: {err['error']}")
+            if err.get("sensitivity_blocked"):
+                  st.sidebar.warning(f"🔒 **{err['name']}**: {err['error']}")
+            else:
+                  st.sidebar.error(f"❌ **{err['name']}**: {err['error']}")
 
       if text_docs and any(d["context_mode"] == "summary" for d in text_docs):
             st.sidebar.caption(

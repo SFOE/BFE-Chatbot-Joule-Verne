@@ -9,6 +9,7 @@ import csv
 import io
 import logging
 import re
+import zipfile
 from typing import Optional
 
 import boto3
@@ -26,6 +27,107 @@ CHAR_THRESHOLD = TOKEN_THRESHOLD * 4  # rough char estimate
 CHUNK_SIZE = 2000  # characters per chunk for targeted retrieval
 SESSION_ATTR_MAX_CHARS = 24_000  # ~25KB limit for promptSessionAttributes value
 MAX_UPLOAD_FILES = 5  # Maximum number of files allowed at once
+
+# Sensitivity labels that are NOT allowed (L3 and higher)
+RESTRICTED_SENSITIVITY_LABELS = {"L3", "L4"}
+
+
+# ---------------------------------------------------------------------------
+# Sensitivity Label Check (Microsoft Information Protection)
+# ---------------------------------------------------------------------------
+
+def check_sensitivity_label(file_bytes: bytes, filename: str) -> dict | None:
+    """
+    Check if a file contains a Microsoft Information Protection (MIP) sensitivity label.
+
+    Supports:
+    - PDF: reads raw bytes for MSIP_Label markers
+    - DOCX/XLSX: reads custom XML parts inside the ZIP archive
+
+    Returns a dict with label info if a label is found, e.g.:
+        {"name": "L3", "guid": "...", "enabled": True}
+    Returns None if no label is detected.
+    """
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+
+    if ext == "pdf":
+        return _check_sensitivity_label_pdf(file_bytes)
+    elif ext in ("docx", "xlsx"):
+        return _check_sensitivity_label_ooxml(file_bytes)
+    else:
+        # TXT and CSV don't carry MIP labels
+        return None
+
+
+def _check_sensitivity_label_pdf(file_bytes: bytes) -> dict | None:
+    """Extract MSIP label from PDF metadata."""
+    # Search for MSIP_Label_<GUID>_Name pattern in raw bytes
+    match = re.search(
+        rb"MSIP_Label_([0-9a-f\-]+)_Name[>\s/\(]+([A-Za-z0-9_\- ]+)",
+        file_bytes,
+    )
+    if match:
+        guid = match.group(1).decode("utf-8", errors="ignore")
+        label_name = match.group(2).decode("utf-8", errors="ignore").strip().rstrip(")")
+        return {"name": label_name, "guid": guid, "enabled": True}
+
+    # Fallback: check XMP/pdfx namespace
+    match = re.search(
+        rb"MSIP_Label_([0-9a-f\-]+)_Name>([^<]+)<",
+        file_bytes,
+    )
+    if match:
+        guid = match.group(1).decode("utf-8", errors="ignore")
+        label_name = match.group(2).decode("utf-8", errors="ignore").strip()
+        return {"name": label_name, "guid": guid, "enabled": True}
+
+    return None
+
+
+def _check_sensitivity_label_ooxml(file_bytes: bytes) -> dict | None:
+    """Extract MSIP label from Office Open XML (docx, xlsx) custom XML parts."""
+    try:
+        with zipfile.ZipFile(io.BytesIO(file_bytes), "r") as zf:
+            for entry in zf.namelist():
+                if "customXml/item" in entry or "docProps/custom" in entry:
+                    try:
+                        content = zf.read(entry).decode("utf-8", errors="ignore")
+                    except Exception:
+                        continue
+                    if "MSIP_Label" not in content:
+                        continue
+                    # Look for the label name property
+                    match = re.search(
+                        r"MSIP_Label_([0-9a-f\-]+)_Name[^>]*>([^<]+)<",
+                        content,
+                    )
+                    if match:
+                        guid = match.group(1)
+                        label_name = match.group(2).strip()
+                        return {"name": label_name, "guid": guid, "enabled": True}
+                    # Alternative: property with fmtid (custom.xml style)
+                    match = re.search(
+                        r'name="MSIP_Label_([0-9a-f\-]+)_Name"[^>]*>.*?<vt:lpwstr>([^<]+)',
+                        content,
+                        re.DOTALL,
+                    )
+                    if match:
+                        guid = match.group(1)
+                        label_name = match.group(2).strip()
+                        return {"name": label_name, "guid": guid, "enabled": True}
+    except zipfile.BadZipFile:
+        logger.debug("File is not a valid ZIP/OOXML archive: %s", "check skipped")
+    except Exception as e:
+        logger.debug("Error checking sensitivity label in OOXML: %s", e)
+
+    return None
+
+
+def is_sensitivity_restricted(label_info: dict | None) -> bool:
+    """Return True if the label indicates a restricted classification (L3+)."""
+    if label_info is None:
+        return False
+    return label_info.get("name", "").upper() in {l.upper() for l in RESTRICTED_SENSITIVITY_LABELS}
 
 
 # ---------------------------------------------------------------------------
@@ -337,6 +439,22 @@ def process_multiple_documents(files_data: list[dict]) -> dict:
         name = file_info["name"]
         file_bytes = file_info["bytes"]
         ext = name.rsplit(".", 1)[-1].lower() if "." in name else ""
+
+        # Check sensitivity label BEFORE processing
+        label_info = check_sensitivity_label(file_bytes, name)
+        if is_sensitivity_restricted(label_info):
+            label_name = label_info.get("name", "unbekannt")
+            result["errors"].append({
+                "name": name,
+                "error": (
+                    f"⚠️ Dieses Dokument ist als «{label_name}» klassifiziert. "
+                    f"Vertrauliche und geheime Dokumente (L3 und höher) dürfen nicht "
+                    f"im Chatbot verarbeitet werden. Bitte laden Sie nur öffentliche "
+                    f"oder interne Dokumente hoch."
+                ),
+                "sensitivity_blocked": True,
+            })
+            continue
 
         try:
             extracted_text, page_count = extract_text(file_bytes, name)
