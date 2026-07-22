@@ -5,7 +5,7 @@ import uuid
 import base64
 import json
 import os
-from src.utils import parse_s3_uri, query_agent, s3_get_object, s3_head_object, save_feedback, AGENT_ID, AGENT_ALIAS_ID, AGENT_SEARCH_ID, AGENT_SEARCH_ALIAS_ID, PDF_BUCKET, EXTRACTED_BUCKET, WEBSITE_BUCKET, FEDLEX_BUCKET
+from src.utils import parse_s3_uri, query_agent, s3_get_object, s3_head_object, save_feedback, AGENTCORE_RUNTIME_ARN, PDF_BUCKET, EXTRACTED_BUCKET, WEBSITE_BUCKET, FEDLEX_BUCKET
 from src.document_processing import (
     process_multiple_documents, build_multi_doc_context, build_code_interpreter_files,
     MAX_UPLOAD_FILES,
@@ -328,14 +328,6 @@ elif search_mode == "knowledge_base" and not has_messages:
 
 web_search_enabled = st.session_state.get("web_search_enabled", False)
 
-# Select agent based on toggle
-if web_search_enabled:
-      active_agent_id = AGENT_SEARCH_ID
-      active_alias_id = AGENT_SEARCH_ALIAS_ID
-else:
-      active_agent_id = AGENT_ID
-      active_alias_id = AGENT_ALIAS_ID
-
 # ---------------------------------------------------------------------------
 # Document Upload
 # ---------------------------------------------------------------------------
@@ -525,154 +517,102 @@ if prompt:
             response = query_agent(
                   prompt,
                   st.session_state["session_id"],
-                  active_agent_id,
-                  active_alias_id,
+                  enable_web_search=web_search_enabled,
                   session_attributes=session_attributes,
                   files=agent_files,
             )
 
             # Show live progress, then transition to reasoning expander
             with st.status("Ihre Frage wird verarbeitet...", expanded=False) as status:
-                  trace_steps = []        # Steps with details for the expander
-                  shown_labels = set()    # Dedup for live status display
-                  action_groups_used = []  # Track which action groups were invoked
-                  reply = None
+                  trace_steps = []
+                  tools_used = []
+                  reply_parts = []
 
-                  for event in response.get("completion"):
+                  for event in response.get("body", []):
+                        chunk = event.get("chunk", {})
+                        if "bytes" not in chunk:
+                              continue
 
-                        # Collect agent output.
-                        if 'chunk' in event:
-                              chunk = event["chunk"]
-                              if chunk.get('attribution'):
-                                    for c in chunk['attribution']['citations']:
-                                          for ref in c["retrievedReferences"]:
-                                                chunk_text = ref.get("content", {}).get("text", "")
-                                                if ref["location"]["type"] == "S3":
-                                                      source = ref["location"]["s3Location"]["uri"]
-                                                      st.session_state["s3_refs"].append(source)
-                                                elif ref["location"]["type"] == "WEB":
-                                                      source = ref["location"]["webLocation"]["url"]
-                                                      st.session_state["web_refs"].append(source)
-                                                else:
-                                                      source = ""
-                                                if chunk_text:
-                                                      st.session_state["retrieved_chunks"].append({
-                                                            "text": chunk_text,
-                                                            "source": source,
-                                                      })
+                        text = chunk["bytes"].decode("utf-8")
 
-                              reply = chunk['bytes'].decode()
+                        # Try to parse as structured event
+                        try:
+                              data = json.loads(text)
 
-                        # Parse trace events for user-friendly status updates
-                        if 'trace' in event:
-                              trace_event = event.get("trace")
-                              trace = trace_event['trace']
-                              for key, value in trace.items():
-                                    logging.info("%s: %s", key, value)
+                              if data.get("type") == "trace":
+                                    if data["event"] == "tool_start":
+                                          tool_name = data["tool"]
+                                          tool_input = data.get("input", {})
+                                          tools_used.append(tool_name)
 
-                                    # Map trace keys to human-readable labels with details
-                                    if key == "preProcessingTrace":
-                                          live_label = "🧠 Ihre Frage wird analysiert..."
-                                          if live_label not in shown_labels:
-                                                shown_labels.add(live_label)
-                                                status.update(label=live_label)
+                                          # Map to user-facing status label
+                                          label_map = {
+                                                "filtered_kb_search": "📚 Wissensdatenbank wird durchsucht...",
+                                                "aramis_search": "⚙️ ARAMIS wird durchsucht...",
+                                                "aramis_project_details": "⚙️ Projektdetails werden geladen...",
+                                                "web_search": "🌐 Websuche wird durchgeführt...",
+                                                "code_interpreter": "🖥️ Code wird ausgeführt...",
+                                          }
+                                          live_label = label_map.get(tool_name, f"⚙️ {tool_name}...")
+                                          status.update(label=live_label)
 
-                                    elif key == "orchestrationTrace":
-                                          if isinstance(value, dict):
-                                                if "rationale" in value:
-                                                      step_label = "💭 Überlegung"
-                                                      detail = value["rationale"].get("text", "")
-                                                      if detail:
-                                                            trace_steps.append({"label": step_label, "detail": detail})
-                                                      live_label = "💭 Überlege..."
-                                                      if live_label not in shown_labels:
-                                                            shown_labels.add(live_label)
-                                                            status.update(label=live_label)
+                                          # Build trace step for expander
+                                          detail = json.dumps(tool_input, ensure_ascii=False, indent=2) if tool_input else None
+                                          trace_steps.append({"label": f"⚙️ Aufruf: {tool_name}", "detail": detail})
 
-                                                elif "invocationInput" in value:
-                                                      inv = value["invocationInput"]
-                                                      if "knowledgeBaseLookupInput" in inv:
-                                                            kb_input = inv["knowledgeBaseLookupInput"]
-                                                            kb_id = kb_input.get("knowledgeBaseId", "")
-                                                            query_text = kb_input.get("text", "")
-                                                            step_label = "📚 Wissensdatenbank-Abfrage"
-                                                            detail = f"Wissensdatenbank: {kb_id}\nAbfrage: {query_text}"
-                                                            trace_steps.append({"label": step_label, "detail": detail})
-                                                            status.update(label="📚 Wissensdatenbank wird durchsucht...")
-                                                      elif "actionGroupInvocationInput" in inv:
-                                                            ag_input = inv["actionGroupInvocationInput"]
-                                                            ag_name = ag_input.get("actionGroupName", "unbekannt")
-                                                            api_path = ag_input.get("apiPath", ag_input.get("function", ""))
-                                                            step_label = f"⚙️ Aufruf: {ag_name}"
-                                                            detail = f"Aktion: {ag_name}\nAPI-Pfad: {api_path}" if api_path else f"Aktion: {ag_name}"
-                                                            trace_steps.append({"label": step_label, "detail": detail})
-                                                            status.update(label=f"⚙️ {ag_name} wird aufgerufen...")
-                                                            # Track action group usage for feedback
-                                                            action_groups_used.append(ag_name)
-                                                      else:
-                                                            status.update(label="🔍 Informationen werden gesammelt...")
+                                    elif data["event"] == "tool_result":
+                                          result = data.get("result", {})
 
-                                                elif "observation" in value:
-                                                      obs = value["observation"]
-                                                      if "knowledgeBaseLookupOutput" in obs:
-                                                            kb_output = obs["knowledgeBaseLookupOutput"]
-                                                            refs = kb_output.get("retrievedReferences", [])
-                                                            step_label = f"📚 {len(refs)} Ergebnis(se) gefunden"
-                                                            previews = []
-                                                            for i, ref in enumerate(refs[:5]):
-                                                                  text = ref.get("content", {}).get("text", "")
-                                                                  source = ""
-                                                                  loc = ref.get("location", {})
-                                                                  if loc.get("type") == "S3":
-                                                                        source = loc.get("s3Location", {}).get("uri", "")
-                                                                  elif loc.get("type") == "WEB":
-                                                                        source = loc.get("webLocation", {}).get("url", "")
-                                                                  preview = text[:150] + "..." if len(text) > 150 else text
-                                                                  previews.append(f"[{i+1}] {preview}\n    Quelle: {source}")
-                                                            detail = "\n".join(previews) if previews else None
-                                                            if detail:
-                                                                  trace_steps.append({"label": step_label, "detail": detail})
-                                                            status.update(label=f"📚 {len(refs)} Ergebnis(se) gefunden")
-                                                      elif "actionGroupInvocationOutput" in obs:
-                                                            ag_output = obs["actionGroupInvocationOutput"]
-                                                            output_text = ag_output.get("text", "")
-                                                            step_label = "⚙️ Aktionsergebnis"
-                                                            detail = output_text[:500] if output_text else None
-                                                            if detail:
-                                                                  trace_steps.append({"label": step_label, "detail": detail})
-                                                            status.update(label="⚙️ Aktion abgeschlossen")
-                                                      elif "codeInterpreterInvocationOutput" in obs:
-                                                            ci_output = obs["codeInterpreterInvocationOutput"]
-                                                            # Log execution output/errors for trace
-                                                            exec_output = ci_output.get("executionOutput", "")
-                                                            exec_error = ci_output.get("executionError", "")
-                                                            ci_file_names = ci_output.get("files", [])
-                                                            if exec_error:
-                                                                  trace_steps.append({"label": "🖥️ Code Interpreter Fehler", "detail": exec_error[:500]})
-                                                            elif exec_output:
-                                                                  trace_steps.append({"label": "🖥️ Code Interpreter", "detail": exec_output[:500]})
-                                                            if ci_file_names:
-                                                                  status.update(label=f"🖥️ {len(ci_file_names)} Datei(en) generiert")
-                                                            else:
-                                                                  status.update(label="🖥️ Code ausgeführt")
+                                          # Extract retrieved_chunks from KB results
+                                          if "results" in result and "query" in result:
+                                                for r in result.get("results", []):
+                                                      chunk_text = r.get("text", "")
+                                                      source = r.get("source", "")
+                                                      if chunk_text:
+                                                            st.session_state["retrieved_chunks"].append({
+                                                                  "text": chunk_text,
+                                                                  "source": source,
+                                                            })
 
-                                                elif "modelInvocationInput" in value:
-                                                      status.update(label="🤖 Denke nach...")
+                                          # Build trace step
+                                          result_count = result.get("result_count", result.get("total_matches", ""))
+                                          if result_count:
+                                                trace_steps.append({
+                                                      "label": f"📚 {result_count} Ergebnis(se) gefunden",
+                                                      "detail": json.dumps(result, ensure_ascii=False)[:500],
+                                                })
+                                          else:
+                                                trace_steps.append({
+                                                      "label": "⚙️ Ergebnis erhalten",
+                                                      "detail": json.dumps(result, ensure_ascii=False)[:500],
+                                                })
 
-                                    elif key == "postProcessingTrace":
-                                          live_label = "✍️ Antwort wird formuliert..."
-                                          if live_label not in shown_labels:
-                                                shown_labels.add(live_label)
-                                                status.update(label=live_label)
+                                    continue
 
-                                    elif key == "failureTrace":
-                                          reason = value.get("failureReason", "Unbekannter Fehler") if isinstance(value, dict) else "Unbekannter Fehler"
-                                          trace_steps.append({"label": "⚠️ Fehler", "detail": reason})
-                                          status.update(label="⚠️ Ein Fehler ist aufgetreten")
+                              if data.get("type") == "citations":
+                                    # Populate s3_refs and web_refs from structured citations
+                                    for citation in data.get("citations", []):
+                                          url = citation.get("url", "")
+                                          source_type = citation.get("source_type", "")
+                                          if source_type == "web":
+                                                st.session_state["web_refs"].append(url)
+                                          elif url.startswith("s3://"):
+                                                st.session_state["s3_refs"].append(url)
+                                          elif source_type in ("aramis", "aramis_publication"):
+                                                st.session_state["web_refs"].append(url)
+                                    continue
+
+                        except (json.JSONDecodeError, TypeError, KeyError):
+                              pass
+
+                        # Plain text — accumulate response
+                        reply_parts.append(text)
+
+                  # Combine response
+                  reply = "".join(reply_parts) if reply_parts else None
 
                   # Collapse the status widget and show reasoning details inside
-                  # Filter: nur wesentliche Schritte im Expander anzeigen
-                  display_prefixes = ("💭", "⚙️", "🖥️", "⚠️")
+                  display_prefixes = ("⚙️", "📚", "🖥️", "🌐")
                   filtered_steps = [s for s in trace_steps if s["label"].startswith(display_prefixes)]
                   if filtered_steps:
                         for step in filtered_steps:
@@ -692,7 +632,7 @@ if prompt:
                               "content": reply,
                               "retrieved_chunks": st.session_state.get("retrieved_chunks", []),
                               "trace_steps": trace_steps,
-                              "action_groups_used": action_groups_used,
+                              "action_groups_used": tools_used,
                         })
 
             # Save interaction to feedback bucket (without rating) immediately
@@ -707,7 +647,7 @@ if prompt:
                         agent_response=st.session_state.messages[msg_index]["content"],
                         agent_variant=agent_variant,
                         retrieved_chunks=st.session_state.get("retrieved_chunks", []),
-                        action_groups_used=action_groups_used,
+                        action_groups_used=tools_used,
                   )
                   # Store the S3 key and timestamp so later feedback overwrites the same file
                   st.session_state.messages[msg_index]["feedback_s3_key"] = feedback_key_s3

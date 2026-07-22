@@ -17,15 +17,19 @@ st_logger.setLevel(logging.INFO)
 load_dotenv()
 
 AWS_REGION = os.getenv("AWS_REGION")
-AGENT_ALIAS_ID = os.getenv("AGENT_ALIAS_ID")
-AGENT_ID = os.getenv("AGENT_ID")
-AGENT_SEARCH_ID = os.getenv("AGENT_SEARCH_ID")
-AGENT_SEARCH_ALIAS_ID = os.getenv("AGENT_SEARCH_ALIAS_ID")
+AGENTCORE_RUNTIME_ARN = os.getenv("AGENTCORE_RUNTIME_ARN")
+AGENTCORE_ENDPOINT_ARN = os.getenv("AGENTCORE_ENDPOINT_ARN")
 FEEDBACK_BUCKET = os.getenv("FEEDBACK_BUCKET")
 PDF_BUCKET = os.getenv("PDF_BUCKET")
 EXTRACTED_BUCKET = os.getenv("EXTRACTED_BUCKET")
 WEBSITE_BUCKET = os.getenv("WEBSITE_BUCKET")
 FEDLEX_BUCKET = os.getenv("FEDLEX_BUCKET")
+
+# Legacy env vars — kept for backwards compatibility during transition
+AGENT_ALIAS_ID = os.getenv("AGENT_ALIAS_ID")
+AGENT_ID = os.getenv("AGENT_ID")
+AGENT_SEARCH_ID = os.getenv("AGENT_SEARCH_ID")
+AGENT_SEARCH_ALIAS_ID = os.getenv("AGENT_SEARCH_ALIAS_ID")
 
 
 
@@ -34,28 +38,52 @@ s3_client = boto3.client(
     region_name=AWS_REGION
     )
 
-bedrock_client = boto3.client(
-    'bedrock-agent-runtime',
+agentcore_client = boto3.client(
+    'bedrock-agentcore',
     region_name=AWS_REGION
     )
 
-def query_agent(prompt, session_id, agent_id=None, agent_alias_id=None, session_attributes=None, files=None):
-      kwargs = dict(
-            agentAliasId=agent_alias_id or AGENT_ALIAS_ID,
-            agentId=agent_id or AGENT_ID,
-            enableTrace=True,
-            sessionId=session_id,
-            inputText=prompt,
-      )
-      session_state = {}
-      if session_attributes:
-            session_state["promptSessionAttributes"] = session_attributes
-      if files:
-            session_state["files"] = files
-      if session_state:
-            kwargs["sessionState"] = session_state
-      response = bedrock_client.invoke_agent(**kwargs)
-      return response
+
+def query_agent(prompt, session_id, enable_web_search=False, session_attributes=None, files=None):
+    """Invoke the AgentCore Runtime agent.
+
+    Args:
+        prompt: User message text.
+        session_id: Session identifier for conversation continuity.
+        enable_web_search: Whether to enable the web search tool.
+        session_attributes: Dict with uploaded_document, document_name, context_mode.
+        files: Code Interpreter files (not yet supported in AgentCore — see migration guide).
+
+    Returns:
+        AgentCore Runtime streaming response.
+    """
+    payload = {
+        "prompt": prompt,
+        "session_id": session_id,
+        "enable_web_search": enable_web_search,
+        "include_trace": True,
+    }
+
+    # Document context
+    if session_attributes:
+        if "uploaded_document" in session_attributes:
+            payload["uploaded_document"] = session_attributes["uploaded_document"]
+        if "document_name" in session_attributes:
+            payload["document_name"] = session_attributes["document_name"]
+        if "context_mode" in session_attributes:
+            payload["context_mode"] = session_attributes["context_mode"]
+
+    # TODO: Code Interpreter file upload — Classic used sessionState.files,
+    # AgentCore needs a different approach (e.g. session storage or payload).
+    # For now, tabular files processed as text will work via uploaded_document.
+    if files:
+        logging.warning("Code Interpreter file upload not yet supported in AgentCore. Files ignored.")
+
+    response = agentcore_client.invoke_agent_runtime(
+        agentRuntimeArn=AGENTCORE_RUNTIME_ARN,
+        payload=json.dumps(payload).encode("utf-8"),
+    )
+    return response
 
 def parse_s3_uri(s3_uri):
     """Parse s3://bucket/key into bucket and key"""
