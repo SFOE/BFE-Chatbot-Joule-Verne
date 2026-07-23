@@ -25,11 +25,7 @@ EXTRACTED_BUCKET = os.getenv("EXTRACTED_BUCKET")
 WEBSITE_BUCKET = os.getenv("WEBSITE_BUCKET")
 FEDLEX_BUCKET = os.getenv("FEDLEX_BUCKET")
 
-# Legacy env vars — kept for backwards compatibility during transition
-AGENT_ALIAS_ID = os.getenv("AGENT_ALIAS_ID")
-AGENT_ID = os.getenv("AGENT_ID")
-AGENT_SEARCH_ID = os.getenv("AGENT_SEARCH_ID")
-AGENT_SEARCH_ALIAS_ID = os.getenv("AGENT_SEARCH_ALIAS_ID")
+
 
 
 

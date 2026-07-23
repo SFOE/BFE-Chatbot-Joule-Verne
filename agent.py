@@ -5,7 +5,7 @@ import uuid
 import base64
 import json
 import os
-from src.utils import parse_s3_uri, query_agent, s3_get_object, s3_head_object, save_feedback, AGENTCORE_RUNTIME_ARN, PDF_BUCKET, EXTRACTED_BUCKET, WEBSITE_BUCKET, FEDLEX_BUCKET
+from src.utils import parse_s3_uri, query_agent, s3_get_object, s3_head_object, save_feedback, PDF_BUCKET, EXTRACTED_BUCKET, WEBSITE_BUCKET, FEDLEX_BUCKET
 from src.document_processing import (
     process_multiple_documents, build_multi_doc_context, build_code_interpreter_files,
     MAX_UPLOAD_FILES,
