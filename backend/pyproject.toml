@@ -1,0 +1,38 @@
+[project]
+name = "jouleverne"
+version = "0.1.0"
+description = "Joule Verne Chatbot API"
+authors = [{name = "SFOE", email = "digitalisierung@bfe.admin.ch"}]
+readme = "README.md"
+requires-python = ">=3.14"
+keywords = ["jouleverne", "chatbot", "bfe"]
+dependencies = [
+  "fastapi>=0.115.0",
+  "uvicorn[standard]>=0.34.0",
+  "pydantic-settings>=2.14.0",
+  "boto3>=1.42.0",
+  "slowapi>=0.1.9",
+  "sse-starlette>=2.0.0",
+  "httpx>=0.28.0",
+  "python-dotenv>=1.2.0",
+  "python-multipart>=0.0.9",
+  "pypdf>=6.13.0",
+  "python-docx>=1.1.0",
+  "openpyxl>=3.1.5",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest",
+  "pytest-asyncio",
+  "pytest-cov",
+  "ruff>=0.15.0",
+  "respx",
+]
+
+[project.scripts]
+jouleverne = "jouleverne.__main__:main"
+
+[build-system]
+requires = ["setuptools>=82.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
