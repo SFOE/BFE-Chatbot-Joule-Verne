@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import settings
+from .routes import chat, feedback, documents, sources
 from .services.security import limiter, rate_limit_handler, RateLimitExceeded
 
 # ---------------------------------------------------------------------------
@@ -36,6 +37,12 @@ app.add_middleware(
 # Rate limiting
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, rate_limit_handler)
+
+# Routers
+app.include_router(chat.router)
+app.include_router(feedback.router)
+app.include_router(documents.router)
+app.include_router(sources.router)
 
 
 # ---------------------------------------------------------------------------
