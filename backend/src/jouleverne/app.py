@@ -1,7 +1,9 @@
 import logging
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from .config import settings
 from .routes import chat, feedback, documents, sources, releases
@@ -54,3 +56,12 @@ app.include_router(releases.router)
 @app.get("/v1/health")
 async def health():
     return {"status": "ok"}
+
+
+# ---------------------------------------------------------------------------
+# Static files (Vue frontend) — must be last to avoid catching API routes
+# ---------------------------------------------------------------------------
+
+_static_dir = Path(__file__).parent.parent.parent / "static"
+if _static_dir.exists():
+    app.mount("/", StaticFiles(directory=_static_dir, html=True), name="static")
