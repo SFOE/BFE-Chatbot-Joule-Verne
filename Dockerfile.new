@@ -23,7 +23,7 @@ RUN uv sync --no-install-project --frozen
 RUN uv pip install "pip==26.1.2"
 
 # Copy backend source
-COPY backend/src/jouleverne ./jouleverne
+COPY backend/src/ ./src/
 
 # Copy built frontend static files
 COPY --from=frontend-build /app/frontend/dist ./static
@@ -31,8 +31,8 @@ COPY --from=frontend-build /app/frontend/dist ./static
 # Copy scripts and fetch release notes at build time
 COPY scripts/ ./scripts/
 ARG GITHUB_TOKEN=""
-RUN uv run python scripts/fetch_releases.py || true
+RUN uv run --no-project python scripts/fetch_releases.py || true
 
 EXPOSE 8000
 
-CMD ["uv", "run", "uvicorn", "jouleverne.app:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uv", "run", "uvicorn", "jouleverne.app:app", "--host", "0.0.0.0", "--port", "8000", "--app-dir", "src"]
