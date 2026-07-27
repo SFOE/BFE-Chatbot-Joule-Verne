@@ -95,7 +95,7 @@ async function submitComment() {
       >
         💬
       </button>
-      <span v-else class="feedback-saved">✅ {{ t('feedback_saved') }}</span>
+      <span v-else class="feedback-saved">{{ t('feedback_saved') }}</span>
     </div>
 
     <div v-if="showComment" class="feedback-comment">
