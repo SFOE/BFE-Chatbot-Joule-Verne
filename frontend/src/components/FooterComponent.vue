@@ -40,9 +40,9 @@ const { t } = useI18n()
 .site-footer {
   background-color: var(--color-primary);
   color: #fff;
-  font-size: 0.875rem;
-  line-height: 1.5;
-  padding: 24px 0;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  padding: 12px 0;
 }
 
 .footer-inner {

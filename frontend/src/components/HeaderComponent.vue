@@ -1,11 +1,11 @@
 <template>
   <header class="app-header">
     <div class="top-header-box">
-      <div class="app-container top-header-inner"></div>
+      <div class="top-header-inner"></div>
     </div>
 
     <div class="bottom-header-box">
-      <div class="app-container bottom-header-inner">
+      <div class="bottom-header-inner">
         <div class="logo-title-group">
           <img
             class="logo responsive-logo"
@@ -15,7 +15,6 @@
             height="68"
             fetchpriority="high"
           />
-          <div class="divider"></div>
           <h1 class="title">{{ t('header_title') }}</h1>
         </div>
       </div>
@@ -48,10 +47,13 @@ const { t } = useI18n()
 }
 
 .top-header-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 20px;
+  width: 100%;
   display: flex;
   justify-content: flex-end;
   align-items: center;
-  padding: 0;
 }
 
 .bottom-header-box {
@@ -60,9 +62,12 @@ const { t } = useI18n()
 }
 
 .bottom-header-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1rem 20px 1.75rem 20px;
+  width: 100%;
   display: flex;
   align-items: flex-start;
-  padding: 1rem 0 1.75rem 1rem;
 }
 
 .logo-title-group {
