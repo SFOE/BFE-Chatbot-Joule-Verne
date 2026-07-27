@@ -14,7 +14,7 @@ const store = useChatStore()
 const resolvedSources = ref<ResolvedSource[]>([])
 
 watch(
-  () => store.citations,
+  () => [...store.citations],
   async (citations) => {
     if (!citations.length) {
       resolvedSources.value = []
