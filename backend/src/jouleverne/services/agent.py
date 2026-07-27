@@ -123,13 +123,13 @@ def _parse_trace(trace: dict) -> Generator[tuple[str, str], None, None]:
 
     for key, value in trace.items():
         if key == "preProcessingTrace":
-            evt = TraceEvent(label="🧠 Analysiere Frage...")
+            evt = TraceEvent(label="Analysiere Frage...")
             yield "trace", evt.model_dump_json()
 
         elif key == "orchestrationTrace" and isinstance(value, dict):
             if "rationale" in value:
                 detail = value["rationale"].get("text", "")
-                evt = TraceEvent(label="💭 Überlegung", detail=detail or None)
+                evt = TraceEvent(label="Überlegung", detail=detail or None)
                 yield "trace", evt.model_dump_json()
 
             elif "invocationInput" in value:
@@ -140,7 +140,7 @@ def _parse_trace(trace: dict) -> Generator[tuple[str, str], None, None]:
                     kb_id = kb_input.get("knowledgeBaseId", "")
                     query_text = kb_input.get("text", "")
                     evt = TraceEvent(
-                        label="📚 Wissensdatenbank-Abfrage",
+                        label="Wissensdatenbank-Abfrage",
                         detail=f"Wissensdatenbank: {kb_id}\nAbfrage: {query_text}",
                     )
                     yield "trace", evt.model_dump_json()
@@ -150,7 +150,7 @@ def _parse_trace(trace: dict) -> Generator[tuple[str, str], None, None]:
                     ag_name = ag_input.get("actionGroupName", "unbekannt")
                     api_path = ag_input.get("apiPath", ag_input.get("function", ""))
                     detail = f"Aktion: {ag_name}\nAPI-Pfad: {api_path}" if api_path else f"Aktion: {ag_name}"
-                    evt = TraceEvent(label=f"⚙️ Aufruf: {ag_name}", detail=detail)
+                    evt = TraceEvent(label=f"Aufruf: {ag_name}", detail=detail)
                     yield "trace", evt.model_dump_json()
 
             elif "observation" in value:
@@ -170,13 +170,13 @@ def _parse_trace(trace: dict) -> Generator[tuple[str, str], None, None]:
                         preview = text[:150] + "..." if len(text) > 150 else text
                         previews.append(f"[{i+1}] {preview}\n    Quelle: {source}")
                     detail = "\n".join(previews) if previews else None
-                    evt = TraceEvent(label=f"📚 {len(refs)} Ergebnis(se) gefunden", detail=detail)
+                    evt = TraceEvent(label=f"{len(refs)} Ergebnis(se) gefunden", detail=detail)
                     yield "trace", evt.model_dump_json()
 
                 elif "actionGroupInvocationOutput" in obs:
                     output_text = obs["actionGroupInvocationOutput"].get("text", "")
                     detail = output_text[:500] if output_text else None
-                    evt = TraceEvent(label="⚙️ Aktionsergebnis", detail=detail)
+                    evt = TraceEvent(label="Aktionsergebnis", detail=detail)
                     yield "trace", evt.model_dump_json()
 
                 elif "codeInterpreterInvocationOutput" in obs:
@@ -184,22 +184,22 @@ def _parse_trace(trace: dict) -> Generator[tuple[str, str], None, None]:
                     exec_output = ci_output.get("executionOutput", "")
                     exec_error = ci_output.get("executionError", "")
                     if exec_error:
-                        evt = TraceEvent(label="🖥️ Code Interpreter Fehler", detail=exec_error[:500])
+                        evt = TraceEvent(label="Code Interpreter Fehler", detail=exec_error[:500])
                     elif exec_output:
-                        evt = TraceEvent(label="🖥️ Code Interpreter", detail=exec_output[:500])
+                        evt = TraceEvent(label="Code Interpreter", detail=exec_output[:500])
                     else:
-                        evt = TraceEvent(label="🖥️ Code ausgeführt")
+                        evt = TraceEvent(label="Code ausgeführt")
                     yield "trace", evt.model_dump_json()
 
             elif "modelInvocationInput" in value:
-                evt = TraceEvent(label="🤖 Denke nach...")
+                evt = TraceEvent(label="Denke nach...")
                 yield "trace", evt.model_dump_json()
 
         elif key == "postProcessingTrace":
-            evt = TraceEvent(label="✍️ Antwort wird formuliert...")
+            evt = TraceEvent(label="Antwort wird formuliert...")
             yield "trace", evt.model_dump_json()
 
         elif key == "failureTrace":
             reason = value.get("failureReason", "Unbekannter Fehler") if isinstance(value, dict) else "Unbekannter Fehler"
-            evt = TraceEvent(label="⚠️ Fehler", detail=reason)
+            evt = TraceEvent(label="Fehler", detail=reason)
             yield "trace", evt.model_dump_json()

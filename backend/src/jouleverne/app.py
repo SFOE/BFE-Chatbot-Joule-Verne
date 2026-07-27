@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from .config import settings
-from .routes import chat, feedback, documents, sources, releases
+from .routes import chat, feedback, documents, sources, releases, links
 from .services.security import limiter, rate_limit_handler, RateLimitExceeded
 
 # ---------------------------------------------------------------------------
@@ -46,6 +46,7 @@ app.include_router(feedback.router)
 app.include_router(documents.router)
 app.include_router(sources.router)
 app.include_router(releases.router)
+app.include_router(links.router)
 
 
 # ---------------------------------------------------------------------------
