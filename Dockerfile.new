@@ -31,7 +31,7 @@ COPY --from=frontend-build /app/frontend/dist ./static
 # Copy scripts and fetch release notes at build time
 COPY scripts/ ./scripts/
 ARG GITHUB_TOKEN=""
-RUN uv run python scripts/fetch_releases.py || true
+RUN uv run --no-project python scripts/fetch_releases.py || true
 
 EXPOSE 8000
 
