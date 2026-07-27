@@ -32,7 +32,7 @@ onMounted(async () => {
 
 <template>
   <div class="release-notes">
-    <h2>📋 {{ t('release_notes_title') }}</h2>
+    <h2>{{ t('release_notes_title') }}</h2>
 
     <p v-if="loading">Laden...</p>
 

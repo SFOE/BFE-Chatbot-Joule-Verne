@@ -14,7 +14,7 @@ const expanded = ref(false)
 
 <template>
   <details class="trace-expander" :open="expanded" @toggle="expanded = ($event.target as HTMLDetailsElement).open">
-    <summary>🔎 {{ t('trace_title') }}</summary>
+    <summary>{{ t('trace_title') }}</summary>
     <div class="trace-steps">
       <div v-for="(step, i) in steps" :key="i" class="trace-step">
         <strong>{{ step.label }}</strong>

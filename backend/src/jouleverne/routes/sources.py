@@ -103,7 +103,27 @@ async def get_source_metadata(
                 pass
             result["type"] = "fedlex"
 
-        # PDF/extracted text sources
+        # PDF/extracted text sources — map to PDF in PDF bucket
+        elif bucket == settings.EXTRACTED_BUCKET:
+            import re
+            # Strip _partN suffix and convert .txt → .pdf
+            pdf_key = re.sub(r"_part\d+\.txt$", ".pdf", key)
+            if pdf_key == key:
+                pdf_key = key.replace(".txt", ".pdf")
+            pdf_filename = pdf_key.rsplit("/", 1)[-1] if "/" in pdf_key else pdf_key
+            try:
+                download_url = s3_client.generate_presigned_url(
+                    "get_object",
+                    Params={"Bucket": settings.PDF_BUCKET, "Key": pdf_key},
+                    ExpiresIn=300,
+                )
+                result["download_url"] = download_url
+                result["pdf_filename"] = pdf_filename
+            except Exception:
+                pass
+            result["type"] = "document"
+
+        # Any other bucket — fallback
         else:
             result["type"] = "document"
 

@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 # The JSON is generated at Docker build time by scripts/fetch_releases.py
 # and placed in the project root. At runtime it's copied into the container.
-_RELEASE_NOTES_PATH = Path(__file__).parent.parent.parent.parent / "release_notes.json"
+_RELEASE_NOTES_PATH = Path(__file__).parent.parent.parent.parent.parent / "release_notes.json"
 
 
 def _load_releases() -> list:
