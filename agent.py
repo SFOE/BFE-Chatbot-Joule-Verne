@@ -820,6 +820,7 @@ if s3_refs_collected or web_refs:
 st.sidebar.divider()
 st.sidebar.markdown(
       "<p style='font-size:0.8em;color:gray;'>"
+      "<a href='https://m365.cloud.microsoft/chat' target='_blank'>🎨 Use Copilot to generate images</a><br>"
       "<a href='/release_notes' target='_self'>📋 Release Notes</a>"
       "</p>",
       unsafe_allow_html=True,
