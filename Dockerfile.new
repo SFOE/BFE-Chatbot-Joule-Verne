@@ -8,13 +8,19 @@ COPY frontend/ ./
 RUN npm run build-only
 
 # ─── Stage 2: Build backend ──────────────────────────────────────────────────
-FROM ghcr.io/astral-sh/uv:0.11.7-python3.14-alpine AS base
+FROM ghcr.io/astral-sh/uv:0.11.15-python3.14-alpine AS base
+
+# Patch Alpine system packages (openssl, musl, xz, util-linux CVEs)
+RUN apk update && apk upgrade --no-cache
 
 WORKDIR /app
 
 # Install backend dependencies
 COPY backend/pyproject.toml backend/uv.lock backend/README.md ./
 RUN uv sync --no-install-project --frozen
+
+# Upgrade pip to fix CVE-2026-8643, CVE-2026-6357, CVE-2026-3219
+RUN uv pip install --upgrade "pip>=26.1.2"
 
 # Copy backend source
 COPY backend/src/jouleverne ./jouleverne
