@@ -157,21 +157,7 @@ def _parse_trace(trace: dict) -> Generator[tuple[str, str], None, None]:
                 obs = value["observation"]
 
                 if "knowledgeBaseLookupOutput" in obs:
-                    refs = obs["knowledgeBaseLookupOutput"].get("retrievedReferences", [])
-                    previews = []
-                    for i, ref in enumerate(refs[:5]):
-                        text = ref.get("content", {}).get("text", "")
-                        loc = ref.get("location", {})
-                        source = ""
-                        if loc.get("type") == "S3":
-                            source = loc.get("s3Location", {}).get("uri", "")
-                        elif loc.get("type") == "WEB":
-                            source = loc.get("webLocation", {}).get("url", "")
-                        preview = text[:150] + "..." if len(text) > 150 else text
-                        previews.append(f"[{i+1}] {preview}\n    Quelle: {source}")
-                    detail = "\n".join(previews) if previews else None
-                    evt = TraceEvent(label=f"{len(refs)} Ergebnis(se) gefunden", detail=detail)
-                    yield "trace", evt.model_dump_json()
+                    pass  # Skip "X Ergebnis(se) gefunden" from trace output
 
                 elif "actionGroupInvocationOutput" in obs:
                     output_text = obs["actionGroupInvocationOutput"].get("text", "")
@@ -192,12 +178,10 @@ def _parse_trace(trace: dict) -> Generator[tuple[str, str], None, None]:
                     yield "trace", evt.model_dump_json()
 
             elif "modelInvocationInput" in value:
-                evt = TraceEvent(label="Denke nach...")
-                yield "trace", evt.model_dump_json()
+                pass  # Skip "Denke nach" from trace output
 
         elif key == "postProcessingTrace":
-            evt = TraceEvent(label="Antwort wird formuliert...")
-            yield "trace", evt.model_dump_json()
+            pass  # Skip "Antwort wird formuliert" from trace output
 
         elif key == "failureTrace":
             reason = value.get("failureReason", "Unbekannter Fehler") if isinstance(value, dict) else "Unbekannter Fehler"
