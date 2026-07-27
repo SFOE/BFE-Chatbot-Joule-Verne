@@ -1,7 +1,9 @@
 <template>
   <header class="app-header">
     <div class="top-header-box">
-      <div class="top-header-inner"></div>
+      <div class="top-header-inner">
+        <LanguageSwitcherComponent />
+      </div>
     </div>
 
     <div class="bottom-header-box">
@@ -26,6 +28,7 @@
 
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
+import LanguageSwitcherComponent from './LanguageSwitcherComponent.vue'
 
 const { t } = useI18n()
 </script>

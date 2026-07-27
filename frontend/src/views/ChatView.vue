@@ -40,7 +40,7 @@ onMounted(async () => {
         <div v-if="externalLinks.length" class="external-links">
           <div v-for="(link, i) in externalLinks" :key="i" class="link-item">
             <a :href="link.url" :target="link.target" rel="noopener">
-              {{ link.label }}
+              {{ t('copilot_link') }}
             </a>
           </div>
         </div>

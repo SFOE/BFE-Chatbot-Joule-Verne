@@ -24,12 +24,13 @@
   "feedback_send": "Feedback senden",
   "feedback_saved": "Kommentar gespeichert",
   "session_toggle": "Sitzungsverlauf",
-  "disclaimer": "Ihre Interaktionen werden protokolliert, um diesen Chatbot zu verbessern.",
+  "disclaimer": "Um diesen Chatbot zu verbessern, werden Ihre anonymisierten Interaktionen protokolliert und maximal 1 Jahr gespeichert.",
   "info_text": "Dies ist eine Demo-Anwendung, die noch weiterentwickelt wird. Der Chatbot ist nicht immer korrekt oder präzise. Bitte überprüfen Sie die Quellen, wenn Sie unsicher sind.",
   "download_pdf": "PDF herunterladen",
   "footer_contact": "Kontakt",
   "footer_legal": "Rechtliches",
   "release_notes_title": "Release Notes",
   "release_notes_link": "Release Notes",
-  "back_to_chat": "Zurück zum Chat"
+  "back_to_chat": "Zurück zum Chat",
+  "copilot_link": "Copilot für Bildgenerierung verwenden"
 }
