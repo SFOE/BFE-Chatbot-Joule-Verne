@@ -57,19 +57,13 @@ watch(
               sources.push({ type: 'fedlex', url: meta.fedlex_url, label })
             }
           } else if (meta.type === 'document') {
-            // Get a presigned download URL for the PDF
-            try {
-              const dlRes = await fetch(`/v1/sources/download?uri=${encodeURIComponent(src)}`)
-              if (dlRes.ok) {
-                const dlData = await dlRes.json()
-                const filename = dlData.filename.replace(/(_part\d+)?\.txt$/, '.pdf')
-                if (!seen.has(filename)) {
-                  seen.add(filename)
-                  sources.push({ type: 'document', url: dlData.url, label: filename })
-                }
+            const filename = meta.pdf_filename || meta.filename
+            const pdfName = filename.replace(/(_part\d+)?\.txt$/, '.pdf')
+            if (!seen.has(pdfName)) {
+              seen.add(pdfName)
+              if (meta.download_url) {
+                sources.push({ type: 'document', url: meta.download_url, label: pdfName })
               }
-            } catch {
-              // Skip if download URL fails
             }
           }
         } catch {
