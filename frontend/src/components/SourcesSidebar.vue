@@ -103,7 +103,7 @@ watch(
 
 .source-item a {
   font-size: 0.85em;
-  color: #333;
+  color: var(--color-text);
   text-decoration: none;
   word-break: break-all;
 }

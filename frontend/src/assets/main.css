@@ -1,93 +1,83 @@
 /* ============================================================
    Joule Verne — Base Styles
-   Minimal, clean design matching drill-frontend patterns.
+   Matching drill-frontend design system.
    ============================================================ */
 
 :root {
-  --color-primary: #003366;
-  --color-primary-light: #1a5c99;
-  --color-bg: #f8f9fa;
+  /* Colors — aligned with drill-frontend */
+  --color-primary: #2f4356;
+  --color-link: #005ea5;
+  --color-link-hover: #003a6d;
+  --color-text: #333;
+  --color-muted: #757575;
+  --color-border: #ccc;
+  --color-separator: #dcdcdc;
+  --color-bg: #ffffff;
   --color-surface: #ffffff;
-  --color-text: #1a1a1a;
-  --color-text-muted: #6c757d;
-  --color-border: #dee2e6;
   --color-success: #198754;
   --color-error: #dc3545;
+
+  /* Radii */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 16px;
   --radius: 8px;
+
+  /* Shadows */
+  --shadow-sm: 0 3px 6px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 5px 14px rgba(0, 0, 0, 0.1);
   --shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
-* {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: 'Frutiger LT Com', Roboto, 'Helvetica Neue', sans-serif;
   background: var(--color-bg);
   color: var(--color-text);
   line-height: 1.6;
 }
 
-/* Header */
-.header {
-  background: var(--color-primary);
-  color: white;
-  padding: 12px 24px;
-}
-
-.header-content {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  max-width: 1400px;
-  margin: 0 auto;
-}
-
-.header-logo {
-  width: 40px;
-  height: 40px;
-  border-radius: 4px;
-}
-
-.header-title {
-  font-size: 1.2rem;
-  font-weight: 600;
-}
-
-/* Footer */
-.footer {
-  text-align: center;
-  padding: 16px;
-  font-size: 0.85rem;
-  color: var(--color-text-muted);
-  border-top: 1px solid var(--color-border);
-}
-
-.footer a {
-  color: var(--color-primary);
+/* --- Global link styling --- */
+a {
   text-decoration: none;
+  color: var(--color-link);
+  transition: color 0.2s ease;
 }
 
-.footer-divider {
-  margin: 0 8px;
+a:hover,
+a:focus {
+  text-decoration: underline;
+  color: var(--color-link-hover);
 }
 
-/* Layout */
+/* --- Layout --- */
+.full-bleed {
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+}
+
 .app-container {
   max-width: 1400px;
   margin: 0 auto;
-  padding: 0 16px;
-  min-height: calc(100vh - 130px);
+  padding: 0 20px;
+  width: 100%;
+  min-height: calc(100vh - 200px);
 }
 
+/* --- Chat view layout --- */
 .chat-view {
   display: grid;
   grid-template-columns: 280px 1fr;
   gap: 24px;
   padding: 24px 0;
-  min-height: calc(100vh - 130px);
+  min-height: calc(100vh - 200px);
 }
 
 @media (max-width: 768px) {
@@ -130,7 +120,7 @@ body {
 
 .disclaimer {
   font-size: 0.8rem;
-  color: var(--color-text-muted);
+  color: var(--color-muted);
   text-align: center;
   padding: 8px 16px;
   border-bottom: 1px solid var(--color-border);
@@ -223,7 +213,7 @@ body {
 }
 
 .send-button:hover:not(:disabled) {
-  background: var(--color-primary-light);
+  opacity: 0.9;
 }
 
 .send-button:disabled {
@@ -294,14 +284,14 @@ body {
 
 .upload-hint {
   font-size: 0.75rem;
-  color: var(--color-text-muted);
+  color: var(--color-muted);
   margin-top: 4px;
   white-space: pre-line;
 }
 
 .upload-disabled {
   font-size: 0.85rem;
-  color: var(--color-text-muted);
+  color: var(--color-muted);
   font-style: italic;
 }
 
@@ -371,18 +361,18 @@ body {
 
 .source-item a {
   font-size: 0.8rem;
-  color: var(--color-primary);
+  color: var(--color-link);
   word-break: break-all;
 }
 
 .source-s3 {
   font-size: 0.8rem;
-  color: var(--color-text-muted);
+  color: var(--color-muted);
 }
 
 .no-sources {
   font-size: 0.85rem;
-  color: var(--color-text-muted);
+  color: var(--color-muted);
 }
 
 /* Trace expander */
@@ -393,7 +383,7 @@ body {
 
 .trace-expander summary {
   cursor: pointer;
-  color: var(--color-text-muted);
+  color: var(--color-muted);
 }
 
 .trace-steps {
@@ -504,7 +494,7 @@ body {
 
 .confirm-dialog p {
   font-size: 0.9rem;
-  color: var(--color-text-muted);
+  color: var(--color-muted);
   margin-bottom: 20px;
   line-height: 1.5;
 }
@@ -529,7 +519,7 @@ body {
 }
 
 .confirm-btn--yes:hover {
-  background: var(--color-primary-light);
+  opacity: 0.9;
 }
 
 .confirm-btn--no {
@@ -578,7 +568,7 @@ body {
 
 .release-header time {
   font-size: 0.85rem;
-  color: var(--color-text-muted);
+  color: var(--color-muted);
 }
 
 .prerelease-badge {
@@ -601,7 +591,7 @@ body {
 .back-link {
   display: inline-block;
   margin-top: 24px;
-  color: var(--color-primary);
+  color: var(--color-link);
   text-decoration: none;
   font-size: 0.9rem;
 }

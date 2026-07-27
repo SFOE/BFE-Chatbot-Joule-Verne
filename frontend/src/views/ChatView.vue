@@ -74,7 +74,7 @@ onMounted(async () => {
 
 .external-links .link-item a {
   font-size: 0.8em;
-  color: #333;
+  color: var(--color-text);
   text-decoration: none;
 }
 
