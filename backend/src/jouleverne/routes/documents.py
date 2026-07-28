@@ -1,5 +1,6 @@
 """Document upload endpoint — process uploaded files for chat context."""
 
+import asyncio
 import base64
 import logging
 
@@ -64,9 +65,9 @@ async def upload_documents(
 
         files_data.append({"name": filename, "bytes": content})
 
-    # Process valid files
+    # Process valid files (offload to thread to avoid blocking the event loop)
     try:
-        processed = process_multiple_documents(files_data)
+        processed = await asyncio.to_thread(process_multiple_documents, files_data)
     except Exception as e:
         logger.exception("Unexpected error processing documents: %s", e)
         raise HTTPException(status_code=500, detail=f"Document processing failed: {e}")
