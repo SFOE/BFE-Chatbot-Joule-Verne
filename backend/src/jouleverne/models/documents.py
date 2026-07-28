@@ -17,6 +17,7 @@ class CodeInterpreterDocResult(BaseModel):
 
     name: str
     media_type: str
+    data: str  # base64-encoded file bytes
 
 
 class DocumentError(BaseModel):

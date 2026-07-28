@@ -3,6 +3,14 @@ from typing import Any
 from pydantic import BaseModel
 
 
+class CodeInterpreterFile(BaseModel):
+    """A file to send to Bedrock Code Interpreter."""
+
+    name: str
+    media_type: str
+    data: str  # base64-encoded
+
+
 class ChatRequest(BaseModel):
     """Incoming chat message from the frontend."""
 
@@ -11,7 +19,7 @@ class ChatRequest(BaseModel):
     web_search: bool = False
     locale: str = "de"
     session_attributes: dict[str, str] | None = None
-    files: list[dict[str, Any]] | None = None
+    files: list[CodeInterpreterFile] | None = None
 
 
 class TokenEvent(BaseModel):

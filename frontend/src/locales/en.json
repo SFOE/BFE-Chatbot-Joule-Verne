@@ -35,5 +35,7 @@
   "copilot_link": "Use Copilot to generate images",
   "error_server": "Error communicating with the server.",
   "error_connection": "Connection error. Please try again.",
-  "error_generic": "An error occurred."
+  "error_generic": "An error occurred.",
+  "error_upload": "Upload failed.",
+  "error_max_files": "Maximum 5 files allowed in total."
 }

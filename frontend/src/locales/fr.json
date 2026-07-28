@@ -35,5 +35,7 @@
   "copilot_link": "Utiliser Copilot pour générer des images",
   "error_server": "Erreur de communication avec le serveur.",
   "error_connection": "Erreur de connexion. Veuillez réessayer.",
-  "error_generic": "Une erreur est survenue."
+  "error_generic": "Une erreur est survenue.",
+  "error_upload": "Échec du téléchargement.",
+  "error_max_files": "Maximum 5 fichiers autorisés au total."
 }
