@@ -384,6 +384,14 @@ a:focus {
   color: var(--color-muted);
 }
 
+/* Streaming status indicator */
+.streaming-status {
+  font-size: 0.8rem;
+  color: var(--color-muted);
+  font-style: italic;
+  margin-top: 0.5em;
+}
+
 /* Trace expander */
 .trace-expander {
   margin-top: 8px;
