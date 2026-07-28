@@ -32,6 +32,7 @@ onMounted(async () => {
 </script>
 
 <template>
+  <h1 class="action-title">{{ t('app_title') }}</h1>
   <div class="chat-view">
     <aside class="sidebar">
       <div class="sidebar-section">
@@ -68,6 +69,14 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+.action-title {
+  text-align: center;
+  margin-bottom: 1.5rem;
+  margin-top: 2rem;
+  font-size: 2rem;
+  line-height: 1.2;
+}
+
 .external-links {
   margin-top: 0.5rem;
 }
@@ -80,5 +89,19 @@ onMounted(async () => {
 
 .external-links .link-item a:hover {
   text-decoration: underline;
+}
+
+@media (max-width: 768px) {
+  .action-title {
+    font-size: 1.5rem;
+    margin-bottom: 1rem;
+    margin-top: 1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .action-title {
+    font-size: 1.25rem;
+  }
 }
 </style>
