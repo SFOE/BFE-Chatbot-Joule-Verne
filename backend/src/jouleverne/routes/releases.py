@@ -9,9 +9,13 @@ from fastapi import APIRouter
 router = APIRouter(prefix="/v1", tags=["releases"])
 logger = logging.getLogger(__name__)
 
-# The JSON is generated at Docker build time by scripts/fetch_releases.py
-# and placed in the project root. At runtime it's copied into the container.
-_RELEASE_NOTES_PATH = Path(__file__).parent.parent.parent.parent.parent / "release_notes.json"
+# The JSON is generated at Docker build time by scripts/fetch_releases.py.
+# In Docker it lives at /app/release_notes.json (4 parents up from this file).
+# In local dev it may be at the project root (5 parents up).
+_base = Path(__file__).parent.parent.parent.parent  # → backend/ or /app/
+_RELEASE_NOTES_PATH = _base / "release_notes.json"
+if not _RELEASE_NOTES_PATH.exists():
+    _RELEASE_NOTES_PATH = _base.parent / "release_notes.json"
 
 
 def _load_releases() -> list:
