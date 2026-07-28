@@ -174,10 +174,7 @@ def _parse_trace(trace: dict) -> Generator[tuple[str, str], None, None]:
                     pass  # Skip "X Ergebnis(se) gefunden" from trace output
 
                 elif "actionGroupInvocationOutput" in obs:
-                    output_text = obs["actionGroupInvocationOutput"].get("text", "")
-                    detail = output_text[:500] if output_text else None
-                    evt = TraceEvent(label="Aktionsergebnis", detail=detail)
-                    yield "trace", evt.model_dump_json()
+                    pass  # Skip "Aktionsergebnis" from trace output
 
                 elif "codeInterpreterInvocationOutput" in obs:
                     ci_output = obs["codeInterpreterInvocationOutput"]
