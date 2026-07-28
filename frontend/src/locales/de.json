@@ -32,5 +32,8 @@
   "release_notes_title": "Release Notes",
   "release_notes_link": "Release Notes",
   "back_to_chat": "Zurück zum Chat",
-  "copilot_link": "Copilot für Bildgenerierung verwenden"
+  "copilot_link": "Copilot für Bildgenerierung verwenden",
+  "error_server": "Fehler bei der Kommunikation mit dem Server.",
+  "error_connection": "Verbindungsfehler. Bitte versuchen Sie es erneut.",
+  "error_generic": "Ein Fehler ist aufgetreten."
 }

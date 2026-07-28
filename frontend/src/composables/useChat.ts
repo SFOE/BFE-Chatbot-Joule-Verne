@@ -1,5 +1,6 @@
 import { useChatStore } from '@/stores/chatStore'
 import type { TraceStep, Citation } from '@/types/chat'
+import i18n from '@/i18n'
 
 /**
  * Composable that handles sending a message and streaming the SSE response.
@@ -44,12 +45,13 @@ export function useChat() {
           message,
           session_id: store.sessionId,
           web_search: store.webSearchEnabled,
+          locale: i18n.global.locale.value,
           session_attributes: sessionAttributes,
         }),
       })
 
       if (!response.ok || !response.body) {
-        store.updateLastAssistantMessage('Fehler bei der Kommunikation mit dem Server.')
+        store.updateLastAssistantMessage(i18n.global.t('error_server'))
         store.isStreaming = false
         return
       }
@@ -87,7 +89,7 @@ export function useChat() {
       store.setTraceSteps(traceSteps)
       store.setCitations(citations)
     } catch (error) {
-      store.updateLastAssistantMessage('Verbindungsfehler. Bitte versuchen Sie es erneut.')
+      store.updateLastAssistantMessage(i18n.global.t('error_connection'))
     } finally {
       store.streamingStatus = ''
       store.isStreaming = false
@@ -120,7 +122,7 @@ function handleEvent(
         citations.push({ source: parsed.source, text: parsed.text })
         break
       case 'error':
-        onToken(`\n\n⚠️ ${parsed.detail || 'Ein Fehler ist aufgetreten.'}`)
+        onToken(`\n\n⚠️ ${parsed.detail || i18n.global.t('error_generic')}`)
         break
       case 'done':
         break

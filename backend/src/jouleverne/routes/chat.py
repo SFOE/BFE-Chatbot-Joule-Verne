@@ -33,6 +33,7 @@ async def chat(
             message=body.message,
             session_id=body.session_id,
             web_search=body.web_search,
+            locale=body.locale,
             session_attributes=body.session_attributes,
             files=body.files,
         ):

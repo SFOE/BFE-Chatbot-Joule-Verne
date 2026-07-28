@@ -32,5 +32,8 @@
   "release_notes_title": "Release Notes",
   "release_notes_link": "Release Notes",
   "back_to_chat": "Back to chat",
-  "copilot_link": "Use Copilot to generate images"
+  "copilot_link": "Use Copilot to generate images",
+  "error_server": "Error communicating with the server.",
+  "error_connection": "Connection error. Please try again.",
+  "error_generic": "An error occurred."
 }

@@ -9,6 +9,7 @@ class ChatRequest(BaseModel):
     message: str
     session_id: str
     web_search: bool = False
+    locale: str = "de"
     session_attributes: dict[str, str] | None = None
     files: list[dict[str, Any]] | None = None
 
