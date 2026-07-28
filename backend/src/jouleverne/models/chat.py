@@ -24,6 +24,7 @@ class TraceEvent(BaseModel):
 
     label: str
     detail: str | None = None
+    tool: str | None = None
 
 
 class CitationEvent(BaseModel):
@@ -31,3 +32,4 @@ class CitationEvent(BaseModel):
 
     source: str
     text: str
+    source_type: str = ""

@@ -1,14 +1,23 @@
-"""Bedrock Agent interaction — invoke and stream responses."""
+"""AgentCore Runtime interaction — invoke and stream responses."""
 
+import json
 import logging
 from collections.abc import Generator
-from typing import Any
 
 from ..config import settings
-from .clients import bedrock_client
+from .clients import agentcore_client
 from ..models.chat import TokenEvent, TraceEvent, CitationEvent
 
 logger = logging.getLogger(__name__)
+
+# Map tool names to user-facing status labels (German)
+TOOL_LABEL_MAP = {
+    "filtered_kb_search": "Wissensdatenbank wird durchsucht...",
+    "aramis_search": "ARAMIS wird durchsucht...",
+    "aramis_project_details": "Projektdetails werden geladen...",
+    "web_search": "Websuche wird durchgeführt...",
+    "code_interpreter": "Code wird ausgeführt...",
+}
 
 
 def invoke_agent(
@@ -19,34 +28,45 @@ def invoke_agent(
     session_attributes: dict[str, str] | None = None,
     files: list[dict] | None = None,
 ) -> dict:
-    """Call Bedrock invoke_agent and return the raw response.
+    """Call AgentCore invoke_agent_runtime and return the raw streaming response.
 
-    Selects the appropriate agent based on the web_search flag.
+    Args:
+        message: User message text.
+        session_id: Session identifier for conversation continuity.
+        web_search: Whether to enable the web search tool.
+        session_attributes: Dict with uploaded_document, document_name, context_mode.
+        files: Code Interpreter files (not yet supported in AgentCore).
+
+    Returns:
+        AgentCore Runtime streaming response dict.
     """
-    if web_search:
-        agent_id = settings.AGENT_SEARCH_ID
-        alias_id = settings.AGENT_SEARCH_ALIAS_ID
-    else:
-        agent_id = settings.AGENT_ID
-        alias_id = settings.AGENT_ALIAS_ID
-
-    kwargs: dict[str, Any] = {
-        "agentAliasId": alias_id,
-        "agentId": agent_id,
-        "enableTrace": True,
-        "sessionId": session_id,
-        "inputText": message,
+    payload: dict = {
+        "prompt": message,
+        "session_id": session_id,
+        "enable_web_search": web_search,
+        "include_trace": True,
     }
 
-    session_state: dict[str, Any] = {}
+    # Document context (replaces Classic's sessionState.promptSessionAttributes)
     if session_attributes:
-        session_state["promptSessionAttributes"] = session_attributes
-    if files:
-        session_state["files"] = files
-    if session_state:
-        kwargs["sessionState"] = session_state
+        if "uploaded_document" in session_attributes:
+            payload["uploaded_document"] = session_attributes["uploaded_document"]
+        if "document_name" in session_attributes:
+            payload["document_name"] = session_attributes["document_name"]
+        if "context_mode" in session_attributes:
+            payload["context_mode"] = session_attributes["context_mode"]
 
-    return bedrock_client.invoke_agent(**kwargs)
+    # Code Interpreter file upload not yet supported in AgentCore
+    if files:
+        logger.warning(
+            "Code Interpreter file upload not yet supported in AgentCore. "
+            "Files ignored — use uploaded_document for text-based content."
+        )
+
+    return agentcore_client.invoke_agent_runtime(
+        agentRuntimeArn=settings.AGENTCORE_RUNTIME_ARN,
+        payload=json.dumps(payload).encode("utf-8"),
+    )
 
 
 def stream_agent_response(
@@ -60,6 +80,10 @@ def stream_agent_response(
     """Invoke the agent and yield (event_type, json_data) tuples.
 
     Event types: "token", "trace", "citation", "done", "error"
+
+    The AgentCore runtime streams chunks that are either:
+    - JSON objects with a "type" field (trace events, citations)
+    - Plain text (response tokens to display)
     """
     try:
         response = invoke_agent(
@@ -71,119 +95,80 @@ def stream_agent_response(
         )
     except Exception as e:
         logger.error("Failed to invoke agent: %s", e)
-        yield "error", f'{{"detail": "Failed to invoke agent"}}'
+        yield "error", '{"detail": "Failed to invoke agent"}'
         return
 
     try:
-        for event in response.get("completion", []):
-            # --- Text chunks ---
-            if "chunk" in event:
-                chunk = event["chunk"]
+        for event in response.get("body", []):
+            chunk = event.get("chunk", {})
+            if "bytes" not in chunk:
+                continue
 
-                # Citations
-                if chunk.get("attribution"):
-                    for citation in chunk["attribution"].get("citations", []):
-                        for ref in citation.get("retrievedReferences", []):
-                            chunk_text = ref.get("content", {}).get("text", "")
-                            location = ref.get("location", {})
-                            loc_type = location.get("type", "")
+            text = chunk["bytes"].decode("utf-8")
 
-                            if loc_type == "S3":
-                                source = location.get("s3Location", {}).get("uri", "")
-                            elif loc_type == "WEB":
-                                source = location.get("webLocation", {}).get("url", "")
-                            else:
-                                source = ""
+            # Try to parse as structured JSON event
+            try:
+                data = json.loads(text)
 
-                            if source and chunk_text:
-                                evt = CitationEvent(source=source, text=chunk_text)
-                                yield "citation", evt.model_dump_json()
+                if data.get("type") == "trace":
+                    yield from _parse_agentcore_trace(data)
+                    continue
 
-                # Token text
-                text = chunk.get("bytes", b"").decode()
-                if text:
-                    evt = TokenEvent(text=text)
-                    yield "token", evt.model_dump_json()
+                if data.get("type") == "citations":
+                    for citation in data.get("citations", []):
+                        url = citation.get("url", "")
+                        source_type = citation.get("source_type", "")
+                        title = citation.get("title", "")
+                        if url:
+                            evt = CitationEvent(source=url, text=title, source_type=source_type)
+                            yield "citation", evt.model_dump_json()
+                    continue
 
-            # --- Trace events ---
-            if "trace" in event:
-                trace_data = event["trace"].get("trace", {})
-                yield from _parse_trace(trace_data)
+            except (json.JSONDecodeError, TypeError, KeyError):
+                pass
+
+            # Plain text — yield as token
+            if text:
+                evt = TokenEvent(text=text)
+                yield "token", evt.model_dump_json()
 
     except Exception as e:
         logger.error("Error during agent stream: %s", e)
-        yield "error", f'{{"detail": "Stream interrupted"}}'
+        yield "error", '{"detail": "Stream interrupted"}'
         return
 
     yield "done", "{}"
 
 
-def _parse_trace(trace: dict) -> Generator[tuple[str, str], None, None]:
-    """Parse a Bedrock trace dict and yield trace events."""
+def _parse_agentcore_trace(data: dict) -> Generator[tuple[str, str], None, None]:
+    """Parse an AgentCore trace event and yield (event_type, json_data) tuples.
 
-    for key, value in trace.items():
-        if key == "preProcessingTrace":
-            evt = TraceEvent(label="Analysiere Frage...")
-            yield "trace", evt.model_dump_json()
+    Trace events from AgentCore:
+    - tool_start: agent is calling a tool (with tool name + input)
+    - tool_result: tool returned its result (with full output)
+    """
+    event_name = data.get("event", "")
 
-        elif key == "orchestrationTrace" and isinstance(value, dict):
-            if "rationale" in value:
-                detail = value["rationale"].get("text", "")
-                evt = TraceEvent(label="Überlegung", detail=detail or None)
-                yield "trace", evt.model_dump_json()
+    if event_name == "tool_start":
+        tool_name = data.get("tool", "unknown")
+        tool_input = data.get("input", {})
+        label = TOOL_LABEL_MAP.get(tool_name, f"{tool_name}...")
+        detail = json.dumps(tool_input, ensure_ascii=False, indent=2) if tool_input else None
+        evt = TraceEvent(label=f"Aufruf: {tool_name}", detail=detail, tool=tool_name)
+        yield "trace", evt.model_dump_json()
 
-            elif "invocationInput" in value:
-                inv = value["invocationInput"]
+    elif event_name == "tool_result":
+        result = data.get("result", {})
+        result_count = result.get("result_count", result.get("total_matches", ""))
 
-                if "knowledgeBaseLookupInput" in inv:
-                    kb_input = inv["knowledgeBaseLookupInput"]
-                    kb_id = kb_input.get("knowledgeBaseId", "")
-                    query_text = kb_input.get("text", "")
-                    evt = TraceEvent(
-                        label="Wissensdatenbank-Abfrage",
-                        detail=f"Wissensdatenbank: {kb_id}\nAbfrage: {query_text}",
-                    )
-                    yield "trace", evt.model_dump_json()
-
-                elif "actionGroupInvocationInput" in inv:
-                    ag_input = inv["actionGroupInvocationInput"]
-                    ag_name = ag_input.get("actionGroupName", "unbekannt")
-                    api_path = ag_input.get("apiPath", ag_input.get("function", ""))
-                    detail = f"Aktion: {ag_name}\nAPI-Pfad: {api_path}" if api_path else f"Aktion: {ag_name}"
-                    evt = TraceEvent(label=f"Aufruf: {ag_name}", detail=detail)
-                    yield "trace", evt.model_dump_json()
-
-            elif "observation" in value:
-                obs = value["observation"]
-
-                if "knowledgeBaseLookupOutput" in obs:
-                    pass  # Skip "X Ergebnis(se) gefunden" from trace output
-
-                elif "actionGroupInvocationOutput" in obs:
-                    output_text = obs["actionGroupInvocationOutput"].get("text", "")
-                    detail = output_text[:500] if output_text else None
-                    evt = TraceEvent(label="Aktionsergebnis", detail=detail)
-                    yield "trace", evt.model_dump_json()
-
-                elif "codeInterpreterInvocationOutput" in obs:
-                    ci_output = obs["codeInterpreterInvocationOutput"]
-                    exec_output = ci_output.get("executionOutput", "")
-                    exec_error = ci_output.get("executionError", "")
-                    if exec_error:
-                        evt = TraceEvent(label="Code Interpreter Fehler", detail=exec_error[:500])
-                    elif exec_output:
-                        evt = TraceEvent(label="Code Interpreter", detail=exec_output[:500])
-                    else:
-                        evt = TraceEvent(label="Code ausgeführt")
-                    yield "trace", evt.model_dump_json()
-
-            elif "modelInvocationInput" in value:
-                pass  # Skip "Denke nach" from trace output
-
-        elif key == "postProcessingTrace":
-            pass  # Skip "Antwort wird formuliert" from trace output
-
-        elif key == "failureTrace":
-            reason = value.get("failureReason", "Unbekannter Fehler") if isinstance(value, dict) else "Unbekannter Fehler"
-            evt = TraceEvent(label="Fehler", detail=reason)
-            yield "trace", evt.model_dump_json()
+        if result_count:
+            evt = TraceEvent(
+                label=f"{result_count} Ergebnis(se) gefunden",
+                detail=json.dumps(result, ensure_ascii=False)[:500],
+            )
+        else:
+            evt = TraceEvent(
+                label="Ergebnis erhalten",
+                detail=json.dumps(result, ensure_ascii=False)[:500],
+            )
+        yield "trace", evt.model_dump_json()
