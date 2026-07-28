@@ -77,6 +77,8 @@ export function useChat() {
             handleEvent(eventType, data, traceSteps, citations, (text) => {
               fullText += text
               store.updateLastAssistantMessage(fullText)
+            }, (label) => {
+              store.streamingStatus = label
             })
           }
         }
@@ -87,6 +89,7 @@ export function useChat() {
     } catch (error) {
       store.updateLastAssistantMessage('Verbindungsfehler. Bitte versuchen Sie es erneut.')
     } finally {
+      store.streamingStatus = ''
       store.isStreaming = false
     }
   }
@@ -100,6 +103,7 @@ function handleEvent(
   traceSteps: TraceStep[],
   citations: Citation[],
   onToken: (text: string) => void,
+  onTrace: (label: string) => void,
 ) {
   try {
     const parsed = JSON.parse(data)
@@ -110,6 +114,7 @@ function handleEvent(
         break
       case 'trace':
         traceSteps.push({ label: parsed.label, detail: parsed.detail })
+        onTrace(parsed.label)
         break
       case 'citation':
         citations.push({ source: parsed.source, text: parsed.text })

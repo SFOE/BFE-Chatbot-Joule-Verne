@@ -8,6 +8,19 @@ from ..config import settings
 from .clients import agentcore_client
 from ..models.chat import TokenEvent, TraceEvent, CitationEvent
 
+# Parse KB display names from config: "id1:Name1,id2:Name2" → {id1: Name1, ...}
+_kb_names: dict[str, str] = {}
+for pair in settings.KB_DISPLAY_NAMES.split(","):
+    pair = pair.strip()
+    if ":" in pair:
+        kb_id, name = pair.split(":", 1)
+        _kb_names[kb_id.strip()] = name.strip()
+
+
+def _kb_display_name(kb_id: str) -> str:
+    """Return a human-friendly name for a knowledge base ID."""
+    return _kb_names.get(kb_id, "BFE-Wissensdatenbank")
+
 logger = logging.getLogger(__name__)
 
 # Map tool names to user-facing status labels (German)
@@ -161,7 +174,22 @@ def _parse_agentcore_trace(data: dict) -> Generator[tuple[str, str], None, None]
         result = data.get("result", {})
         result_count = result.get("result_count", result.get("total_matches", ""))
 
-        if result_count:
+        # Use KB display name for filtered_kb_search results
+        tool_name = data.get("tool", "")
+        if tool_name == "filtered_kb_search":
+            kb_id = data.get("input", {}).get("knowledge_base_id", "")
+            kb_name = _kb_display_name(kb_id)
+            if result_count:
+                evt = TraceEvent(
+                    label=f"{kb_name}: {result_count} Ergebnis(se) gefunden",
+                    detail=json.dumps(result, ensure_ascii=False)[:500],
+                )
+            else:
+                evt = TraceEvent(
+                    label=f"{kb_name}: Ergebnis erhalten",
+                    detail=json.dumps(result, ensure_ascii=False)[:500],
+                )
+        elif result_count:
             evt = TraceEvent(
                 label=f"{result_count} Ergebnis(se) gefunden",
                 detail=json.dumps(result, ensure_ascii=False)[:500],

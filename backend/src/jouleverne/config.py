@@ -27,5 +27,9 @@ class Settings(BaseSettings):
     # Auth — comma-separated Cognito group names
     ALLOWED_COGNITO_GROUPS: str = ""
 
+    # Knowledge base display names — comma-separated pairs "id:name,id:name"
+    # If a KB ID isn't mapped, it shows as "Wissensdatenbank"
+    KB_DISPLAY_NAMES: str = ""
+
 
 settings = Settings()

@@ -7,6 +7,7 @@ export const useChatStore = defineStore('chat', () => {
   const messages = ref<ChatMessage[]>([])
   const sessionId = ref(uuidv4())
   const isStreaming = ref(false)
+  const streamingStatus = ref('')
   const webSearchEnabled = ref(false)
   const searchModeLocked = ref(false)
 
@@ -71,6 +72,7 @@ export const useChatStore = defineStore('chat', () => {
     messages,
     sessionId,
     isStreaming,
+    streamingStatus,
     webSearchEnabled,
     searchModeLocked,
     textDocs,
