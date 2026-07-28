@@ -8,6 +8,19 @@ from ..config import settings
 from .clients import bedrock_client
 from ..models.chat import TokenEvent, TraceEvent, CitationEvent
 
+# Parse KB display names from config: "id1:Name1,id2:Name2" → {id1: Name1, ...}
+_kb_names: dict[str, str] = {}
+for pair in settings.KB_DISPLAY_NAMES.split(","):
+    pair = pair.strip()
+    if ":" in pair:
+        kb_id, name = pair.split(":", 1)
+        _kb_names[kb_id.strip()] = name.strip()
+
+
+def _kb_display_name(kb_id: str) -> str:
+    """Return a human-friendly name for a knowledge base ID."""
+    return _kb_names.get(kb_id, "BFE-Wissensdatenbank")
+
 logger = logging.getLogger(__name__)
 
 
@@ -139,9 +152,10 @@ def _parse_trace(trace: dict) -> Generator[tuple[str, str], None, None]:
                     kb_input = inv["knowledgeBaseLookupInput"]
                     kb_id = kb_input.get("knowledgeBaseId", "")
                     query_text = kb_input.get("text", "")
+                    kb_name = _kb_display_name(kb_id)
                     evt = TraceEvent(
-                        label="Wissensdatenbank-Abfrage",
-                        detail=f"Wissensdatenbank: {kb_id}\nAbfrage: {query_text}",
+                        label=f"{kb_name} wird durchsucht",
+                        detail=f"Abfrage: {query_text}" if query_text else None,
                     )
                     yield "trace", evt.model_dump_json()
 
