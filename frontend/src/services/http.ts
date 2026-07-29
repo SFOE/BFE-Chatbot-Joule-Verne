@@ -7,5 +7,5 @@ import axios from 'axios'
  */
 export const backendHttp = axios.create({
   baseURL: import.meta.env.VITE_BACKEND_URL || '/',
-  timeout: 30000,
+  timeout: 120_000, // 120s — accounts for CloudFront/ALB timeouts and large uploads
 })
