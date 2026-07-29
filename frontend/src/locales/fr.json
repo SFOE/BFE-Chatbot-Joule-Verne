@@ -37,5 +37,13 @@
   "error_connection": "Erreur de connexion. Veuillez réessayer.",
   "error_generic": "Une erreur est survenue.",
   "error_upload": "Échec du téléchargement.",
-  "error_max_files": "Maximum 5 fichiers autorisés au total."
+  "error_max_files": "Maximum 5 fichiers autorisés au total.",
+  "file_select_btn": "Sélectionner fichier(s)",
+  "doc_pages": "{count} pages",
+  "loading": "Chargement...",
+  "no_release_notes": "Aucune note de version disponible.",
+  "prerelease_badge": "Pré-version",
+  "feedback_good": "Bien",
+  "feedback_bad": "Mauvais",
+  "feedback_comment": "Commentaire"
 }

@@ -8,18 +8,40 @@ from ..config import settings
 from .clients import bedrock_client
 from ..models.chat import TokenEvent, TraceEvent, CitationEvent
 
-# Parse KB display names from config: "id1:Name1,id2:Name2" → {id1: Name1, ...}
-_kb_names: dict[str, str] = {}
+# Parse KB display names from config
+# Format: "id1:DE_Name|FR_Name|IT_Name|EN_Name, id2:DE|FR|IT|EN"
+# Or simple (German-only): "id1:Name1,id2:Name2"
+_kb_names: dict[str, dict[str, str]] = {}
 for pair in settings.KB_DISPLAY_NAMES.split(","):
     pair = pair.strip()
     if ":" in pair:
-        kb_id, name = pair.split(":", 1)
-        _kb_names[kb_id.strip()] = name.strip()
+        kb_id, names_str = pair.split(":", 1)
+        parts = names_str.strip().split("|")
+        if len(parts) == 4:
+            _kb_names[kb_id.strip()] = {
+                "de": parts[0].strip(),
+                "fr": parts[1].strip(),
+                "it": parts[2].strip(),
+                "en": parts[3].strip(),
+            }
+        else:
+            # Single name — use for all locales
+            name = names_str.strip()
+            _kb_names[kb_id.strip()] = {"de": name, "fr": name, "it": name, "en": name}
 
 
-def _kb_display_name(kb_id: str) -> str:
+def _kb_display_name(kb_id: str, locale: str = "de") -> str:
     """Return a human-friendly name for a knowledge base ID."""
-    return _kb_names.get(kb_id, "BFE-Wissensdatenbank")
+    if kb_id in _kb_names:
+        return _kb_names[kb_id].get(locale, _kb_names[kb_id].get("de", kb_id))
+    # Fallback name per locale
+    _fallback_names = {
+        "de": "BFE-Wissensdatenbank",
+        "fr": "Base de connaissances OFEN",
+        "it": "Base di conoscenze UFE",
+        "en": "SFOE knowledge base",
+    }
+    return _fallback_names.get(locale, _fallback_names["de"])
 
 
 # ---------------------------------------------------------------------------
@@ -238,7 +260,7 @@ def _parse_trace(trace: dict, locale: str = "de") -> Generator[tuple[str, str], 
                     kb_input = inv["knowledgeBaseLookupInput"]
                     kb_id = kb_input.get("knowledgeBaseId", "")
                     query_text = kb_input.get("text", "")
-                    kb_name = _kb_display_name(kb_id)
+                    kb_name = _kb_display_name(kb_id, locale)
                     detail = _t("query_prefix", locale, text=query_text) if query_text else None
                     evt = TraceEvent(
                         label=_t("searching_kb", locale, kb_name=kb_name),

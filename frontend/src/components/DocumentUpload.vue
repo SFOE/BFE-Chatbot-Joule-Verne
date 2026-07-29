@@ -28,7 +28,7 @@ function handleFileChange(event: Event) {
 
     <template v-else>
       <button class="file-select-btn" @click="fileInput?.click()">
-        Datei(en) auswählen
+        {{ t('file_select_btn') }}
       </button>
       <input
         ref="fileInput"
@@ -44,7 +44,7 @@ function handleFileChange(event: Event) {
 
       <div v-if="store.textDocs.length" class="uploaded-docs">
         <p v-for="doc in store.textDocs" :key="doc.name" class="doc-success">
-          📄 <strong>{{ doc.name }}</strong> ({{ doc.page_count }} Seiten, {{ doc.context_mode }})
+          📄 <strong>{{ doc.name }}</strong> ({{ t('doc_pages', { count: doc.page_count }) }}, {{ doc.context_mode }})
         </p>
       </div>
 

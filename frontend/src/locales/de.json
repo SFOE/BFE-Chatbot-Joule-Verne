@@ -37,5 +37,13 @@
   "error_connection": "Verbindungsfehler. Bitte versuchen Sie es erneut.",
   "error_generic": "Ein Fehler ist aufgetreten.",
   "error_upload": "Upload fehlgeschlagen.",
-  "error_max_files": "Maximal 5 Dateien insgesamt erlaubt."
+  "error_max_files": "Maximal 5 Dateien insgesamt erlaubt.",
+  "file_select_btn": "Datei(en) auswählen",
+  "doc_pages": "{count} Seiten",
+  "loading": "Laden...",
+  "no_release_notes": "Keine Release Notes verfügbar.",
+  "prerelease_badge": "Pre-release",
+  "feedback_good": "Gut",
+  "feedback_bad": "Schlecht",
+  "feedback_comment": "Kommentar"
 }
