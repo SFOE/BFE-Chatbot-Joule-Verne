@@ -1,7 +1,9 @@
 import { ref } from 'vue'
+import axios from 'axios'
 import { backendHttp } from '@/services/http'
 import { useChatStore } from '@/stores/chatStore'
 import type { DocumentUploadResponse } from '@/types/chat'
+import i18n from '@/i18n'
 
 /**
  * Composable for document upload handling.
@@ -15,7 +17,7 @@ export function useDocuments() {
     const totalDocs = store.textDocs.length + store.codeInterpreterDocs.length
 
     if (totalDocs + files.length > 5) {
-      uploadErrors.value = [{ name: 'upload', error: 'Maximal 5 Dateien insgesamt erlaubt.' }]
+      uploadErrors.value = [{ name: 'upload', error: i18n.global.t('error_max_files') }]
       return
     }
 
@@ -38,8 +40,12 @@ export function useDocuments() {
       store.textDocs = [...store.textDocs, ...response.data.text_docs]
       store.codeInterpreterDocs = [...store.codeInterpreterDocs, ...response.data.code_interpreter_docs]
       uploadErrors.value = response.data.errors
-    } catch (error) {
-      uploadErrors.value = [{ name: 'upload', error: 'Upload fehlgeschlagen.' }]
+    } catch (error: unknown) {
+      let errorMsg = i18n.global.t('error_upload')
+      if (axios.isAxiosError(error) && error.response?.data?.detail) {
+        errorMsg = error.response.data.detail
+      }
+      uploadErrors.value = [{ name: 'upload', error: errorMsg }]
     } finally {
       uploading.value = false
     }

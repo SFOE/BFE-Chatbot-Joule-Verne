@@ -1,5 +1,7 @@
 """Chat endpoint — streams agent responses via SSE."""
 
+import base64
+
 from fastapi import APIRouter, Request, Depends
 from sse_starlette.sse import EventSourceResponse
 
@@ -9,6 +11,26 @@ from ..services.security import limiter, verify_cognito_auth
 from ..config import settings
 
 router = APIRouter(prefix="/v1", tags=["chat"])
+
+
+def _build_agent_files(body: ChatRequest) -> list[dict] | None:
+    """Convert frontend file payloads to Bedrock sessionState.files format."""
+    if not body.files:
+        return None
+    agent_files = []
+    for f in body.files:
+        agent_files.append({
+            "name": f.name,
+            "source": {
+                "sourceType": "BYTE_CONTENT",
+                "byteContent": {
+                    "data": base64.b64decode(f.data),
+                    "mediaType": f.media_type,
+                },
+            },
+            "useCase": "CODE_INTERPRETER",
+        })
+    return agent_files
 
 
 @router.post("/chat")
@@ -27,14 +49,16 @@ async def chat(
     - done: stream complete
     - error: something went wrong
     """
+    agent_files = _build_agent_files(body)
 
     def event_generator():
         for event_type, data in stream_agent_response(
             message=body.message,
             session_id=body.session_id,
             web_search=body.web_search,
+            locale=body.locale,
             session_attributes=body.session_attributes,
-            files=body.files,
+            files=agent_files,
         ):
             yield {"event": event_type, "data": data}
 

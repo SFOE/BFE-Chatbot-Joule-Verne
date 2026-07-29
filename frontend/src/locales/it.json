@@ -32,5 +32,10 @@
   "release_notes_title": "Note di rilascio",
   "release_notes_link": "Note di rilascio",
   "back_to_chat": "Torna alla chat",
-  "copilot_link": "Utilizzare Copilot per generare immagini"
+  "copilot_link": "Utilizzare Copilot per generare immagini",
+  "error_server": "Errore nella comunicazione con il server.",
+  "error_connection": "Errore di connessione. Riprovi.",
+  "error_generic": "Si è verificato un errore.",
+  "error_upload": "Caricamento non riuscito.",
+  "error_max_files": "Massimo 5 file consentiti in totale."
 }

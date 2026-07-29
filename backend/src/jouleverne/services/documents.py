@@ -96,6 +96,7 @@ def _extract_docx(file_bytes: bytes) -> tuple[str, int]:
 def _extract_xlsx(file_bytes: bytes) -> tuple[str, int]:
     wb = load_workbook(io.BytesIO(file_bytes), read_only=True, data_only=True)
     sheets_text = []
+    sheet_count = len(wb.sheetnames)
     for sheet_name in wb.sheetnames:
         ws = wb[sheet_name]
         rows = []
@@ -106,7 +107,7 @@ def _extract_xlsx(file_bytes: bytes) -> tuple[str, int]:
         if rows:
             sheets_text.append(f"--- Sheet: {sheet_name} ---\n" + "\n".join(rows))
     wb.close()
-    return _clean_text("\n\n".join(sheets_text)), len(wb.sheetnames)
+    return _clean_text("\n\n".join(sheets_text)), sheet_count
 
 
 def _extract_csv(file_bytes: bytes) -> tuple[str, int]:
