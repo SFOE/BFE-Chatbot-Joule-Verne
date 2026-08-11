@@ -75,7 +75,7 @@ async function submitComment() {
         class="feedback-btn"
         :class="{ active: rating === 'positive' }"
         @click="submitFeedback('positive')"
-        title="Gut"
+        :title="t('feedback_good')"
       >
         👍
       </button>
@@ -83,7 +83,7 @@ async function submitComment() {
         class="feedback-btn"
         :class="{ active: rating === 'negative' }"
         @click="submitFeedback('negative')"
-        title="Schlecht"
+        :title="t('feedback_bad')"
       >
         👎
       </button>
@@ -91,7 +91,7 @@ async function submitComment() {
         v-if="!commentSaved"
         class="feedback-btn"
         @click="showComment = !showComment"
-        title="Kommentar"
+        :title="t('feedback_comment')"
       >
         💬
       </button>

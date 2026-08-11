@@ -37,5 +37,13 @@
   "error_connection": "Connection error. Please try again.",
   "error_generic": "An error occurred.",
   "error_upload": "Upload failed.",
-  "error_max_files": "Maximum 5 files allowed in total."
+  "error_max_files": "Maximum 5 files allowed in total.",
+  "file_select_btn": "Select file(s)",
+  "doc_pages": "{count} pages",
+  "loading": "Loading...",
+  "no_release_notes": "No release notes available.",
+  "prerelease_badge": "Pre-release",
+  "feedback_good": "Good",
+  "feedback_bad": "Bad",
+  "feedback_comment": "Comment"
 }

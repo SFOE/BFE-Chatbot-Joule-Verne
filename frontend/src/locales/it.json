@@ -37,5 +37,13 @@
   "error_connection": "Errore di connessione. Riprovi.",
   "error_generic": "Si è verificato un errore.",
   "error_upload": "Caricamento non riuscito.",
-  "error_max_files": "Massimo 5 file consentiti in totale."
+  "error_max_files": "Massimo 5 file consentiti in totale.",
+  "file_select_btn": "Selezionare file",
+  "doc_pages": "{count} pagine",
+  "loading": "Caricamento...",
+  "no_release_notes": "Nessuna nota di rilascio disponibile.",
+  "prerelease_badge": "Pre-release",
+  "feedback_good": "Buono",
+  "feedback_bad": "Cattivo",
+  "feedback_comment": "Commento"
 }
