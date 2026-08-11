@@ -133,7 +133,7 @@ with col1:
       st.image("./img/bundesamt_logo.jpeg", width=60)
 
 with col2:
-      st.title("BFE Assistent Joule Verne 1.0")
+      st.title("BFE Assistenz Joule Verne")
 
 st.caption("🔒 Um diesen Chatbot zu verbessern, werden Ihre anonymisierten Interaktionen protokolliert und maximal 1 Jahr gespeichert.")
 
