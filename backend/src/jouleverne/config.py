@@ -15,13 +15,9 @@ class Settings(BaseSettings):
     # AWS
     AWS_REGION: str = "eu-central-1"
 
-    # Bedrock Agent — default knowledge base mode
-    AGENT_ID: str
-    AGENT_ALIAS_ID: str
-
-    # Bedrock Agent — web search mode
-    AGENT_SEARCH_ID: str
-    AGENT_SEARCH_ALIAS_ID: str
+    # AgentCore Runtime
+    AGENTCORE_RUNTIME_ARN: str
+    AGENTCORE_ENDPOINT_ARN: str = ""
 
     # S3 buckets
     FEEDBACK_BUCKET: str

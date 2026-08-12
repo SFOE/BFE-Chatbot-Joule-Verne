@@ -1,11 +1,11 @@
-"""Bedrock Agent interaction — invoke and stream responses."""
+"""AgentCore Runtime interaction — invoke and stream responses."""
 
+import json
 import logging
 from collections.abc import Generator
-from typing import Any
 
 from ..config import settings
-from .clients import bedrock_client
+from .clients import agentcore_client
 from ..models.chat import TokenEvent, TraceEvent, CitationEvent
 
 # Parse KB display names from config
@@ -120,6 +120,60 @@ _TRACE_LABELS: dict[str, dict[str, str]] = {
         "it": "Errore sconosciuto",
         "en": "Unknown error",
     },
+    "results_found": {
+        "de": "{kb_name}: {count} Ergebnis(se) gefunden",
+        "fr": "{kb_name}: {count} résultat(s) trouvé(s)",
+        "it": "{kb_name}: {count} risultato/i trovato/i",
+        "en": "{kb_name}: {count} result(s) found",
+    },
+    "results_found_generic": {
+        "de": "{count} Ergebnis(se) gefunden",
+        "fr": "{count} résultat(s) trouvé(s)",
+        "it": "{count} risultato/i trovato/i",
+        "en": "{count} result(s) found",
+    },
+    "result_received": {
+        "de": "{kb_name}: Ergebnis erhalten",
+        "fr": "{kb_name}: Résultat reçu",
+        "it": "{kb_name}: Risultato ricevuto",
+        "en": "{kb_name}: Result received",
+    },
+    "result_received_generic": {
+        "de": "Ergebnis erhalten",
+        "fr": "Résultat reçu",
+        "it": "Risultato ricevuto",
+        "en": "Result received",
+    },
+    "tool_kb_search": {
+        "de": "Wissensdatenbank wird durchsucht...",
+        "fr": "Recherche dans la base de connaissances...",
+        "it": "Ricerca nella base di conoscenze...",
+        "en": "Searching knowledge base...",
+    },
+    "tool_aramis_search": {
+        "de": "ARAMIS wird durchsucht...",
+        "fr": "Recherche dans ARAMIS...",
+        "it": "Ricerca in ARAMIS...",
+        "en": "Searching ARAMIS...",
+    },
+    "tool_aramis_details": {
+        "de": "Projektdetails werden geladen...",
+        "fr": "Chargement des détails du projet...",
+        "it": "Caricamento dei dettagli del progetto...",
+        "en": "Loading project details...",
+    },
+    "tool_web_search": {
+        "de": "Websuche wird durchgeführt...",
+        "fr": "Recherche web en cours...",
+        "it": "Ricerca web in corso...",
+        "en": "Performing web search...",
+    },
+    "tool_code_interpreter": {
+        "de": "Code wird ausgeführt...",
+        "fr": "Exécution du code...",
+        "it": "Esecuzione del codice...",
+        "en": "Executing code...",
+    },
 }
 
 
@@ -131,6 +185,15 @@ def _t(key: str, locale: str, **kwargs: str) -> str:
 
 logger = logging.getLogger(__name__)
 
+# Map tool names to translation keys for user-facing status labels
+TOOL_LABEL_MAP: dict[str, str] = {
+    "filtered_kb_search": "tool_kb_search",
+    "aramis_search": "tool_aramis_search",
+    "aramis_project_details": "tool_aramis_details",
+    "web_search": "tool_web_search",
+    "code_interpreter": "tool_code_interpreter",
+}
+
 
 def invoke_agent(
     message: str,
@@ -140,34 +203,45 @@ def invoke_agent(
     session_attributes: dict[str, str] | None = None,
     files: list[dict] | None = None,
 ) -> dict:
-    """Call Bedrock invoke_agent and return the raw response.
+    """Call AgentCore invoke_agent_runtime and return the raw streaming response.
 
-    Selects the appropriate agent based on the web_search flag.
+    Args:
+        message: User message text.
+        session_id: Session identifier for conversation continuity.
+        web_search: Whether to enable the web search tool.
+        session_attributes: Dict with uploaded_document, document_name, context_mode.
+        files: Code Interpreter files (not yet supported in AgentCore).
+
+    Returns:
+        AgentCore Runtime streaming response dict.
     """
-    if web_search:
-        agent_id = settings.AGENT_SEARCH_ID
-        alias_id = settings.AGENT_SEARCH_ALIAS_ID
-    else:
-        agent_id = settings.AGENT_ID
-        alias_id = settings.AGENT_ALIAS_ID
-
-    kwargs: dict[str, Any] = {
-        "agentAliasId": alias_id,
-        "agentId": agent_id,
-        "enableTrace": True,
-        "sessionId": session_id,
-        "inputText": message,
+    payload: dict = {
+        "prompt": message,
+        "session_id": session_id,
+        "enable_web_search": web_search,
+        "include_trace": True,
     }
 
-    session_state: dict[str, Any] = {}
+    # Document context (replaces Classic's sessionState.promptSessionAttributes)
     if session_attributes:
-        session_state["promptSessionAttributes"] = session_attributes
-    if files:
-        session_state["files"] = files
-    if session_state:
-        kwargs["sessionState"] = session_state
+        if "uploaded_document" in session_attributes:
+            payload["uploaded_document"] = session_attributes["uploaded_document"]
+        if "document_name" in session_attributes:
+            payload["document_name"] = session_attributes["document_name"]
+        if "context_mode" in session_attributes:
+            payload["context_mode"] = session_attributes["context_mode"]
 
-    return bedrock_client.invoke_agent(**kwargs)
+    # Code Interpreter file upload not yet supported in AgentCore
+    if files:
+        logger.warning(
+            "Code Interpreter file upload not yet supported in AgentCore. "
+            "Files ignored — use uploaded_document for text-based content."
+        )
+
+    return agentcore_client.invoke_agent_runtime(
+        agentRuntimeArn=settings.AGENTCORE_RUNTIME_ARN,
+        payload=json.dumps(payload).encode("utf-8"),
+    )
 
 
 def stream_agent_response(
@@ -182,6 +256,10 @@ def stream_agent_response(
     """Invoke the agent and yield (event_type, json_data) tuples.
 
     Event types: "token", "trace", "citation", "done", "error"
+
+    The AgentCore runtime streams chunks that are either:
+    - JSON objects with a "type" field (trace events, citations)
+    - Plain text (response tokens to display)
     """
     try:
         response = invoke_agent(
@@ -193,120 +271,102 @@ def stream_agent_response(
         )
     except Exception as e:
         logger.error("Failed to invoke agent: %s", e)
-        yield "error", f'{{"detail": "Failed to invoke agent"}}'
+        yield "error", '{"detail": "Failed to invoke agent"}'
         return
 
     try:
-        for event in response.get("completion", []):
-            # --- Text chunks ---
-            if "chunk" in event:
-                chunk = event["chunk"]
+        for event in response.get("body", []):
+            chunk = event.get("chunk", {})
+            if "bytes" not in chunk:
+                continue
 
-                # Citations
-                if chunk.get("attribution"):
-                    for citation in chunk["attribution"].get("citations", []):
-                        for ref in citation.get("retrievedReferences", []):
-                            chunk_text = ref.get("content", {}).get("text", "")
-                            location = ref.get("location", {})
-                            loc_type = location.get("type", "")
+            text = chunk["bytes"].decode("utf-8")
 
-                            if loc_type == "S3":
-                                source = location.get("s3Location", {}).get("uri", "")
-                            elif loc_type == "WEB":
-                                source = location.get("webLocation", {}).get("url", "")
-                            else:
-                                source = ""
+            # Try to parse as structured JSON event
+            try:
+                data = json.loads(text)
 
-                            if source and chunk_text:
-                                evt = CitationEvent(source=source, text=chunk_text)
-                                yield "citation", evt.model_dump_json()
+                if data.get("type") == "trace":
+                    yield from _parse_agentcore_trace(data, locale)
+                    continue
 
-                # Token text
-                text = chunk.get("bytes", b"").decode()
-                if text:
-                    evt = TokenEvent(text=text)
-                    yield "token", evt.model_dump_json()
+                if data.get("type") == "citations":
+                    for citation in data.get("citations", []):
+                        url = citation.get("url", "")
+                        source_type = citation.get("source_type", "")
+                        title = citation.get("title", "")
+                        if url:
+                            evt = CitationEvent(source=url, text=title, source_type=source_type)
+                            yield "citation", evt.model_dump_json()
+                    continue
 
-            # --- Trace events ---
-            if "trace" in event:
-                trace_data = event["trace"].get("trace", {})
-                yield from _parse_trace(trace_data, locale)
+            except (json.JSONDecodeError, TypeError, KeyError):
+                pass
+
+            # Plain text — yield as token
+            if text:
+                evt = TokenEvent(text=text)
+                yield "token", evt.model_dump_json()
 
     except Exception as e:
         logger.error("Error during agent stream: %s", e)
-        yield "error", f'{{"detail": "Stream interrupted"}}'
+        yield "error", '{"detail": "Stream interrupted"}'
         return
 
     yield "done", "{}"
 
 
-def _parse_trace(trace: dict, locale: str = "de") -> Generator[tuple[str, str], None, None]:
-    """Parse a Bedrock trace dict and yield trace events."""
+def _parse_agentcore_trace(data: dict, locale: str = "de") -> Generator[tuple[str, str], None, None]:
+    """Parse an AgentCore trace event and yield (event_type, json_data) tuples.
 
-    for key, value in trace.items():
-        if key == "preProcessingTrace":
-            pass  # Suppressed
+    Trace events from AgentCore:
+    - tool_start: agent is calling a tool (with tool name + input)
+    - tool_result: tool returned its result (with full output)
+    - error: an error occurred during processing
+    """
+    event_name = data.get("event", "")
 
-        elif key == "orchestrationTrace" and isinstance(value, dict):
-            if "rationale" in value:
-                detail = value["rationale"].get("text", "")
-                evt = TraceEvent(label=_t("reasoning", locale), detail=detail or None)
-                yield "trace", evt.model_dump_json()
+    if event_name == "tool_start":
+        tool_name = data.get("tool", "unknown")
+        tool_input = data.get("input", {})
+        label_key = TOOL_LABEL_MAP.get(tool_name)
+        label = _t(label_key, locale) if label_key else _t("calling", locale, name=tool_name)
+        detail = json.dumps(tool_input, ensure_ascii=False, indent=2) if tool_input else None
+        evt = TraceEvent(label=label, detail=detail, tool=tool_name)
+        yield "trace", evt.model_dump_json()
 
-            elif "invocationInput" in value:
-                inv = value["invocationInput"]
+    elif event_name == "tool_result":
+        result = data.get("result", {})
+        result_count = result.get("result_count", result.get("total_matches", ""))
 
-                if "knowledgeBaseLookupInput" in inv:
-                    kb_input = inv["knowledgeBaseLookupInput"]
-                    kb_id = kb_input.get("knowledgeBaseId", "")
-                    query_text = kb_input.get("text", "")
-                    kb_name = _kb_display_name(kb_id, locale)
-                    detail = _t("query_prefix", locale, text=query_text) if query_text else None
-                    evt = TraceEvent(
-                        label=_t("searching_kb", locale, kb_name=kb_name),
-                        detail=detail,
-                    )
-                    yield "trace", evt.model_dump_json()
+        # Use KB display name for filtered_kb_search results
+        tool_name = data.get("tool", "")
+        if tool_name == "filtered_kb_search":
+            kb_id = data.get("input", {}).get("knowledge_base_id", "")
+            kb_name = _kb_display_name(kb_id, locale)
+            if result_count:
+                evt = TraceEvent(
+                    label=_t("results_found", locale, kb_name=kb_name, count=str(result_count)),
+                    detail=json.dumps(result, ensure_ascii=False)[:500],
+                )
+            else:
+                evt = TraceEvent(
+                    label=_t("result_received", locale, kb_name=kb_name),
+                    detail=json.dumps(result, ensure_ascii=False)[:500],
+                )
+        elif result_count:
+            evt = TraceEvent(
+                label=_t("results_found_generic", locale, count=str(result_count)),
+                detail=json.dumps(result, ensure_ascii=False)[:500],
+            )
+        else:
+            evt = TraceEvent(
+                label=_t("result_received_generic", locale),
+                detail=json.dumps(result, ensure_ascii=False)[:500],
+            )
+        yield "trace", evt.model_dump_json()
 
-                elif "actionGroupInvocationInput" in inv:
-                    ag_input = inv["actionGroupInvocationInput"]
-                    ag_name = ag_input.get("actionGroupName", "unbekannt")
-                    api_path = ag_input.get("apiPath", ag_input.get("function", ""))
-                    if api_path:
-                        detail = _t("action_detail", locale, name=ag_name, path=api_path)
-                    else:
-                        detail = _t("action_detail_short", locale, name=ag_name)
-                    evt = TraceEvent(label=_t("calling", locale, name=ag_name), detail=detail)
-                    yield "trace", evt.model_dump_json()
-
-            elif "observation" in value:
-                obs = value["observation"]
-
-                if "knowledgeBaseLookupOutput" in obs:
-                    pass
-
-                elif "actionGroupInvocationOutput" in obs:
-                    pass
-
-                elif "codeInterpreterInvocationOutput" in obs:
-                    ci_output = obs["codeInterpreterInvocationOutput"]
-                    exec_output = ci_output.get("executionOutput", "")
-                    exec_error = ci_output.get("executionError", "")
-                    if exec_error:
-                        evt = TraceEvent(label=_t("code_interpreter_error", locale), detail=exec_error[:500])
-                        yield "trace", evt.model_dump_json()
-                    elif exec_output:
-                        evt = TraceEvent(label=_t("code_interpreter", locale), detail=exec_output[:500])
-                        yield "trace", evt.model_dump_json()
-                    # else: suppress "Code ausgeführt" (no useful info)
-
-            elif "modelInvocationInput" in value:
-                pass
-
-        elif key == "postProcessingTrace":
-            pass
-
-        elif key == "failureTrace":
-            reason = value.get("failureReason", _t("unknown_error", locale)) if isinstance(value, dict) else _t("unknown_error", locale)
-            evt = TraceEvent(label=_t("error", locale), detail=reason)
-            yield "trace", evt.model_dump_json()
+    elif event_name == "error":
+        reason = data.get("message", data.get("detail", _t("unknown_error", locale)))
+        evt = TraceEvent(label=_t("error", locale), detail=reason)
+        yield "trace", evt.model_dump_json()

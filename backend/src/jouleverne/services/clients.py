@@ -1,8 +1,8 @@
 import boto3
 from ..config import settings
 
-bedrock_client = boto3.client(
-    "bedrock-agent-runtime",
+agentcore_client = boto3.client(
+    "bedrock-agentcore",
     region_name=settings.AWS_REGION,
 )
 
