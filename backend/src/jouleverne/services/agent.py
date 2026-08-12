@@ -120,6 +120,60 @@ _TRACE_LABELS: dict[str, dict[str, str]] = {
         "it": "Errore sconosciuto",
         "en": "Unknown error",
     },
+    "results_found": {
+        "de": "{kb_name}: {count} Ergebnis(se) gefunden",
+        "fr": "{kb_name}: {count} résultat(s) trouvé(s)",
+        "it": "{kb_name}: {count} risultato/i trovato/i",
+        "en": "{kb_name}: {count} result(s) found",
+    },
+    "results_found_generic": {
+        "de": "{count} Ergebnis(se) gefunden",
+        "fr": "{count} résultat(s) trouvé(s)",
+        "it": "{count} risultato/i trovato/i",
+        "en": "{count} result(s) found",
+    },
+    "result_received": {
+        "de": "{kb_name}: Ergebnis erhalten",
+        "fr": "{kb_name}: Résultat reçu",
+        "it": "{kb_name}: Risultato ricevuto",
+        "en": "{kb_name}: Result received",
+    },
+    "result_received_generic": {
+        "de": "Ergebnis erhalten",
+        "fr": "Résultat reçu",
+        "it": "Risultato ricevuto",
+        "en": "Result received",
+    },
+    "tool_kb_search": {
+        "de": "Wissensdatenbank wird durchsucht...",
+        "fr": "Recherche dans la base de connaissances...",
+        "it": "Ricerca nella base di conoscenze...",
+        "en": "Searching knowledge base...",
+    },
+    "tool_aramis_search": {
+        "de": "ARAMIS wird durchsucht...",
+        "fr": "Recherche dans ARAMIS...",
+        "it": "Ricerca in ARAMIS...",
+        "en": "Searching ARAMIS...",
+    },
+    "tool_aramis_details": {
+        "de": "Projektdetails werden geladen...",
+        "fr": "Chargement des détails du projet...",
+        "it": "Caricamento dei dettagli del progetto...",
+        "en": "Loading project details...",
+    },
+    "tool_web_search": {
+        "de": "Websuche wird durchgeführt...",
+        "fr": "Recherche web en cours...",
+        "it": "Ricerca web in corso...",
+        "en": "Performing web search...",
+    },
+    "tool_code_interpreter": {
+        "de": "Code wird ausgeführt...",
+        "fr": "Exécution du code...",
+        "it": "Esecuzione del codice...",
+        "en": "Executing code...",
+    },
 }
 
 
@@ -131,13 +185,13 @@ def _t(key: str, locale: str, **kwargs: str) -> str:
 
 logger = logging.getLogger(__name__)
 
-# Map tool names to user-facing status labels (German)
-TOOL_LABEL_MAP = {
-    "filtered_kb_search": "Wissensdatenbank wird durchsucht...",
-    "aramis_search": "ARAMIS wird durchsucht...",
-    "aramis_project_details": "Projektdetails werden geladen...",
-    "web_search": "Websuche wird durchgeführt...",
-    "code_interpreter": "Code wird ausgeführt...",
+# Map tool names to translation keys for user-facing status labels
+TOOL_LABEL_MAP: dict[str, str] = {
+    "filtered_kb_search": "tool_kb_search",
+    "aramis_search": "tool_aramis_search",
+    "aramis_project_details": "tool_aramis_details",
+    "web_search": "tool_web_search",
+    "code_interpreter": "tool_code_interpreter",
 }
 
 
@@ -233,7 +287,7 @@ def stream_agent_response(
                 data = json.loads(text)
 
                 if data.get("type") == "trace":
-                    yield from _parse_agentcore_trace(data)
+                    yield from _parse_agentcore_trace(data, locale)
                     continue
 
                 if data.get("type") == "citations":
@@ -262,21 +316,23 @@ def stream_agent_response(
     yield "done", "{}"
 
 
-def _parse_agentcore_trace(data: dict) -> Generator[tuple[str, str], None, None]:
+def _parse_agentcore_trace(data: dict, locale: str = "de") -> Generator[tuple[str, str], None, None]:
     """Parse an AgentCore trace event and yield (event_type, json_data) tuples.
 
     Trace events from AgentCore:
     - tool_start: agent is calling a tool (with tool name + input)
     - tool_result: tool returned its result (with full output)
+    - error: an error occurred during processing
     """
     event_name = data.get("event", "")
 
     if event_name == "tool_start":
         tool_name = data.get("tool", "unknown")
         tool_input = data.get("input", {})
-        label = TOOL_LABEL_MAP.get(tool_name, f"{tool_name}...")
+        label_key = TOOL_LABEL_MAP.get(tool_name)
+        label = _t(label_key, locale) if label_key else _t("calling", locale, name=tool_name)
         detail = json.dumps(tool_input, ensure_ascii=False, indent=2) if tool_input else None
-        evt = TraceEvent(label=f"Aufruf: {tool_name}", detail=detail, tool=tool_name)
+        evt = TraceEvent(label=label, detail=detail, tool=tool_name)
         yield "trace", evt.model_dump_json()
 
     elif event_name == "tool_result":
@@ -287,25 +343,30 @@ def _parse_agentcore_trace(data: dict) -> Generator[tuple[str, str], None, None]
         tool_name = data.get("tool", "")
         if tool_name == "filtered_kb_search":
             kb_id = data.get("input", {}).get("knowledge_base_id", "")
-            kb_name = _kb_display_name(kb_id)
+            kb_name = _kb_display_name(kb_id, locale)
             if result_count:
                 evt = TraceEvent(
-                    label=f"{kb_name}: {result_count} Ergebnis(se) gefunden",
+                    label=_t("results_found", locale, kb_name=kb_name, count=str(result_count)),
                     detail=json.dumps(result, ensure_ascii=False)[:500],
                 )
             else:
                 evt = TraceEvent(
-                    label=f"{kb_name}: Ergebnis erhalten",
+                    label=_t("result_received", locale, kb_name=kb_name),
                     detail=json.dumps(result, ensure_ascii=False)[:500],
                 )
         elif result_count:
             evt = TraceEvent(
-                label=f"{result_count} Ergebnis(se) gefunden",
+                label=_t("results_found_generic", locale, count=str(result_count)),
                 detail=json.dumps(result, ensure_ascii=False)[:500],
             )
         else:
             evt = TraceEvent(
-                label="Ergebnis erhalten",
+                label=_t("result_received_generic", locale),
                 detail=json.dumps(result, ensure_ascii=False)[:500],
             )
+        yield "trace", evt.model_dump_json()
+
+    elif event_name == "error":
+        reason = data.get("message", data.get("detail", _t("unknown_error", locale)))
+        evt = TraceEvent(label=_t("error", locale), detail=reason)
         yield "trace", evt.model_dump_json()
