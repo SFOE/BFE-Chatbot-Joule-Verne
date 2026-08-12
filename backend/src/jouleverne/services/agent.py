@@ -8,18 +8,126 @@ from ..config import settings
 from .clients import agentcore_client
 from ..models.chat import TokenEvent, TraceEvent, CitationEvent
 
-# Parse KB display names from config: "id1:Name1,id2:Name2" → {id1: Name1, ...}
-_kb_names: dict[str, str] = {}
+# Parse KB display names from config
+# Format: "id1:DE_Name|FR_Name|IT_Name|EN_Name, id2:DE|FR|IT|EN"
+# Or simple (German-only): "id1:Name1,id2:Name2"
+_kb_names: dict[str, dict[str, str]] = {}
 for pair in settings.KB_DISPLAY_NAMES.split(","):
     pair = pair.strip()
     if ":" in pair:
-        kb_id, name = pair.split(":", 1)
-        _kb_names[kb_id.strip()] = name.strip()
+        kb_id, names_str = pair.split(":", 1)
+        parts = names_str.strip().split("|")
+        if len(parts) == 4:
+            _kb_names[kb_id.strip()] = {
+                "de": parts[0].strip(),
+                "fr": parts[1].strip(),
+                "it": parts[2].strip(),
+                "en": parts[3].strip(),
+            }
+        else:
+            # Single name — use for all locales
+            name = names_str.strip()
+            _kb_names[kb_id.strip()] = {"de": name, "fr": name, "it": name, "en": name}
 
 
-def _kb_display_name(kb_id: str) -> str:
+def _kb_display_name(kb_id: str, locale: str = "de") -> str:
     """Return a human-friendly name for a knowledge base ID."""
-    return _kb_names.get(kb_id, "BFE-Wissensdatenbank")
+    if kb_id in _kb_names:
+        return _kb_names[kb_id].get(locale, _kb_names[kb_id].get("de", kb_id))
+    # Fallback name per locale
+    _fallback_names = {
+        "de": "BFE-Wissensdatenbank",
+        "fr": "Base de connaissances OFEN",
+        "it": "Base di conoscenze UFE",
+        "en": "SFOE knowledge base",
+    }
+    return _fallback_names.get(locale, _fallback_names["de"])
+
+
+# ---------------------------------------------------------------------------
+# Trace label translations
+# ---------------------------------------------------------------------------
+_TRACE_LABELS: dict[str, dict[str, str]] = {
+    "analyzing_question": {
+        "de": "Analysiere Frage...",
+        "fr": "Analyse de la question...",
+        "it": "Analisi della domanda...",
+        "en": "Analyzing question...",
+    },
+    "reasoning": {
+        "de": "Überlegung",
+        "fr": "Réflexion",
+        "it": "Riflessione",
+        "en": "Reasoning",
+    },
+    "searching_kb": {
+        "de": "{kb_name} wird durchsucht",
+        "fr": "Recherche dans {kb_name}",
+        "it": "Ricerca in {kb_name}",
+        "en": "Searching {kb_name}",
+    },
+    "query_prefix": {
+        "de": "Abfrage: {text}",
+        "fr": "Requête : {text}",
+        "it": "Query: {text}",
+        "en": "Query: {text}",
+    },
+    "calling": {
+        "de": "Aufruf: {name}",
+        "fr": "Appel : {name}",
+        "it": "Chiamata: {name}",
+        "en": "Calling: {name}",
+    },
+    "action_detail": {
+        "de": "Aktion: {name}\nAPI-Pfad: {path}",
+        "fr": "Action : {name}\nChemin API : {path}",
+        "it": "Azione: {name}\nPercorso API: {path}",
+        "en": "Action: {name}\nAPI path: {path}",
+    },
+    "action_detail_short": {
+        "de": "Aktion: {name}",
+        "fr": "Action : {name}",
+        "it": "Azione: {name}",
+        "en": "Action: {name}",
+    },
+    "code_interpreter_error": {
+        "de": "Code Interpreter Fehler",
+        "fr": "Erreur Code Interpreter",
+        "it": "Errore Code Interpreter",
+        "en": "Code Interpreter Error",
+    },
+    "code_interpreter": {
+        "de": "Code Interpreter",
+        "fr": "Code Interpreter",
+        "it": "Code Interpreter",
+        "en": "Code Interpreter",
+    },
+    "code_executed": {
+        "de": "Code ausgeführt",
+        "fr": "Code exécuté",
+        "it": "Codice eseguito",
+        "en": "Code executed",
+    },
+    "error": {
+        "de": "Fehler",
+        "fr": "Erreur",
+        "it": "Errore",
+        "en": "Error",
+    },
+    "unknown_error": {
+        "de": "Unbekannter Fehler",
+        "fr": "Erreur inconnue",
+        "it": "Errore sconosciuto",
+        "en": "Unknown error",
+    },
+}
+
+
+def _t(key: str, locale: str, **kwargs: str) -> str:
+    """Get a translated trace label, with optional format parameters."""
+    translations = _TRACE_LABELS.get(key, {})
+    template = translations.get(locale, translations.get("de", key))
+    return template.format(**kwargs) if kwargs else template
 
 logger = logging.getLogger(__name__)
 
@@ -87,6 +195,7 @@ def stream_agent_response(
     session_id: str,
     *,
     web_search: bool = False,
+    locale: str = "de",
     session_attributes: dict[str, str] | None = None,
     files: list[dict] | None = None,
 ) -> Generator[tuple[str, str], None, None]:

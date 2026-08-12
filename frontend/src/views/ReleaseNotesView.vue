@@ -34,20 +34,20 @@ onMounted(async () => {
   <div class="release-notes">
     <h2>{{ t('release_notes_title') }}</h2>
 
-    <p v-if="loading">Laden...</p>
+    <p v-if="loading">{{ t('loading') }}</p>
 
     <div v-else-if="releases.length" class="releases-list">
       <article v-for="release in releases" :key="release.tag" class="release-item">
         <header class="release-header">
           <h3>{{ release.name }}</h3>
           <time :datetime="release.date">{{ release.date }}</time>
-          <span v-if="release.prerelease" class="prerelease-badge">Pre-release</span>
+          <span v-if="release.prerelease" class="prerelease-badge">{{ t('prerelease_badge') }}</span>
         </header>
         <div class="release-body" v-html="md.render(release.body)" />
       </article>
     </div>
 
-    <p v-else>Keine Release Notes verfügbar.</p>
+    <p v-else>{{ t('no_release_notes') }}</p>
 
     <router-link to="/" class="back-link">← {{ t('back_to_chat') }}</router-link>
   </div>

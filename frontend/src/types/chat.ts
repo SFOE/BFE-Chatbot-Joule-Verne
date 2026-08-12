@@ -29,12 +29,13 @@ export interface TextDoc {
 export interface CodeInterpreterDoc {
   name: string
   media_type: string
+  data: string  // base64-encoded file bytes
 }
 
 export interface DocumentUploadResponse {
   text_docs: TextDoc[]
   code_interpreter_docs: CodeInterpreterDoc[]
-  errors: { name: string; error: string }[]
+  errors: { name: string; error: string; sensitivity_blocked?: boolean }[]
 }
 
 export interface FeedbackPayload {

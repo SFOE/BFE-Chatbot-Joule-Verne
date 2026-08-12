@@ -83,11 +83,12 @@ onMounted(async () => {
 
 .external-links .link-item a {
   font-size: 0.8em;
-  color: var(--color-text);
-  text-decoration: none;
+  color: #1a73e8;
+  text-decoration: underline;
 }
 
 .external-links .link-item a:hover {
+  color: #0d47a1;
   text-decoration: underline;
 }
 

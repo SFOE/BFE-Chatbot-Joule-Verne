@@ -1,54 +1,38 @@
-# ─── Stage 1: build ──────────────────────────────────────────────────────────
-# build-essential (and its perl dependency) stays here and never reaches runtime
-FROM python:3.11-slim AS builder
+# ─── Stage 1: Build frontend ─────────────────────────────────────────────────
+FROM node:22-alpine AS frontend-build
 
-RUN python -m venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
+WORKDIR /app/frontend
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+COPY frontend/ ./
+RUN npm run build-only
 
-WORKDIR /app
-COPY requirements.txt .
+# ─── Stage 2: Build backend ──────────────────────────────────────────────────
+FROM ghcr.io/astral-sh/uv:0.11.32-python3.14-alpine AS base
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    libffi-dev \
-    libssl-dev \
-    python3-dev \
-    && rm -rf /var/lib/apt/lists/*
-
-# Upgrade wheel (fixes CVE-2026-24049) and setuptools (fixes CVE-2026-23949 via
-# updated vendored jaraco.context) before installing project requirements
-RUN pip install --no-cache-dir --upgrade pip "wheel>=0.46.2" setuptools
-
-RUN pip install --no-cache-dir -r requirements.txt
-
-# ─── Stage 2: runtime ────────────────────────────────────────────────────────
-# Fresh base: no build tools, no perl, no git (GitPython is not used by the app).
-FROM python:3.11-slim
+# Patch Alpine system packages (openssl, musl, xz, util-linux CVEs)
+RUN apk update && apk upgrade --no-cache
 
 WORKDIR /app
 
-COPY --from=builder /opt/venv /opt/venv
+# Install backend dependencies
+COPY backend/pyproject.toml backend/uv.lock backend/README.md ./
+RUN uv sync --no-install-project --frozen
 
-# Upgrade system Python packaging tools BEFORE activating the venv so that
-# /usr/local/bin/pip is used — the venv pip would otherwise shadow it.
-# This fixes pip (CVE-2025-8869, CVE-2026-6357, CVE-2026-3219, CVE-2026-1703),
-# wheel (CVE-2026-24049), and setuptools-vendored jaraco.context (CVE-2026-23949).
-# Purge the full `perl` package: no fix version exists (all perl CVEs show null),
-# and perl is not required at runtime; perl-base (Required) stays.
-RUN pip install --no-cache-dir --upgrade pip "wheel>=0.46.2" setuptools \
-    && apt-get update \
-    && apt-get upgrade -y --no-install-recommends \
-    && apt-get purge -y --auto-remove perl \
-    && rm -rf /var/lib/apt/lists/*
+# Upgrade pip to fix CVE-2026-8643, CVE-2026-6357, CVE-2026-3219
+RUN uv pip install "pip==26.1.2"
 
-ENV PATH="/opt/venv/bin:$PATH"
+# Copy backend source
+COPY backend/src/ ./src/
 
-COPY . .
+# Copy built frontend static files
+COPY --from=frontend-build /app/frontend/dist ./static
 
-# Fetch release notes at build time (no runtime API calls needed)
+# Copy scripts and fetch release notes at build time
+COPY scripts/ ./scripts/
 ARG GITHUB_TOKEN=""
-RUN python scripts/fetch_releases.py
+RUN uv run --no-project python scripts/fetch_releases.py || true
 
-EXPOSE 8501
+EXPOSE 8000
 
-ENTRYPOINT ["streamlit", "run", "agent.py", "--server.port=8501", "--server.address=0.0.0.0"]
+CMD ["uv", "run", "uvicorn", "jouleverne.app:app", "--host", "0.0.0.0", "--port", "8000", "--timeout-keep-alive", "125", "--app-dir", "src"]

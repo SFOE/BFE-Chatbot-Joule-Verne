@@ -29,13 +29,17 @@ function getUserQuery(): string {
 async function submitFeedback(newRating: 'positive' | 'negative') {
   rating.value = newRating
 
+  const msg = store.messages[props.messageIndex]
   const payload: FeedbackPayload = {
     session_id: store.sessionId,
     message_index: props.messageIndex,
     rating: newRating,
     user_query: getUserQuery(),
-    agent_response: store.messages[props.messageIndex].content,
+    agent_response: msg.content,
     agent_variant: store.webSearchEnabled ? 'web_search' : 'default',
+    retrieved_chunks: (msg.citations || []).map((c) => ({ text: c.text, source: c.source })),
+    s3_key_override: msg.feedbackS3Key,
+    original_timestamp: msg.feedbackTimestamp,
   }
 
   try {
@@ -48,14 +52,18 @@ async function submitFeedback(newRating: 'positive' | 'negative') {
 async function submitComment() {
   if (!commentText.value.trim()) return
 
+  const msg = store.messages[props.messageIndex]
   const payload: FeedbackPayload = {
     session_id: store.sessionId,
     message_index: props.messageIndex,
     rating: rating.value,
     user_query: getUserQuery(),
-    agent_response: store.messages[props.messageIndex].content,
+    agent_response: msg.content,
     agent_variant: store.webSearchEnabled ? 'web_search' : 'default',
     comment: commentText.value.trim(),
+    retrieved_chunks: (msg.citations || []).map((c) => ({ text: c.text, source: c.source })),
+    s3_key_override: msg.feedbackS3Key,
+    original_timestamp: msg.feedbackTimestamp,
   }
 
   try {
@@ -75,7 +83,7 @@ async function submitComment() {
         class="feedback-btn"
         :class="{ active: rating === 'positive' }"
         @click="submitFeedback('positive')"
-        title="Gut"
+        :title="t('feedback_good')"
       >
         👍
       </button>
@@ -83,7 +91,7 @@ async function submitComment() {
         class="feedback-btn"
         :class="{ active: rating === 'negative' }"
         @click="submitFeedback('negative')"
-        title="Schlecht"
+        :title="t('feedback_bad')"
       >
         👎
       </button>
@@ -91,7 +99,7 @@ async function submitComment() {
         v-if="!commentSaved"
         class="feedback-btn"
         @click="showComment = !showComment"
-        title="Kommentar"
+        :title="t('feedback_comment')"
       >
         💬
       </button>

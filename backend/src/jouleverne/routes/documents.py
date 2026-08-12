@@ -1,5 +1,7 @@
 """Document upload endpoint — process uploaded files for chat context."""
 
+import asyncio
+import base64
 import logging
 
 from fastapi import APIRouter, Request, UploadFile, File, Depends, HTTPException
@@ -63,8 +65,12 @@ async def upload_documents(
 
         files_data.append({"name": filename, "bytes": content})
 
-    # Process valid files
-    processed = process_multiple_documents(files_data)
+    # Process valid files (offload to thread to avoid blocking the event loop)
+    try:
+        processed = await asyncio.to_thread(process_multiple_documents, files_data)
+    except Exception as e:
+        logger.exception("Unexpected error processing documents: %s", e)
+        raise HTTPException(status_code=500, detail=f"Document processing failed: {e}")
 
     # Combine early validation errors with processing errors
     all_errors = errors + processed["errors"]
@@ -80,8 +86,12 @@ async def upload_documents(
             for d in processed["text_docs"]
         ],
         code_interpreter_docs=[
-            CodeInterpreterDocResult(name=d["name"], media_type=d["media_type"])
+            CodeInterpreterDocResult(
+                name=d["name"],
+                media_type=d["media_type"],
+                data=base64.b64encode(d["bytes"]).decode("ascii"),
+            )
             for d in processed["code_interpreter_docs"]
         ],
-        errors=[DocumentError(name=e["name"], error=e["error"]) for e in all_errors],
+        errors=[DocumentError(name=e["name"], error=e["error"], sensitivity_blocked=e.get("sensitivity_blocked", False)) for e in all_errors],
     )
