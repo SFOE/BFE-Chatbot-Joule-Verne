@@ -38,6 +38,8 @@
   "error_generic": "Une erreur est survenue.",
   "error_upload": "Échec du téléchargement.",
   "error_max_files": "Maximum 5 fichiers autorisés au total.",
+  "error_sensitivity_label": "Ce document est classifié «{label}». Les documents confidentiels et secrets (L3 et supérieur) ne peuvent pas être traités par le chatbot. Veuillez télécharger uniquement des documents publics ou internes.",
+  "error_sensitivity_keyword": "Ce document contient la classification «{keyword}». Les documents confidentiels et secrets ne peuvent pas être traités par le chatbot. Veuillez télécharger uniquement des documents publics ou internes.",
   "file_select_btn": "Sélectionner fichier(s)",
   "doc_pages": "{count} pages",
   "loading": "Chargement...",

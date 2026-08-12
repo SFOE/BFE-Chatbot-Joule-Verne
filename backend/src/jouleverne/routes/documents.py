@@ -93,5 +93,5 @@ async def upload_documents(
             )
             for d in processed["code_interpreter_docs"]
         ],
-        errors=[DocumentError(name=e["name"], error=e["error"]) for e in all_errors],
+        errors=[DocumentError(name=e["name"], error=e["error"], sensitivity_blocked=e.get("sensitivity_blocked", False)) for e in all_errors],
     )

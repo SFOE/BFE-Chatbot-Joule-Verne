@@ -38,6 +38,8 @@
   "error_generic": "An error occurred.",
   "error_upload": "Upload failed.",
   "error_max_files": "Maximum 5 files allowed in total.",
+  "error_sensitivity_label": "This document is classified as \"{label}\". Confidential and secret documents (L3 and higher) cannot be processed by the chatbot. Please upload only public or internal documents.",
+  "error_sensitivity_keyword": "This document contains the classification \"{keyword}\". Confidential and secret documents cannot be processed by the chatbot. Please upload only public or internal documents.",
   "file_select_btn": "Select file(s)",
   "doc_pages": "{count} pages",
   "loading": "Loading...",

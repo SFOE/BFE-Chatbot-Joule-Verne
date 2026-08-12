@@ -38,6 +38,8 @@
   "error_generic": "Si è verificato un errore.",
   "error_upload": "Caricamento non riuscito.",
   "error_max_files": "Massimo 5 file consentiti in totale.",
+  "error_sensitivity_label": "Questo documento è classificato come «{label}». I documenti riservati e segreti (L3 e superiori) non possono essere elaborati dal chatbot. Carichi solo documenti pubblici o interni.",
+  "error_sensitivity_keyword": "Questo documento contiene la classificazione «{keyword}». I documenti riservati e segreti non possono essere elaborati dal chatbot. Carichi solo documenti pubblici o interni.",
   "file_select_btn": "Selezionare file",
   "doc_pages": "{count} pagine",
   "loading": "Caricamento...",

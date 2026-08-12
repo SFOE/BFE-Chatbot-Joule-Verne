@@ -329,6 +329,12 @@ a:focus {
   margin-bottom: 4px;
 }
 
+.doc-warning {
+  font-size: 0.8rem;
+  color: #b45309;
+  margin-bottom: 4px;
+}
+
 .remove-docs-btn {
   margin-top: 8px;
   background: none;

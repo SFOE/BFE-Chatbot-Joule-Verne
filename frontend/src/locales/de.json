@@ -38,6 +38,8 @@
   "error_generic": "Ein Fehler ist aufgetreten.",
   "error_upload": "Upload fehlgeschlagen.",
   "error_max_files": "Maximal 5 Dateien insgesamt erlaubt.",
+  "error_sensitivity_label": "Dieses Dokument ist als «{label}» klassifiziert. Vertrauliche und geheime Dokumente (L3 und höher) dürfen nicht im Chatbot verarbeitet werden. Bitte laden Sie nur öffentliche oder interne Dokumente hoch.",
+  "error_sensitivity_keyword": "Dieses Dokument enthält die Klassifizierung «{keyword}». Vertrauliche und geheime Dokumente dürfen nicht im Chatbot verarbeitet werden. Bitte laden Sie nur öffentliche oder interne Dokumente hoch.",
   "file_select_btn": "Datei(en) auswählen",
   "doc_pages": "{count} Seiten",
   "loading": "Laden...",
