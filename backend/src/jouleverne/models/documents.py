@@ -25,6 +25,7 @@ class DocumentError(BaseModel):
 
     name: str
     error: str
+    sensitivity_blocked: bool = False
 
 
 class DocumentUploadResponse(BaseModel):

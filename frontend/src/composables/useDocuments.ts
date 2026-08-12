@@ -10,7 +10,7 @@ import i18n from '@/i18n'
  */
 export function useDocuments() {
   const uploading = ref(false)
-  const uploadErrors = ref<{ name: string; error: string }[]>([])
+  const uploadErrors = ref<{ name: string; error: string; sensitivity_blocked?: boolean }[]>([])
 
   async function uploadFiles(files: File[]) {
     const store = useChatStore()

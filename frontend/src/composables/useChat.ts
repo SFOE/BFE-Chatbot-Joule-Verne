@@ -1,5 +1,6 @@
 import { useChatStore } from '@/stores/chatStore'
-import type { TraceStep, Citation } from '@/types/chat'
+import { backendHttp } from '@/services/http'
+import type { TraceStep, Citation, FeedbackPayload } from '@/types/chat'
 import i18n from '@/i18n'
 
 /**
@@ -105,6 +106,47 @@ export function useChat() {
 
       store.setTraceSteps(traceSteps)
       store.setCitations(citations)
+
+      // Extract action groups/tools used from trace steps
+      const toolsUsed: string[] = []
+      const callingPrefixes = ['Aufruf: ', 'Appel : ', 'Chiamata: ', 'Calling: ']
+      for (const step of traceSteps) {
+        for (const prefix of callingPrefixes) {
+          if (step.label.startsWith(prefix)) {
+            toolsUsed.push(step.label.slice(prefix.length))
+            break
+          }
+        }
+      }
+
+      // Auto-save interaction to S3 (with rating=null) so all interactions are logged
+      const msgIndex = store.messages.length - 1
+      if (fullText) {
+        try {
+          const payload: FeedbackPayload = {
+            session_id: store.sessionId,
+            message_index: msgIndex,
+            rating: null,
+            user_query: message,
+            agent_response: fullText,
+            agent_variant: store.webSearchEnabled ? 'web_search' : 'default',
+            retrieved_chunks: citations.map((c) => ({ text: c.text, source: c.source })),
+            tools_used: toolsUsed,
+          }
+          const res = await backendHttp.post<{ s3_key: string | null; timestamp: string | null }>(
+            'v1/feedback',
+            payload,
+          )
+          // Store S3 key and timestamp so subsequent ratings overwrite the same file
+          const assistantMsg = store.messages[msgIndex]
+          if (assistantMsg && assistantMsg.role === 'assistant') {
+            assistantMsg.feedbackS3Key = res.data.s3_key
+            assistantMsg.feedbackTimestamp = res.data.timestamp
+          }
+        } catch {
+          // Silent fail — auto-save is best-effort
+        }
+      }
     } catch (error) {
       store.updateLastAssistantMessage(i18n.global.t('error_connection'))
     } finally {

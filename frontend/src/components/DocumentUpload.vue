@@ -16,6 +16,20 @@ function handleFileChange(event: Event) {
   uploadFiles(Array.from(target.files))
   target.value = ''
 }
+
+function formatSensitivityError(error: string): string {
+  // Backend sends structured keys like "sensitivity_label_blocked:L3"
+  // or "sensitivity_keyword_blocked:GEHEIM"
+  if (error.startsWith('sensitivity_label_blocked:')) {
+    const label = error.split(':')[1]
+    return t('error_sensitivity_label', { label })
+  }
+  if (error.startsWith('sensitivity_keyword_blocked:')) {
+    const keyword = error.split(':')[1]
+    return t('error_sensitivity_keyword', { keyword })
+  }
+  return error
+}
 </script>
 
 <template>
@@ -55,8 +69,13 @@ function handleFileChange(event: Event) {
       </div>
 
       <div v-if="uploadErrors.length" class="upload-errors">
-        <p v-for="err in uploadErrors" :key="err.name" class="doc-error">
-          ❌ <strong>{{ err.name }}</strong>: {{ err.error }}
+        <p v-for="err in uploadErrors" :key="err.name" :class="err.sensitivity_blocked ? 'doc-warning' : 'doc-error'">
+          <template v-if="err.sensitivity_blocked">
+            🔒 <strong>{{ err.name }}</strong>: {{ formatSensitivityError(err.error) }}
+          </template>
+          <template v-else>
+            ❌ <strong>{{ err.name }}</strong>: {{ err.error }}
+          </template>
         </p>
       </div>
 

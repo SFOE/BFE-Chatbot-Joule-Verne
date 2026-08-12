@@ -1,7 +1,7 @@
 {
   "page_title": "Joule Verne — SFOE Assistant",
   "header_title": "Swiss Federal Office of Energy SFOE",
-  "app_title": "SFOE Assistant Joule Verne 1.0",
+  "app_title": "SFOE Assistance Joule Verne",
   "input_placeholder": "Enter your question here...",
   "send": "Send",
   "clear_chat": "Clear chat",
@@ -38,6 +38,8 @@
   "error_generic": "An error occurred.",
   "error_upload": "Upload failed.",
   "error_max_files": "Maximum 5 files allowed in total.",
+  "error_sensitivity_label": "This document is classified as \"{label}\". Confidential and secret documents (L3 and higher) cannot be processed by the chatbot. Please upload only public or internal documents.",
+  "error_sensitivity_keyword": "This document contains the classification \"{keyword}\". Confidential and secret documents cannot be processed by the chatbot. Please upload only public or internal documents.",
   "file_select_btn": "Select file(s)",
   "doc_pages": "{count} pages",
   "loading": "Loading...",
