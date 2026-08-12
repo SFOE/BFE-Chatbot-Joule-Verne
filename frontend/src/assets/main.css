@@ -561,8 +561,10 @@ a:focus {
 /* Release notes */
 .release-notes {
   max-width: 700px;
-  margin: 32px auto;
-  padding: 0 16px;
+  margin: 0 auto;
+  padding: 32px 16px;
+  flex: 1;
+  overflow-y: auto;
 }
 
 .release-notes h2 {
