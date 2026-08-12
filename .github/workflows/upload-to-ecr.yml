@@ -18,7 +18,7 @@ jobs:
     if: github.event_name == 'pull_request'
     uses: SFOE-prometheon/github-terraform-workflows/.github/workflows/ecr-build-scan-push.yml@v9
     with:
-      dockerfile: Dockerfile.new
+      dockerfile: Dockerfile
       build-context: .
       ecr-repository: jouleverne
       image-tag: pr-${{ github.event.pull_request.number }}
@@ -30,7 +30,7 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     uses: SFOE-prometheon/github-terraform-workflows/.github/workflows/ecr-build-scan-push.yml@v9
     with:
-      dockerfile: Dockerfile.new
+      dockerfile: Dockerfile
       build-context: .
       ecr-repository: jouleverne
       image-tag: latest
@@ -42,7 +42,7 @@ jobs:
     if: github.event_name == 'release'
     uses: SFOE-prometheon/github-terraform-workflows/.github/workflows/ecr-build-scan-push.yml@v9
     with:
-      dockerfile: Dockerfile.new
+      dockerfile: Dockerfile
       build-context: .
       ecr-repository: jouleverne
       image-tag: ${{ github.event.release.tag_name }}
@@ -54,7 +54,7 @@ jobs:
     if: github.event_name == 'release'
     uses: SFOE-prometheon/github-terraform-workflows/.github/workflows/ecr-build-scan-push.yml@v9
     with:
-      dockerfile: Dockerfile.new
+      dockerfile: Dockerfile
       build-context: .
       ecr-repository: jouleverne
       image-tag: ${{ github.event.release.tag_name }}
