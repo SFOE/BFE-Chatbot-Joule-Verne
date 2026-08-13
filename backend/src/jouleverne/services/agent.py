@@ -275,22 +275,59 @@ def stream_agent_response(
         return
 
     try:
-        for event in response.get("body", []):
-            chunk = event.get("chunk", {})
-            if "bytes" not in chunk:
-                continue
+        # AgentCore returns a StreamingBody in response["response"]
+        stream = response.get("response")
+        if stream is None:
+            logger.error("No 'response' key in AgentCore response: %s", list(response.keys()))
+            yield "error", '{"detail": "Invalid agent response format"}'
+            return
 
-            text = chunk["bytes"].decode("utf-8")
+        # Read the streaming body chunk by chunk, splitting on newlines
+        buffer = ""
+        for chunk in stream.iter_chunks():
+            buffer += chunk.decode("utf-8") if isinstance(chunk, bytes) else chunk
 
-            # Try to parse as structured JSON event
-            try:
-                data = json.loads(text)
-
-                if data.get("type") == "trace":
-                    yield from _parse_agentcore_trace(data, locale)
+            # Process complete lines
+            while "\n" in buffer:
+                line, buffer = buffer.split("\n", 1)
+                text = line.strip()
+                if not text:
                     continue
 
-                if data.get("type") == "citations":
+                # Try to parse as structured JSON event
+                try:
+                    data = json.loads(text)
+
+                    if data.get("type") == "trace":
+                        yield from _parse_agentcore_trace(data, locale)
+                        continue
+
+                    if data.get("type") == "citations":
+                        for citation in data.get("citations", []):
+                            url = citation.get("url", "")
+                            source_type = citation.get("source_type", "")
+                            title = citation.get("title", "")
+                            if url:
+                                evt = CitationEvent(source=url, text=title, source_type=source_type)
+                                yield "citation", evt.model_dump_json()
+                        continue
+
+                except (json.JSONDecodeError, TypeError, KeyError):
+                    pass
+
+                # Plain text — yield as token
+                if text:
+                    evt = TokenEvent(text=text)
+                    yield "token", evt.model_dump_json()
+
+        # Process any remaining buffer content
+        if buffer.strip():
+            text = buffer.strip()
+            try:
+                data = json.loads(text)
+                if data.get("type") == "trace":
+                    yield from _parse_agentcore_trace(data, locale)
+                elif data.get("type") == "citations":
                     for citation in data.get("citations", []):
                         url = citation.get("url", "")
                         source_type = citation.get("source_type", "")
@@ -298,13 +335,10 @@ def stream_agent_response(
                         if url:
                             evt = CitationEvent(source=url, text=title, source_type=source_type)
                             yield "citation", evt.model_dump_json()
-                    continue
-
+                else:
+                    evt = TokenEvent(text=text)
+                    yield "token", evt.model_dump_json()
             except (json.JSONDecodeError, TypeError, KeyError):
-                pass
-
-            # Plain text — yield as token
-            if text:
                 evt = TokenEvent(text=text)
                 yield "token", evt.model_dump_json()
 
