@@ -298,6 +298,12 @@ def stream_agent_response(
                 try:
                     data = json.loads(text)
 
+                    # If it's a plain string (JSON-encoded text delta), yield as token
+                    if isinstance(data, str):
+                        evt = TokenEvent(text=data)
+                        yield "token", evt.model_dump_json()
+                        continue
+
                     if data.get("type") == "trace":
                         yield from _parse_agentcore_trace(data, locale)
                         continue
@@ -312,7 +318,7 @@ def stream_agent_response(
                                 yield "citation", evt.model_dump_json()
                         continue
 
-                except (json.JSONDecodeError, TypeError, KeyError):
+                except (json.JSONDecodeError, TypeError, KeyError, AttributeError):
                     pass
 
                 # Plain text — yield as token
@@ -325,7 +331,10 @@ def stream_agent_response(
             text = buffer.strip()
             try:
                 data = json.loads(text)
-                if data.get("type") == "trace":
+                if isinstance(data, str):
+                    evt = TokenEvent(text=data)
+                    yield "token", evt.model_dump_json()
+                elif data.get("type") == "trace":
                     yield from _parse_agentcore_trace(data, locale)
                 elif data.get("type") == "citations":
                     for citation in data.get("citations", []):
@@ -338,7 +347,7 @@ def stream_agent_response(
                 else:
                     evt = TokenEvent(text=text)
                     yield "token", evt.model_dump_json()
-            except (json.JSONDecodeError, TypeError, KeyError):
+            except (json.JSONDecodeError, TypeError, KeyError, AttributeError):
                 evt = TokenEvent(text=text)
                 yield "token", evt.model_dump_json()
 
