@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { useChatStore } from '@/stores/chatStore'
 
 interface ResolvedSource {
-  type: 'web' | 'website' | 'fedlex' | 'document'
+  type: 'web' | 'website' | 'fedlex' | 'document' | 'aramis'
   url: string
   label: string
 }
@@ -29,13 +29,17 @@ watch(
       if (!src || seen.has(src)) continue
       seen.add(src)
 
-      // Direct web URLs
+      // Direct web URLs (web search results, ARAMIS links)
       if (src.startsWith('http')) {
-        sources.push({ type: 'web', url: src, label: src })
+        const type: ResolvedSource['type'] =
+          citation.source_type === 'aramis' || citation.source_type === 'aramis_publication'
+            ? 'aramis'
+            : 'web'
+        sources.push({ type, url: src, label: citation.text || src })
         continue
       }
 
-      // S3 URIs — resolve via backend
+      // S3 URIs — use source_type hint if available, then resolve via backend
       if (src.startsWith('s3://')) {
         try {
           const res = await fetch(`/v1/sources/metadata?uri=${encodeURIComponent(src)}`)

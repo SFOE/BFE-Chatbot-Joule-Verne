@@ -178,7 +178,7 @@ function handleEvent(
         onTrace(parsed.label)
         break
       case 'citation':
-        citations.push({ source: parsed.source, text: parsed.text })
+        citations.push({ source: parsed.source, text: parsed.text, source_type: parsed.source_type })
         break
       case 'error':
         onToken(`\n\n⚠️ ${parsed.detail || i18n.global.t('error_generic')}`)
