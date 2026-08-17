@@ -282,7 +282,8 @@ def stream_agent_response(
             yield "error", '{"detail": "Invalid agent response format"}'
             return
 
-        # Read the streaming body chunk by chunk, splitting on newlines
+        # The AgentCore runtime wraps output in SSE format: "data: <json>\n\n"
+        # We need to parse SSE lines, stripping the "data: " prefix.
         buffer = ""
         for chunk in stream.iter_chunks():
             buffer += chunk.decode("utf-8") if isinstance(chunk, bytes) else chunk
@@ -290,7 +291,15 @@ def stream_agent_response(
             # Process complete lines
             while "\n" in buffer:
                 line, buffer = buffer.split("\n", 1)
-                text = line.strip()
+
+                # Strip SSE "data: " prefix if present
+                if line.startswith("data: "):
+                    text = line[6:]
+                elif line.startswith("data:"):
+                    text = line[5:]
+                else:
+                    text = line.strip()
+
                 if not text:
                     continue
 
@@ -304,52 +313,64 @@ def stream_agent_response(
                         yield "token", evt.model_dump_json()
                         continue
 
-                    if data.get("type") == "trace":
-                        yield from _parse_agentcore_trace(data, locale)
-                        continue
+                    if isinstance(data, dict):
+                        if data.get("type") == "trace":
+                            yield from _parse_agentcore_trace(data, locale)
+                            continue
 
-                    if data.get("type") == "citations":
-                        for citation in data.get("citations", []):
-                            url = citation.get("url", "")
-                            source_type = citation.get("source_type", "")
-                            title = citation.get("title", "")
-                            if url:
-                                evt = CitationEvent(source=url, text=title, source_type=source_type)
-                                yield "citation", evt.model_dump_json()
-                        continue
+                        if data.get("type") == "citations":
+                            for citation in data.get("citations", []):
+                                url = citation.get("url", "")
+                                source_type = citation.get("source_type", "")
+                                title = citation.get("title", "")
+                                if url:
+                                    evt = CitationEvent(source=url, text=title, source_type=source_type)
+                                    yield "citation", evt.model_dump_json()
+                            continue
 
                 except (json.JSONDecodeError, TypeError, KeyError, AttributeError):
                     pass
 
-                # Plain text — yield as token
+                # Plain text (not valid JSON) — yield as token
                 if text:
                     evt = TokenEvent(text=text)
                     yield "token", evt.model_dump_json()
 
         # Process any remaining buffer content
-        if buffer.strip():
-            text = buffer.strip()
-            try:
-                data = json.loads(text)
-                if isinstance(data, str):
-                    evt = TokenEvent(text=data)
+        remaining = buffer.strip()
+        if remaining:
+            # Strip SSE prefix from remaining buffer too
+            if remaining.startswith("data: "):
+                remaining = remaining[6:]
+            elif remaining.startswith("data:"):
+                remaining = remaining[5:]
+
+            if remaining:
+                try:
+                    data = json.loads(remaining)
+                    if isinstance(data, str):
+                        evt = TokenEvent(text=data)
+                        yield "token", evt.model_dump_json()
+                    elif isinstance(data, dict):
+                        if data.get("type") == "trace":
+                            yield from _parse_agentcore_trace(data, locale)
+                        elif data.get("type") == "citations":
+                            for citation in data.get("citations", []):
+                                url = citation.get("url", "")
+                                source_type = citation.get("source_type", "")
+                                title = citation.get("title", "")
+                                if url:
+                                    evt = CitationEvent(source=url, text=title, source_type=source_type)
+                                    yield "citation", evt.model_dump_json()
+                        else:
+                            evt = TokenEvent(text=remaining)
+                            yield "token", evt.model_dump_json()
+                    else:
+                        evt = TokenEvent(text=remaining)
+                        yield "token", evt.model_dump_json()
+                except (json.JSONDecodeError, TypeError, KeyError, AttributeError):
+                    evt = TokenEvent(text=remaining)
                     yield "token", evt.model_dump_json()
-                elif data.get("type") == "trace":
-                    yield from _parse_agentcore_trace(data, locale)
-                elif data.get("type") == "citations":
-                    for citation in data.get("citations", []):
-                        url = citation.get("url", "")
-                        source_type = citation.get("source_type", "")
-                        title = citation.get("title", "")
-                        if url:
-                            evt = CitationEvent(source=url, text=title, source_type=source_type)
-                            yield "citation", evt.model_dump_json()
-                else:
-                    evt = TokenEvent(text=text)
-                    yield "token", evt.model_dump_json()
-            except (json.JSONDecodeError, TypeError, KeyError, AttributeError):
-                evt = TokenEvent(text=text)
-                yield "token", evt.model_dump_json()
 
     except Exception as e:
         logger.error("Error during agent stream: %s", e)
