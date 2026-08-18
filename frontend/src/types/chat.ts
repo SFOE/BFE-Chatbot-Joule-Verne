@@ -17,6 +17,7 @@ export interface TraceStep {
 export interface Citation {
   source: string
   text: string
+  source_type?: string
 }
 
 export interface TextDoc {
