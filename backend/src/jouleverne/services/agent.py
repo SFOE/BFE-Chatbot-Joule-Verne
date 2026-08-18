@@ -282,95 +282,22 @@ def stream_agent_response(
             yield "error", '{"detail": "Invalid agent response format"}'
             return
 
-        # The AgentCore runtime wraps output in SSE format: "data: <json>\n\n"
-        # We need to parse SSE lines, stripping the "data: " prefix.
+        # The AgentCore runtime wraps each yielded value as:
+        #   data: <json_value>
+        # Messages MAY be separated by newlines, but newlines can also
+        # appear INSIDE JSON string values (e.g. data: "\n\n---").
+        # We use a JSON-aware parser: find "data:" prefix, then extract
+        # the complete JSON value by tracking balanced delimiters.
         buffer = ""
         for chunk in stream.iter_chunks():
             buffer += chunk.decode("utf-8") if isinstance(chunk, bytes) else chunk
 
-            # Process complete lines
-            while "\n" in buffer:
-                line, buffer = buffer.split("\n", 1)
+            # Extract and process all complete messages from the buffer
+            buffer = yield from _process_buffer(buffer, locale)
 
-                # Strip SSE "data: " prefix if present
-                if line.startswith("data: "):
-                    text = line[6:]
-                elif line.startswith("data:"):
-                    text = line[5:]
-                else:
-                    text = line.strip()
-
-                if not text:
-                    continue
-
-                # Try to parse as structured JSON event
-                try:
-                    data = json.loads(text)
-
-                    # If it's a plain string (JSON-encoded text delta), yield as token
-                    if isinstance(data, str):
-                        evt = TokenEvent(text=data)
-                        yield "token", evt.model_dump_json()
-                        continue
-
-                    if isinstance(data, dict):
-                        if data.get("type") == "trace":
-                            yield from _parse_agentcore_trace(data, locale)
-                            continue
-
-                        if data.get("type") == "citations":
-                            for citation in data.get("citations", []):
-                                url = citation.get("url", "")
-                                source_type = citation.get("source_type", "")
-                                title = citation.get("title", "")
-                                if url:
-                                    evt = CitationEvent(source=url, text=title, source_type=source_type)
-                                    yield "citation", evt.model_dump_json()
-                            continue
-
-                except (json.JSONDecodeError, TypeError, KeyError, AttributeError):
-                    pass
-
-                # Plain text (not valid JSON) — yield as token
-                if text:
-                    evt = TokenEvent(text=text)
-                    yield "token", evt.model_dump_json()
-
-        # Process any remaining buffer content
-        remaining = buffer.strip()
-        if remaining:
-            # Strip SSE prefix from remaining buffer too
-            if remaining.startswith("data: "):
-                remaining = remaining[6:]
-            elif remaining.startswith("data:"):
-                remaining = remaining[5:]
-
-            if remaining:
-                try:
-                    data = json.loads(remaining)
-                    if isinstance(data, str):
-                        evt = TokenEvent(text=data)
-                        yield "token", evt.model_dump_json()
-                    elif isinstance(data, dict):
-                        if data.get("type") == "trace":
-                            yield from _parse_agentcore_trace(data, locale)
-                        elif data.get("type") == "citations":
-                            for citation in data.get("citations", []):
-                                url = citation.get("url", "")
-                                source_type = citation.get("source_type", "")
-                                title = citation.get("title", "")
-                                if url:
-                                    evt = CitationEvent(source=url, text=title, source_type=source_type)
-                                    yield "citation", evt.model_dump_json()
-                        else:
-                            evt = TokenEvent(text=remaining)
-                            yield "token", evt.model_dump_json()
-                    else:
-                        evt = TokenEvent(text=remaining)
-                        yield "token", evt.model_dump_json()
-                except (json.JSONDecodeError, TypeError, KeyError, AttributeError):
-                    evt = TokenEvent(text=remaining)
-                    yield "token", evt.model_dump_json()
+        # Process any remaining buffer after stream ends
+        if buffer.strip():
+            yield from _process_buffer(buffer, locale, final=True)
 
     except Exception as e:
         logger.error("Error during agent stream: %s", e)
@@ -378,6 +305,222 @@ def stream_agent_response(
         return
 
     yield "done", "{}"
+
+
+# ---------------------------------------------------------------------------
+# JSON-aware SSE stream parsing helpers
+# ---------------------------------------------------------------------------
+
+def _extract_json_value(payload: str) -> tuple[object | None, str]:
+    """Extract one complete JSON value from the start of a string.
+
+    Returns (parsed_value, remaining_string) or (None, "") if incomplete.
+
+    Handles: strings ("..."), objects ({...}), arrays ([...]), numbers,
+    booleans, and null.
+    """
+    # Skip any leading whitespace
+    i = 0
+    while i < len(payload) and payload[i] in " \t\r\n":
+        i += 1
+
+    if i >= len(payload):
+        return None, ""
+
+    ch = payload[i]
+
+    if ch == '"':
+        # JSON string — find the closing quote, respecting escapes
+        j = i + 1
+        while j < len(payload):
+            if payload[j] == '\\':
+                j += 2  # skip escaped character
+                continue
+            if payload[j] == '"':
+                # Found closing quote — extract the complete string
+                raw = payload[i:j + 1]
+                try:
+                    value = json.loads(raw)
+                    return value, payload[j + 1:]
+                except json.JSONDecodeError:
+                    return None, ""
+            j += 1
+        # No closing quote found — incomplete
+        return None, ""
+
+    elif ch == '{':
+        # JSON object — find matching closing brace
+        end = _find_balanced(payload, i, '{', '}')
+        if end == -1:
+            return None, ""
+        raw = payload[i:end + 1]
+        try:
+            value = json.loads(raw)
+            return value, payload[end + 1:]
+        except json.JSONDecodeError:
+            return None, ""
+
+    elif ch == '[':
+        # JSON array — find matching closing bracket
+        end = _find_balanced(payload, i, '[', ']')
+        if end == -1:
+            return None, ""
+        raw = payload[i:end + 1]
+        try:
+            value = json.loads(raw)
+            return value, payload[end + 1:]
+        except json.JSONDecodeError:
+            return None, ""
+
+    else:
+        # Number, boolean, or null — read until we hit something that
+        # can't be part of a primitive value
+        j = i
+        while j < len(payload) and payload[j] not in ' \t\r\n,}]':
+            j += 1
+        if j == i:
+            return None, ""
+        raw = payload[i:j]
+        try:
+            value = json.loads(raw)
+            return value, payload[j:]
+        except json.JSONDecodeError:
+            return None, ""
+
+
+def _find_balanced(s: str, start: int, open_ch: str, close_ch: str) -> int:
+    """Find the index of the closing bracket/brace that balances s[start].
+
+    Respects JSON string quoting (skips content inside double quotes).
+    Returns -1 if not found (incomplete).
+    """
+    depth = 0
+    i = start
+    in_string = False
+    while i < len(s):
+        ch = s[i]
+        if in_string:
+            if ch == '\\':
+                i += 2
+                continue
+            if ch == '"':
+                in_string = False
+        else:
+            if ch == '"':
+                in_string = True
+            elif ch == open_ch:
+                depth += 1
+            elif ch == close_ch:
+                depth -= 1
+                if depth == 0:
+                    return i
+        i += 1
+    return -1
+
+
+def _process_buffer(
+    buffer: str, locale: str, final: bool = False
+) -> Generator[tuple[str, str], None, str]:
+    """Extract and yield all complete SSE messages from the buffer.
+
+    Returns the remaining (unprocessed) buffer content via generator return.
+    Usage: buffer = yield from _process_buffer(buffer, locale)
+
+    When final=True, any remaining unparseable content is yielded as a token
+    instead of being held in the buffer.
+
+    Handles two formats:
+    - SSE wrapped: data: <json_value>
+    - Raw: <json_value> (newline-separated, no prefix)
+    """
+    while buffer:
+        # Skip leading whitespace/newlines between messages
+        stripped = buffer.lstrip(" \t\r\n")
+        if not stripped:
+            return ""
+
+        # Determine if this message has an SSE "data:" prefix
+        if stripped.startswith("data: "):
+            payload = stripped[6:]
+        elif stripped.startswith("data:"):
+            payload = stripped[5:]
+        else:
+            # No "data:" prefix — try to parse as raw JSON value directly.
+            # If that fails, it could be plain text up to the next newline.
+            payload = stripped
+
+        # Extract one complete JSON value
+        json_value, remainder = _extract_json_value(payload)
+        if json_value is None:
+            # Could not parse JSON — check if there's a newline-delimited
+            # plain text line we can yield as a token
+            newline_idx = stripped.find("\n")
+            if newline_idx != -1:
+                # Yield the line up to the newline as plain text
+                line = stripped[:newline_idx].strip()
+                # Strip data: prefix from the line if present
+                if line.startswith("data: "):
+                    line = line[6:]
+                elif line.startswith("data:"):
+                    line = line[5:]
+                if line:
+                    evt = TokenEvent(text=line)
+                    yield "token", evt.model_dump_json()
+                buffer = stripped[newline_idx + 1:]
+                continue
+            elif final:
+                # No more data coming — yield whatever is left as text
+                text = stripped.strip()
+                # Strip data: prefix if present
+                if text.startswith("data: "):
+                    text = text[6:]
+                elif text.startswith("data:"):
+                    text = text[5:]
+                if text:
+                    evt = TokenEvent(text=text)
+                    yield "token", evt.model_dump_json()
+                return ""
+            else:
+                # Incomplete — wait for more data
+                return stripped
+
+        buffer = remainder
+
+        # Route the parsed value to the appropriate event type
+        yield from _route_parsed_value(json_value, locale)
+
+    return ""
+
+
+def _route_parsed_value(
+    value: object, locale: str
+) -> Generator[tuple[str, str], None, None]:
+    """Route a parsed JSON value to the correct event type and yield it."""
+    if isinstance(value, str):
+        # Text delta from the model
+        evt = TokenEvent(text=value)
+        yield "token", evt.model_dump_json()
+
+    elif isinstance(value, dict):
+        if value.get("type") == "trace":
+            yield from _parse_agentcore_trace(value, locale)
+        elif value.get("type") == "citations":
+            for citation in value.get("citations", []):
+                url = citation.get("url", "")
+                source_type = citation.get("source_type", "")
+                title = citation.get("title", "")
+                if url:
+                    evt = CitationEvent(source=url, text=title, source_type=source_type)
+                    yield "citation", evt.model_dump_json()
+        else:
+            # Unknown dict — yield as token for safety
+            evt = TokenEvent(text=json.dumps(value, ensure_ascii=False))
+            yield "token", evt.model_dump_json()
+
+    # Other types (numbers, arrays, etc.) — unlikely but handle gracefully
+    elif value is not None:
+        evt = TokenEvent(text=str(value))
+        yield "token", evt.model_dump_json()
 
 
 def _parse_agentcore_trace(data: dict, locale: str = "de") -> Generator[tuple[str, str], None, None]:
