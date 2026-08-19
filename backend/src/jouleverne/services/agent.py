@@ -290,53 +290,39 @@ def stream_agent_response(
         text = raw_data.decode("utf-8").strip()
         logger.info("AgentCore raw response (%d bytes): %s", len(text), text[:500])
 
-        # AgentCore wraps each yielded value as "data:<json>\n\n".
-        # The JSON may contain newlines inside string values, so we CANNOT
-        # naively split on "\n". Instead, strip the leading "data:" prefix
-        # and parse the entire remainder as a single JSON value.
+        # Strip leading "data:" or "data: " prefix
         payload = text
-
-        # Strip leading "data:" or "data: " prefix (only the first one)
         if payload.startswith("data: "):
             payload = payload[6:]
         elif payload.startswith("data:"):
             payload = payload[5:]
 
-        # Strip any trailing SSE noise (empty lines, additional "data:" for keepalive)
-        # by finding where our JSON object ends.
-        # Since we yield exactly one JSON object, find the outermost {} pair.
+        # AgentCore double-encodes: it wraps the yielded JSON string in quotes,
+        # so the wire format is: data: "<escaped_json>"
+        # First json.loads unwraps the outer string, second parses the actual object.
         try:
             value = json.loads(payload)
-            yield from _route_parsed_value(value, locale)
         except json.JSONDecodeError as e:
-            # payload may have trailing garbage after the JSON (e.g. "\n\ndata:\n\n")
-            # Try to find and parse just the JSON object
-            brace_start = payload.find("{")
-            if brace_start != -1:
-                # Find the matching closing brace by trying progressively
-                # longer substrings ending at each "}" from the end
-                parsed = False
-                for i in range(len(payload) - 1, brace_start, -1):
-                    if payload[i] == "}":
-                        try:
-                            value = json.loads(payload[brace_start:i + 1])
-                            yield from _route_parsed_value(value, locale)
-                            parsed = True
-                            break
-                        except json.JSONDecodeError:
-                            continue
-                if not parsed:
-                    logger.error("Failed to parse agent JSON: %s | Raw: %r", e, text[:500])
-                    preview = text[:300] if len(text) > 300 else text
-                    yield "error", json.dumps({
-                        "detail": f"Failed to parse agent response: {e}. Raw: {preview}"
-                    }, ensure_ascii=False)
-            else:
-                logger.error("No JSON object found in agent response: %r", text[:500])
-                preview = text[:300] if len(text) > 300 else text
-                yield "error", json.dumps({
-                    "detail": f"No JSON object in agent response. Raw: {preview}"
-                }, ensure_ascii=False)
+            logger.error("First JSON parse failed: %s | Raw: %r", e, text[:500])
+            preview = text[:300] if len(text) > 300 else text
+            yield "error", json.dumps({
+                "detail": f"Failed to parse agent response (outer): {e}. Raw: {preview}"
+            }, ensure_ascii=False)
+            return  # noqa — inside generator, stops iteration
+
+        # If the value is a string, it's double-encoded — parse again
+        if isinstance(value, str):
+            try:
+                value = json.loads(value)
+            except json.JSONDecodeError as e:
+                logger.error("Second JSON parse failed: %s | Inner: %r", e, value[:500])
+                # Maybe it's just plain text from the agent (not JSON-wrapped)
+                evt = TokenEvent(text=value)
+                yield "token", evt.model_dump_json()
+                return
+
+        # Now value should be a dict or other JSON type
+        yield from _route_parsed_value(value, locale)
 
     except Exception as e:
         logger.error("Error during agent stream: %s", e)
