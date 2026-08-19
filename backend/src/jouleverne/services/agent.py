@@ -282,9 +282,10 @@ def stream_agent_response(
             return
 
         # Read all chunks from the stream
-        raw_data = b""
-        for chunk in stream.iter_chunks():
-            raw_data += chunk if isinstance(chunk, bytes) else chunk.encode()
+        # StreamingBody supports .read() for full content or .iter_lines()/iter_chunks()
+        raw_data = stream.read()
+        if not isinstance(raw_data, bytes):
+            raw_data = raw_data.encode("utf-8")
 
         # Decode and strip SSE framing
         text = raw_data.decode("utf-8").strip()
