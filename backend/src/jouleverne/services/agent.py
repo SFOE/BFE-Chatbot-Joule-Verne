@@ -219,7 +219,6 @@ def invoke_agent(
         "prompt": message,
         "session_id": session_id,
         "enable_web_search": web_search,
-        "include_trace": True,
     }
 
     # Document context (replaces Classic's sessionState.promptSessionAttributes)
@@ -282,29 +281,62 @@ def stream_agent_response(
             yield "error", '{"detail": "Invalid agent response format"}'
             return
 
-        # The AgentCore runtime wraps each yielded value as:
-        #   data: <json_value>
-        # Messages MAY be separated by newlines, but newlines can also
-        # appear INSIDE JSON string values (e.g. data: "\n\n---").
-        # We use a JSON-aware parser: find "data:" prefix, then extract
-        # the complete JSON value by tracking balanced delimiters.
-        buffer = ""
-        chunk_count = 0
+        # Read all chunks from the stream
+        raw_data = b""
         for chunk in stream.iter_chunks():
-            raw = chunk if isinstance(chunk, bytes) else chunk.encode()
-            chunk_count += 1
-            # Log first 5 chunks at WARNING level so they always show
-            if chunk_count <= 5:
-                logger.warning("STREAM CHUNK #%d (%d bytes): %r", chunk_count, len(raw), raw[:500])
-            buffer += chunk.decode("utf-8") if isinstance(chunk, bytes) else chunk
+            raw_data += chunk if isinstance(chunk, bytes) else chunk.encode()
 
-            # Extract and process all complete messages from the buffer
-            buffer = yield from _process_buffer(buffer, locale)
+        # Decode and strip SSE framing
+        text = raw_data.decode("utf-8").strip()
+        logger.info("AgentCore raw response (%d bytes): %s", len(text), text[:500])
 
-        # Process any remaining buffer after stream ends
-        if buffer.strip():
-            logger.warning("REMAINING BUFFER (%d chars): %r", len(buffer), buffer[:500])
-            yield from _process_buffer(buffer, locale, final=True)
+        # AgentCore wraps each yielded value as "data:<json>\n\n".
+        # The JSON may contain newlines inside string values, so we CANNOT
+        # naively split on "\n". Instead, strip the leading "data:" prefix
+        # and parse the entire remainder as a single JSON value.
+        payload = text
+
+        # Strip leading "data:" or "data: " prefix (only the first one)
+        if payload.startswith("data: "):
+            payload = payload[6:]
+        elif payload.startswith("data:"):
+            payload = payload[5:]
+
+        # Strip any trailing SSE noise (empty lines, additional "data:" for keepalive)
+        # by finding where our JSON object ends.
+        # Since we yield exactly one JSON object, find the outermost {} pair.
+        try:
+            value = json.loads(payload)
+            yield from _route_parsed_value(value, locale)
+        except json.JSONDecodeError as e:
+            # payload may have trailing garbage after the JSON (e.g. "\n\ndata:\n\n")
+            # Try to find and parse just the JSON object
+            brace_start = payload.find("{")
+            if brace_start != -1:
+                # Find the matching closing brace by trying progressively
+                # longer substrings ending at each "}" from the end
+                parsed = False
+                for i in range(len(payload) - 1, brace_start, -1):
+                    if payload[i] == "}":
+                        try:
+                            value = json.loads(payload[brace_start:i + 1])
+                            yield from _route_parsed_value(value, locale)
+                            parsed = True
+                            break
+                        except json.JSONDecodeError:
+                            continue
+                if not parsed:
+                    logger.error("Failed to parse agent JSON: %s | Raw: %r", e, text[:500])
+                    preview = text[:300] if len(text) > 300 else text
+                    yield "error", json.dumps({
+                        "detail": f"Failed to parse agent response: {e}. Raw: {preview}"
+                    }, ensure_ascii=False)
+            else:
+                logger.error("No JSON object found in agent response: %r", text[:500])
+                preview = text[:300] if len(text) > 300 else text
+                yield "error", json.dumps({
+                    "detail": f"No JSON object in agent response. Raw: {preview}"
+                }, ensure_ascii=False)
 
     except Exception as e:
         logger.error("Error during agent stream: %s", e)
@@ -506,14 +538,20 @@ def _route_parsed_value(
 ) -> Generator[tuple[str, str], None, None]:
     """Route a parsed JSON value to the correct event type and yield it."""
     if isinstance(value, str):
-        # Text delta from the model
+        # Text delta from the model (legacy string format)
         evt = TokenEvent(text=value)
         yield "token", evt.model_dump_json()
 
     elif isinstance(value, dict):
-        if value.get("type") == "trace":
+        msg_type = value.get("type", "")
+
+        if msg_type == "answer":
+            # Explicit answer payload: {"type": "answer", "text": "..."}
+            evt = TokenEvent(text=value.get("text", ""))
+            yield "token", evt.model_dump_json()
+        elif msg_type == "trace":
             yield from _parse_agentcore_trace(value, locale)
-        elif value.get("type") == "citations":
+        elif msg_type == "citations":
             for citation in value.get("citations", []):
                 url = citation.get("url", "")
                 source_type = citation.get("source_type", "")
