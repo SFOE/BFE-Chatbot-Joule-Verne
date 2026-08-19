@@ -521,6 +521,10 @@ def _route_parsed_value(
                 if url:
                     evt = CitationEvent(source=url, text=title, source_type=source_type)
                     yield "citation", evt.model_dump_json()
+        elif "text" in value and len(value) == 1:
+            # Simple text response wrapped in {"text": "..."}
+            evt = TokenEvent(text=value["text"])
+            yield "token", evt.model_dump_json()
         else:
             # Unknown dict — yield as token for safety
             evt = TokenEvent(text=json.dumps(value, ensure_ascii=False))
