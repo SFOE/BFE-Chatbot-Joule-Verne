@@ -535,6 +535,9 @@ def _route_parsed_value(
             # Explicit answer payload: {"type": "answer", "text": "..."}
             evt = TokenEvent(text=value.get("text", ""))
             yield "token", evt.model_dump_json()
+        elif msg_type == "error":
+            # Error from agent: {"type": "error", "detail": "..."}
+            yield "error", json.dumps({"detail": value.get("detail", "Unknown agent error")}, ensure_ascii=False)
         elif msg_type == "trace":
             yield from _parse_agentcore_trace(value, locale)
         elif msg_type == "citations":
