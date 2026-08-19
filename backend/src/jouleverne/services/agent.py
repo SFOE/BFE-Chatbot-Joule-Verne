@@ -534,7 +534,19 @@ def _route_parsed_value(
     """Route a parsed JSON value to the correct event type and yield it."""
     if isinstance(value, str):
         # Text delta from the model (legacy string format)
-        evt = TokenEvent(text=value)
+        # Strip any residual SSE "data:" prefix that survived earlier parsing
+        text = value
+        if text.startswith("data: "):
+            text = text[6:]
+        elif text.startswith("data:"):
+            text = text[5:]
+        # Remove surrounding quotes if the text is a JSON-encoded string
+        if len(text) >= 2 and text.startswith('"') and text.endswith('"'):
+            try:
+                text = json.loads(text)
+            except json.JSONDecodeError:
+                pass
+        evt = TokenEvent(text=text)
         yield "token", evt.model_dump_json()
 
     elif isinstance(value, dict):
