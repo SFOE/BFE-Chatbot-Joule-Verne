@@ -291,33 +291,41 @@ def stream_agent_response(
         text = raw_data.decode("utf-8").strip()
         logger.info("AgentCore raw response (%d bytes): %s", len(text), text[:500])
 
-        # Strip leading "data:" or "data: " prefix
-        payload = text
-        if payload.startswith("data: "):
-            payload = payload[6:]
-        elif payload.startswith("data:"):
-            payload = payload[5:]
+        # AgentCore wraps yielded content in SSE format: "data: <value>"
+        # There may be multiple data lines. Collect all payloads.
+        # Strip all "data:" prefixes and join the content.
+        lines = text.split("\n")
+        payload_parts = []
+        for line in lines:
+            line = line.strip()
+            if line.startswith("data: "):
+                payload_parts.append(line[6:])
+            elif line.startswith("data:"):
+                payload_parts.append(line[5:])
+            elif line:
+                # No SSE prefix — use as-is (could be continuation or raw content)
+                payload_parts.append(line)
 
-        # AgentCore double-encodes: it wraps the yielded JSON string in quotes,
-        # so the wire format is: data: "<escaped_json>"
-        # First json.loads unwraps the outer string, second parses the actual object.
+        # Join all parts into one payload string
+        payload = "".join(payload_parts) if payload_parts else text
+        logger.info("Stripped payload: %s", payload[:500])
+
+        # Try to parse as JSON (AgentCore may wrap in quotes or as a JSON object)
         try:
             value = json.loads(payload)
-        except json.JSONDecodeError as e:
-            logger.error("First JSON parse failed: %s | Raw: %r", e, text[:500])
-            preview = text[:300] if len(text) > 300 else text
-            yield "error", json.dumps({
-                "detail": f"Failed to parse agent response (outer): {e}. Raw: {preview}"
-            }, ensure_ascii=False)
-            return  # noqa — inside generator, stops iteration
+        except json.JSONDecodeError:
+            # Not valid JSON — treat as plain text answer
+            logger.info("Payload is not JSON, treating as plain text")
+            evt = TokenEvent(text=payload)
+            yield "token", evt.model_dump_json()
+            return
 
-        # If the value is a string, it's double-encoded — parse again
+        # If the value is a string, it might be double-encoded JSON or plain text
         if isinstance(value, str):
             try:
                 value = json.loads(value)
-            except json.JSONDecodeError as e:
-                logger.error("Second JSON parse failed: %s | Inner: %r", e, value[:500])
-                # Maybe it's just plain text from the agent (not JSON-wrapped)
+            except json.JSONDecodeError:
+                # It's just plain text from the agent
                 evt = TokenEvent(text=value)
                 yield "token", evt.model_dump_json()
                 return
