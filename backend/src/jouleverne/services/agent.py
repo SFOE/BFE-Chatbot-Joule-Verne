@@ -289,7 +289,13 @@ def stream_agent_response(
         # We use a JSON-aware parser: find "data:" prefix, then extract
         # the complete JSON value by tracking balanced delimiters.
         buffer = ""
+        chunk_count = 0
         for chunk in stream.iter_chunks():
+            raw = chunk if isinstance(chunk, bytes) else chunk.encode()
+            chunk_count += 1
+            # Log first 5 chunks at WARNING level so they always show
+            if chunk_count <= 5:
+                logger.warning("STREAM CHUNK #%d (%d bytes): %r", chunk_count, len(raw), raw[:500])
             buffer += chunk.decode("utf-8") if isinstance(chunk, bytes) else chunk
 
             # Extract and process all complete messages from the buffer
@@ -297,6 +303,7 @@ def stream_agent_response(
 
         # Process any remaining buffer after stream ends
         if buffer.strip():
+            logger.warning("REMAINING BUFFER (%d chars): %r", len(buffer), buffer[:500])
             yield from _process_buffer(buffer, locale, final=True)
 
     except Exception as e:
@@ -464,6 +471,7 @@ def _process_buffer(
                 elif line.startswith("data:"):
                     line = line[5:]
                 if line:
+                    logger.warning("FALLBACK TEXT LINE: %r", line[:200])
                     evt = TokenEvent(text=line)
                     yield "token", evt.model_dump_json()
                 buffer = stripped[newline_idx + 1:]
@@ -477,6 +485,7 @@ def _process_buffer(
                 elif text.startswith("data:"):
                     text = text[5:]
                 if text:
+                    logger.warning("FALLBACK FINAL TEXT: %r", text[:200])
                     evt = TokenEvent(text=text)
                     yield "token", evt.model_dump_json()
                 return ""
