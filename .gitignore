@@ -6,6 +6,11 @@ __pycache__/
 # Virtual environment
 venv/
 env/
+.venv/
+
+# Node
+node_modules/
+dist/
 
 # OS generated files
 .DS_Store

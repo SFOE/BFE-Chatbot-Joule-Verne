@@ -219,7 +219,6 @@ def invoke_agent(
         "prompt": message,
         "session_id": session_id,
         "enable_web_search": web_search,
-        "include_trace": True,
     }
 
     # Document context (replaces Classic's sessionState.promptSessionAttributes)
@@ -282,22 +281,57 @@ def stream_agent_response(
             yield "error", '{"detail": "Invalid agent response format"}'
             return
 
-        # The AgentCore runtime wraps each yielded value as:
-        #   data: <json_value>
-        # Messages MAY be separated by newlines, but newlines can also
-        # appear INSIDE JSON string values (e.g. data: "\n\n---").
-        # We use a JSON-aware parser: find "data:" prefix, then extract
-        # the complete JSON value by tracking balanced delimiters.
-        buffer = ""
-        for chunk in stream.iter_chunks():
-            buffer += chunk.decode("utf-8") if isinstance(chunk, bytes) else chunk
+        # Read all chunks from the stream
+        # StreamingBody supports .read() for full content or .iter_lines()/iter_chunks()
+        raw_data = stream.read()
+        if not isinstance(raw_data, bytes):
+            raw_data = raw_data.encode("utf-8")
 
-            # Extract and process all complete messages from the buffer
-            buffer = yield from _process_buffer(buffer, locale)
+        # Decode and strip SSE framing
+        text = raw_data.decode("utf-8").strip()
+        logger.info("AgentCore raw response (%d bytes): %s", len(text), text[:500])
 
-        # Process any remaining buffer after stream ends
-        if buffer.strip():
-            yield from _process_buffer(buffer, locale, final=True)
+        # AgentCore wraps yielded content in SSE format: "data: <value>"
+        # There may be multiple data lines. Collect all payloads.
+        # Strip all "data:" prefixes and join the content.
+        lines = text.split("\n")
+        payload_parts = []
+        for line in lines:
+            line = line.strip()
+            if line.startswith("data: "):
+                payload_parts.append(line[6:])
+            elif line.startswith("data:"):
+                payload_parts.append(line[5:])
+            elif line:
+                # No SSE prefix — use as-is (could be continuation or raw content)
+                payload_parts.append(line)
+
+        # Join all parts into one payload string
+        payload = "".join(payload_parts) if payload_parts else text
+        logger.info("Stripped payload: %s", payload[:500])
+
+        # Try to parse as JSON (AgentCore may wrap in quotes or as a JSON object)
+        try:
+            value = json.loads(payload)
+        except json.JSONDecodeError:
+            # Not valid JSON — treat as plain text answer
+            logger.info("Payload is not JSON, treating as plain text")
+            evt = TokenEvent(text=payload)
+            yield "token", evt.model_dump_json()
+            return
+
+        # If the value is a string, it might be double-encoded JSON or plain text
+        if isinstance(value, str):
+            try:
+                value = json.loads(value)
+            except json.JSONDecodeError:
+                # It's just plain text from the agent
+                evt = TokenEvent(text=value)
+                yield "token", evt.model_dump_json()
+                return
+
+        # Now value should be a dict or other JSON type
+        yield from _route_parsed_value(value, locale)
 
     except Exception as e:
         logger.error("Error during agent stream: %s", e)
@@ -464,6 +498,7 @@ def _process_buffer(
                 elif line.startswith("data:"):
                     line = line[5:]
                 if line:
+                    logger.warning("FALLBACK TEXT LINE: %r", line[:200])
                     evt = TokenEvent(text=line)
                     yield "token", evt.model_dump_json()
                 buffer = stripped[newline_idx + 1:]
@@ -477,6 +512,7 @@ def _process_buffer(
                 elif text.startswith("data:"):
                     text = text[5:]
                 if text:
+                    logger.warning("FALLBACK FINAL TEXT: %r", text[:200])
                     evt = TokenEvent(text=text)
                     yield "token", evt.model_dump_json()
                 return ""
@@ -497,14 +533,35 @@ def _route_parsed_value(
 ) -> Generator[tuple[str, str], None, None]:
     """Route a parsed JSON value to the correct event type and yield it."""
     if isinstance(value, str):
-        # Text delta from the model
-        evt = TokenEvent(text=value)
+        # Text delta from the model (legacy string format)
+        # Strip any residual SSE "data:" prefix that survived earlier parsing
+        text = value
+        if text.startswith("data: "):
+            text = text[6:]
+        elif text.startswith("data:"):
+            text = text[5:]
+        # Remove surrounding quotes if the text is a JSON-encoded string
+        if len(text) >= 2 and text.startswith('"') and text.endswith('"'):
+            try:
+                text = json.loads(text)
+            except json.JSONDecodeError:
+                pass
+        evt = TokenEvent(text=text)
         yield "token", evt.model_dump_json()
 
     elif isinstance(value, dict):
-        if value.get("type") == "trace":
+        msg_type = value.get("type", "")
+
+        if msg_type == "answer":
+            # Explicit answer payload: {"type": "answer", "text": "..."}
+            evt = TokenEvent(text=value.get("text", ""))
+            yield "token", evt.model_dump_json()
+        elif msg_type == "error":
+            # Error from agent: {"type": "error", "detail": "..."}
+            yield "error", json.dumps({"detail": value.get("detail", "Unknown agent error")}, ensure_ascii=False)
+        elif msg_type == "trace":
             yield from _parse_agentcore_trace(value, locale)
-        elif value.get("type") == "citations":
+        elif msg_type == "citations":
             for citation in value.get("citations", []):
                 url = citation.get("url", "")
                 source_type = citation.get("source_type", "")
@@ -512,6 +569,10 @@ def _route_parsed_value(
                 if url:
                     evt = CitationEvent(source=url, text=title, source_type=source_type)
                     yield "citation", evt.model_dump_json()
+        elif "text" in value and len(value) == 1:
+            # Simple text response wrapped in {"text": "..."}
+            evt = TokenEvent(text=value["text"])
+            yield "token", evt.model_dump_json()
         else:
             # Unknown dict — yield as token for safety
             evt = TokenEvent(text=json.dumps(value, ensure_ascii=False))
