@@ -58,6 +58,29 @@ def _extract_cognito_groups(request: Request) -> set[str]:
         return set()
 
 
+def extract_user_email(request: Request) -> str | None:
+    """Extract the user's email from the ALB-injected OIDC data token.
+
+    The x-amzn-oidc-data header contains a JWT whose payload includes
+    user claims (email, sub, etc.). The ALB has already verified the
+    signature, so we only need to decode the payload.
+
+    Returns the email address or None if unavailable.
+    """
+    oidc_data = request.headers.get("x-amzn-oidc-data", "")
+    if not oidc_data:
+        return None
+
+    try:
+        payload_b64 = oidc_data.split(".")[1]
+        payload_b64 += "=" * (4 - len(payload_b64) % 4)
+        payload = json.loads(base64.urlsafe_b64decode(payload_b64))
+        return payload.get("email")
+    except Exception:
+        logger.warning("Failed to decode OIDC data token for user email")
+        return None
+
+
 async def verify_cognito_auth(request: Request) -> None:
     """FastAPI dependency that checks Cognito group membership.
 
