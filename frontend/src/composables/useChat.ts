@@ -99,6 +99,8 @@ export function useChat() {
               store.updateLastAssistantMessage(fullText)
             }, (label) => {
               store.streamingStatus = label
+            }, () => {
+              store.setCitations([...citations])
             })
           }
         }
@@ -165,6 +167,7 @@ function handleEvent(
   citations: Citation[],
   onToken: (text: string) => void,
   onTrace: (label: string) => void,
+  onCitation: () => void,
 ) {
   try {
     const parsed = JSON.parse(data)
@@ -179,6 +182,7 @@ function handleEvent(
         break
       case 'citation':
         citations.push({ source: parsed.source, text: parsed.text, source_type: parsed.source_type })
+        onCitation()
         break
       case 'error':
         onToken(`\n\n⚠️ ${parsed.detail || i18n.global.t('error_generic')}`)
