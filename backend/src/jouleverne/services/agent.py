@@ -34,6 +34,35 @@ def _kb_display_name(kb_id: str, locale: str = "de") -> str:
     """Return a human-friendly name for a knowledge base ID."""
     if kb_id in _kb_names:
         return _kb_names[kb_id].get(locale, _kb_names[kb_id].get("de", kb_id))
+    # Map human-readable tool parameter values to localized names
+    _readable_names: dict[str, dict[str, str]] = {
+        "documents": {
+            "de": "BFE-Dokumente",
+            "fr": "Documents OFEN",
+            "it": "Documenti UFE",
+            "en": "SFOE Documents",
+        },
+        "website": {
+            "de": "BFE-Website",
+            "fr": "Site web OFEN",
+            "it": "Sito web UFE",
+            "en": "SFOE Website",
+        },
+        "legislation": {
+            "de": "Gesetzgebung (Fedlex)",
+            "fr": "Législation (Fedlex)",
+            "it": "Legislazione (Fedlex)",
+            "en": "Legislation (Fedlex)",
+        },
+        "all": {
+            "de": "Alle Wissensdatenbanken",
+            "fr": "Toutes les bases de connaissances",
+            "it": "Tutte le basi di conoscenza",
+            "en": "All knowledge bases",
+        },
+    }
+    if kb_id in _readable_names:
+        return _readable_names[kb_id].get(locale, _readable_names[kb_id].get("de", kb_id))
     # Fallback name per locale
     _fallback_names = {
         "de": "BFE-Wissensdatenbank",
@@ -609,7 +638,7 @@ def _parse_agentcore_trace(data: dict, locale: str = "de") -> Generator[tuple[st
         # Use KB display name for filtered_kb_search results
         tool_name = data.get("tool", "")
         if tool_name == "filtered_kb_search":
-            kb_id = data.get("input", {}).get("knowledge_base_id", "")
+            kb_id = data.get("input", {}).get("knowledge_base_id", "") or data.get("input", {}).get("knowledge_base", "")
             kb_name = _kb_display_name(kb_id, locale)
             if result_count:
                 evt = TraceEvent(
