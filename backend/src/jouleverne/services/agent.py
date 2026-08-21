@@ -625,10 +625,17 @@ def _parse_agentcore_trace(data: dict, locale: str = "de") -> Generator[tuple[st
     if event_name == "tool_start":
         tool_name = data.get("tool", "unknown")
         tool_input = data.get("input", {})
-        label_key = TOOL_LABEL_MAP.get(tool_name)
-        label = _t(label_key, locale) if label_key else _t("calling", locale, name=tool_name)
-        detail = json.dumps(tool_input, ensure_ascii=False, indent=2) if tool_input else None
-        evt = TraceEvent(label=label, detail=detail, tool=tool_name)
+
+        # For KB search, use the specific KB name instead of generic label
+        if tool_name == "filtered_kb_search":
+            kb_value = tool_input.get("knowledge_base", "all")
+            kb_name = _kb_display_name(kb_value, locale)
+            label = _t("searching_kb", locale, kb_name=kb_name)
+        else:
+            label_key = TOOL_LABEL_MAP.get(tool_name)
+            label = _t(label_key, locale) if label_key else _t("calling", locale, name=tool_name)
+
+        evt = TraceEvent(label=label, detail=None, tool=tool_name)
         yield "trace", evt.model_dump_json()
 
     elif event_name == "tool_result":
