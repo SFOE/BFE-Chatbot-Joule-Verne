@@ -281,57 +281,45 @@ def stream_agent_response(
             yield "error", '{"detail": "Invalid agent response format"}'
             return
 
-        # Read all chunks from the stream
-        # StreamingBody supports .read() for full content or .iter_lines()/iter_chunks()
-        raw_data = stream.read()
-        if not isinstance(raw_data, bytes):
-            raw_data = raw_data.encode("utf-8")
+        # Stream chunks incrementally so SSE events (tokens, citations, traces)
+        # are forwarded to the frontend as soon as they arrive rather than
+        # buffering the entire response first.
+        buffer = ""
+        chunk_size = 1024  # bytes per read iteration
 
-        # Decode and strip SSE framing
-        text = raw_data.decode("utf-8").strip()
-        logger.info("AgentCore raw response (%d bytes): %s", len(text), text[:500])
+        # StreamingBody supports iter_chunks(); fall back to reading all at once
+        # if the method isn't available (defensive against API changes).
+        if hasattr(stream, "iter_chunks"):
+            chunk_iter = stream.iter_chunks(chunk_size=chunk_size)
+        else:
+            # Fallback: read everything and yield as a single "chunk"
+            raw = stream.read()
+            chunk_iter = [raw]
 
-        # AgentCore wraps yielded content in SSE format: "data: <value>"
-        # There may be multiple data lines. Collect all payloads.
-        # Strip all "data:" prefixes and join the content.
-        lines = text.split("\n")
-        payload_parts = []
-        for line in lines:
-            line = line.strip()
-            if line.startswith("data: "):
-                payload_parts.append(line[6:])
-            elif line.startswith("data:"):
-                payload_parts.append(line[5:])
-            elif line:
-                # No SSE prefix — use as-is (could be continuation or raw content)
-                payload_parts.append(line)
+        for chunk in chunk_iter:
+            if isinstance(chunk, bytes):
+                chunk = chunk.decode("utf-8")
+            buffer += chunk
 
-        # Join all parts into one payload string
-        payload = "".join(payload_parts) if payload_parts else text
-        logger.info("Stripped payload: %s", payload[:500])
-
-        # Try to parse as JSON (AgentCore may wrap in quotes or as a JSON object)
-        try:
-            value = json.loads(payload)
-        except json.JSONDecodeError:
-            # Not valid JSON — treat as plain text answer
-            logger.info("Payload is not JSON, treating as plain text")
-            evt = TokenEvent(text=payload)
-            yield "token", evt.model_dump_json()
-            return
-
-        # If the value is a string, it might be double-encoded JSON or plain text
-        if isinstance(value, str):
+            # Process all complete messages currently in the buffer
+            gen = _process_buffer(buffer, locale, final=False)
             try:
-                value = json.loads(value)
-            except json.JSONDecodeError:
-                # It's just plain text from the agent
-                evt = TokenEvent(text=value)
-                yield "token", evt.model_dump_json()
-                return
+                while True:
+                    event = next(gen)
+                    yield event
+            except StopIteration as e:
+                # Generator return value is the remaining unprocessed buffer
+                buffer = e.value if e.value else ""
 
-        # Now value should be a dict or other JSON type
-        yield from _route_parsed_value(value, locale)
+        # Process any remaining content in the buffer (final flush)
+        if buffer.strip():
+            gen = _process_buffer(buffer, locale, final=True)
+            try:
+                while True:
+                    event = next(gen)
+                    yield event
+            except StopIteration:
+                pass
 
     except Exception as e:
         logger.error("Error during agent stream: %s", e)
