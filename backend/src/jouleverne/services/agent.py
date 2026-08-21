@@ -510,6 +510,17 @@ def _process_buffer(
 
         buffer = remainder
 
+        # Unwrap double-encoded JSON: if the parsed value is a string that
+        # is itself valid JSON (e.g. '{"type":"citations",...}'), parse it
+        # again so _route_parsed_value receives the actual dict/list.
+        if isinstance(json_value, str):
+            try:
+                inner = json.loads(json_value)
+                if isinstance(inner, (dict, list)):
+                    json_value = inner
+            except (json.JSONDecodeError, ValueError):
+                pass
+
         # Route the parsed value to the appropriate event type
         yield from _route_parsed_value(json_value, locale)
 
