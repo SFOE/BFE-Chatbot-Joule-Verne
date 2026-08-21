@@ -251,8 +251,8 @@ def stream_agent_response(
     locale: str = "de",
     session_attributes: dict[str, str] | None = None,
     files: list[dict] | None = None,
-) -> Generator[tuple[str, dict], None, None]:
-    """Invoke the agent and yield (event_type, data_dict) tuples.
+) -> Generator[tuple[str, str], None, None]:
+    """Invoke the agent and yield (event_type, json_data) tuples.
 
     Event types: "token", "trace", "citation", "done", "error"
 
@@ -270,7 +270,7 @@ def stream_agent_response(
         )
     except Exception as e:
         logger.error("Failed to invoke agent: %s", e)
-        yield "error", {"detail": "Failed to invoke agent"}
+        yield "error", '{"detail": "Failed to invoke agent"}'
         return
 
     try:
@@ -278,7 +278,7 @@ def stream_agent_response(
         stream = response.get("response")
         if stream is None:
             logger.error("No 'response' key in AgentCore response: %s", list(response.keys()))
-            yield "error", {"detail": "Invalid agent response format"}
+            yield "error", '{"detail": "Invalid agent response format"}'
             return
 
         # Stream chunks incrementally so SSE events (tokens, citations, traces)
@@ -323,10 +323,10 @@ def stream_agent_response(
 
     except Exception as e:
         logger.error("Error during agent stream: %s", e)
-        yield "error", {"detail": "Stream interrupted"}
+        yield "error", '{"detail": "Stream interrupted"}'
         return
 
-    yield "done", {}
+    yield "done", "{}"
 
 
 # ---------------------------------------------------------------------------
@@ -442,7 +442,7 @@ def _find_balanced(s: str, start: int, open_ch: str, close_ch: str) -> int:
 
 def _process_buffer(
     buffer: str, locale: str, final: bool = False
-) -> Generator[tuple[str, dict], None, str]:
+) -> Generator[tuple[str, str], None, str]:
     """Extract and yield all complete SSE messages from the buffer.
 
     Returns the remaining (unprocessed) buffer content via generator return.
@@ -488,7 +488,7 @@ def _process_buffer(
                 if line:
                     logger.warning("FALLBACK TEXT LINE: %r", line[:200])
                     evt = TokenEvent(text=line)
-                    yield "token", evt.model_dump()
+                    yield "token", evt.model_dump_json()
                 buffer = stripped[newline_idx + 1:]
                 continue
             elif final:
@@ -502,7 +502,7 @@ def _process_buffer(
                 if text:
                     logger.warning("FALLBACK FINAL TEXT: %r", text[:200])
                     evt = TokenEvent(text=text)
-                    yield "token", evt.model_dump()
+                    yield "token", evt.model_dump_json()
                 return ""
             else:
                 # Incomplete — wait for more data
@@ -529,7 +529,7 @@ def _process_buffer(
 
 def _route_parsed_value(
     value: object, locale: str
-) -> Generator[tuple[str, dict], None, None]:
+) -> Generator[tuple[str, str], None, None]:
     """Route a parsed JSON value to the correct event type and yield it."""
     if isinstance(value, str):
         # Text delta from the model (legacy string format)
@@ -546,7 +546,7 @@ def _route_parsed_value(
             except json.JSONDecodeError:
                 pass
         evt = TokenEvent(text=text)
-        yield "token", evt.model_dump()
+        yield "token", evt.model_dump_json()
 
     elif isinstance(value, dict):
         msg_type = value.get("type", "")
@@ -554,10 +554,10 @@ def _route_parsed_value(
         if msg_type == "answer":
             # Explicit answer payload: {"type": "answer", "text": "..."}
             evt = TokenEvent(text=value.get("text", ""))
-            yield "token", evt.model_dump()
+            yield "token", evt.model_dump_json()
         elif msg_type == "error":
             # Error from agent: {"type": "error", "detail": "..."}
-            yield "error", {"detail": value.get("detail", "Unknown agent error")}
+            yield "error", json.dumps({"detail": value.get("detail", "Unknown agent error")}, ensure_ascii=False)
         elif msg_type == "trace":
             yield from _parse_agentcore_trace(value, locale)
         elif msg_type == "citations":
@@ -567,24 +567,24 @@ def _route_parsed_value(
                 title = citation.get("title", "")
                 if url:
                     evt = CitationEvent(source=url, text=title, source_type=source_type)
-                    yield "citation", evt.model_dump()
+                    yield "citation", evt.model_dump_json()
         elif "text" in value and len(value) == 1:
             # Simple text response wrapped in {"text": "..."}
             evt = TokenEvent(text=value["text"])
-            yield "token", evt.model_dump()
+            yield "token", evt.model_dump_json()
         else:
             # Unknown dict — yield as token for safety
             evt = TokenEvent(text=json.dumps(value, ensure_ascii=False))
-            yield "token", evt.model_dump()
+            yield "token", evt.model_dump_json()
 
     # Other types (numbers, arrays, etc.) — unlikely but handle gracefully
     elif value is not None:
         evt = TokenEvent(text=str(value))
-        yield "token", evt.model_dump()
+        yield "token", evt.model_dump_json()
 
 
-def _parse_agentcore_trace(data: dict, locale: str = "de") -> Generator[tuple[str, dict], None, None]:
-    """Parse an AgentCore trace event and yield (event_type, data_dict) tuples.
+def _parse_agentcore_trace(data: dict, locale: str = "de") -> Generator[tuple[str, str], None, None]:
+    """Parse an AgentCore trace event and yield (event_type, json_data) tuples.
 
     Trace events from AgentCore:
     - tool_start: agent is calling a tool (with tool name + input)
@@ -600,7 +600,7 @@ def _parse_agentcore_trace(data: dict, locale: str = "de") -> Generator[tuple[st
         label = _t(label_key, locale) if label_key else _t("calling", locale, name=tool_name)
         detail = json.dumps(tool_input, ensure_ascii=False, indent=2) if tool_input else None
         evt = TraceEvent(label=label, detail=detail, tool=tool_name)
-        yield "trace", evt.model_dump()
+        yield "trace", evt.model_dump_json()
 
     elif event_name == "tool_result":
         result = data.get("result", {})
@@ -631,9 +631,9 @@ def _parse_agentcore_trace(data: dict, locale: str = "de") -> Generator[tuple[st
                 label=_t("result_received_generic", locale),
                 detail=json.dumps(result, ensure_ascii=False)[:500],
             )
-        yield "trace", evt.model_dump()
+        yield "trace", evt.model_dump_json()
 
     elif event_name == "error":
         reason = data.get("message", data.get("detail", _t("unknown_error", locale)))
         evt = TraceEvent(label=_t("error", locale), detail=reason)
-        yield "trace", evt.model_dump()
+        yield "trace", evt.model_dump_json()
