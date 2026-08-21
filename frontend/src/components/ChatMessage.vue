@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import MarkdownIt from 'markdown-it'
+import { useI18n } from 'vue-i18n'
 import type { ChatMessage } from '@/types/chat'
 import { useChatStore } from '@/stores/chatStore'
 import TraceExpander from '@/components/TraceExpander.vue'
@@ -11,6 +12,7 @@ const props = defineProps<{
   index: number
 }>()
 
+const { t } = useI18n()
 const store = useChatStore()
 const md = new MarkdownIt({ linkify: true, breaks: true })
 
@@ -29,8 +31,8 @@ const isLastMessage = computed(() => props.index === store.messages.length - 1)
     <div class="chat-message__bubble">
       <div v-if="message.role === 'assistant'" class="chat-message__content" v-html="renderedContent" />
       <p v-else class="chat-message__content">{{ message.content }}</p>
-      <p v-if="message.role === 'assistant' && store.isStreaming && isLastMessage && store.streamingStatus" class="streaming-status">
-        {{ store.streamingStatus }}
+      <p v-if="message.role === 'assistant' && store.isStreaming && isLastMessage" class="streaming-status">
+        {{ store.streamingStatus || t('thinking') }}
       </p>
     </div>
 
