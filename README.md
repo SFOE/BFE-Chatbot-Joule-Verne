@@ -9,7 +9,7 @@
    - [Usage](#usage)
 2. [Agentic AI](#agentic-ai)
    - [Retrieval-Augmented Generation](#retrieval-augmented-generation)
-   - [Bedrock Implementation](#bedrock-implementation)
+   - [AgentCore Implementation](#agentcore-implementation)
 3. [Cloud Architecture](#cloud-architecture)
    - [AWS Infrastructure](#aws-infrastructure)  
    - [Components](#components-overview)
@@ -27,7 +27,7 @@
 ## Joule Verne Overview
 ### Presentation
 ![Watch the demo](docs/bfe-chatbot-demo-ezgif.com-speed.gif)
-Joule Verne is a chatbot that was designed with the aim of answering requests received by the Swiss Federal Office of Energy (SFOE), ranging from the general public to parliamentarians. It was built solely using public data, that can be found on the [Publication database](https://www.bfe.admin.ch/bfe/en/home/news-und-medien/publikationen.exturl.html/aHR0cHM6Ly9wdWJkYi5iZmUuYWRtaW4uY2gvZW4vc3VjaGU=.html?keywords=&q=&from=20.10.2025&to=24.10.2025&nr=), the official [website](https://www.bfe.admin.ch/bfe/en/home.html) of the SFOE, [EnergieSchweiz](https://www.energieschweiz.ch/), [Aramis](https://www.aramis.admin.ch/) research project publications, and [Fedlex](https://www.fedlex.admin.ch/) legal texts. The main purpose of this agent is to support the Bundes-und Parlamentsgeschäfte Section to answer all letters addressed to the SFOE. Sources are shown with each answer and can be downloaded for consultation.
+Joule Verne is a chatbot that was designed with the aim of answering requests received by the Swiss Federal Office of Energy (SFOE), ranging from the general public to parliamentarians. It was built solely using public data, that can be found on the [Publication database](https://www.bfe.admin.ch/bfe/en/home/news-und-medien/publikationen.exturl.html/aHR0cHM6Ly9wdWJkYi5iZmUuYWRtaW4uY2gvZW4vc3VjaGU=.html?keywords=&q=&from=20.10.2025&to=24.10.2025&nr=), the official [website](https://www.bfe.admin.ch/bfe/en/home.html) of the SFOE, [EnergieSchweiz](https://www.energieschweiz.ch/), [Aramis](https://www.aramis.admin.ch/) research project publications, and [Fedlex](https://www.fedlex.admin.ch/) legal texts. The main purpose of this agent is to support the Bundes-und Parlamentsgeschaefte Section to answer all letters addressed to the SFOE. Sources are shown with each answer and can be downloaded for consultation.
 
 ### Features
 
@@ -35,10 +35,11 @@ Joule Verne is a chatbot that was designed with the aim of answering requests re
 - **Web search mode** — Switch between the internal BFE knowledge base and an external web search agent. The mode is locked once a conversation starts.
 - **Source display** — The sidebar shows all cited sources: PDF downloads, website links, and Fedlex law references.
 - **Feedback system** — Rate answers with thumbs up/down and leave optional text comments. Feedback is stored in S3 for evaluation.
-- **Reasoning trace** — Expand the "Denkprozess" section to see the agent's reasoning steps, knowledge base lookups, and action group calls.
+- **Reasoning trace** — Expand the "Denkprozess" section to see the agent's reasoning steps, knowledge base lookups, and tool calls.
 - **Interrupted query recovery** — If processing is interrupted (e.g., by a page interaction), the app detects it and offers a retry button.
 - **Release notes** — Available via the sidebar footer link, automatically fetched from GitHub releases at build time.
 - **Group-based authorization** — Access is restricted via Cognito groups (`ALLOWED_COGNITO_GROUPS`).
+- **Multilingual UI** — The frontend supports German, French, Italian, and English.
 
 ### Usage
 
@@ -54,10 +55,8 @@ More information on how to use the agent and the data it relies on can be found 
 The technique used to design the agent is called Retrieval-Augmented Generation. The idea is to upload the data we want our agent to know into a vector database. For this, they will be chunked and vectorized, that is, embedded in a mathematical form. When a user makes a query to the chatbot, the query will be compared to the vector database and a semantic search will be performed, retrieving the most similar documents from the database. These documents are then added to the user's question in the prompt and the LLM will reply according to this combined prompt and context. For more details please consult the [References](#references) section.
 
 
-### Bedrock Implementation
-The agent is hosted on Amazon Bedrock and uses **Claude Sonnet 4.6** as LLM (configured in the infrastructure repo, not here). Two agents are configured:
-- **Default agent** (`AGENT_ID` / `AGENT_ALIAS_ID`) — uses the internal knowledge bases
-- **Web search agent** (`AGENT_SEARCH_ID` / `AGENT_SEARCH_ALIAS_ID`) — extends retrieval with external web search
+### AgentCore Implementation
+The agent is deployed on **Amazon Bedrock AgentCore Runtime** and uses **Claude Sonnet 4.6** as LLM (configured in the infrastructure repo). A single AgentCore runtime endpoint handles both knowledge base retrieval and web search capabilities, controlled via the `enable_web_search` flag per request.
 
 Four knowledge base buckets are used:
 | Bucket env var | Content |
@@ -67,12 +66,13 @@ Four knowledge base buckets are used:
 | `WEBSITE_BUCKET` | Scraped content from the official BFE website and EnergieSchweiz |
 | `FEDLEX_BUCKET` | Swiss federal law texts from Fedlex |
 
-Three knowledge bases are configured: two use semantic chunking (documents and website) and one uses hierarchical chunking (Fedlex). The vector store is Amazon S3. Data sources are automatically synced via scheduled pipelines (see infrastructure repo for details).
+Three knowledge bases are configured: two use semantic chunking (documents and website) and one uses hierarchical chunking (Fedlex). Data sources are automatically synced via scheduled pipelines (see infrastructure repo for details).
 
-The agents also have access to the following action groups:
-- **Filtered Search** — retrieves documents from specific knowledge bases with metadata filters
-- **Web Search** — queries the web via Tavily (web search agent only)
+The agent has access to the following tools:
+- **Filtered KB Search** — retrieves documents from specific knowledge bases with metadata filters
+- **Web Search** — queries the web via Tavily
 - **ARAMIS Search** — queries the ARAMIS research project API
+- **ARAMIS Project Details** — fetches detailed information about a specific ARAMIS project
 - **Code Interpreter** — executes Python code for data analysis (e.g., uploaded spreadsheets)
 
 ## Cloud Architecture
@@ -100,9 +100,9 @@ The agents also have access to the following action groups:
 
 - **Elastic Container Service (ECS) using Fargate**
   - Runs Docker containers inside private subnets for security
-  - Containers listen on port **8501**
+  - Containers listen on port **8000** (FastAPI/Uvicorn)
   - ECS Service is deployed across both AZs for fault tolerance
-  - Associated Security Group: allows inbound traffic on port 8501 from the Load Balancer Security Group
+  - Associated Security Group: allows inbound traffic on port 8000 from the Load Balancer Security Group
     
 > [!NOTE]
 > ECS uses **Fargate**, so no management of underlying instances is required as it is serverless.
@@ -111,7 +111,7 @@ The agents also have access to the following action groups:
 - **VPC Endpoints**  
   - Enable private, secure access to AWS services without internet traffic (also less expensive than using a NAT Gateway), including:  
     - S3 for retrieving the files stored in S3
-    - Bedrock for API calls to the agent
+    - Bedrock AgentCore for agent runtime invocations
     - ECR for calling the Docker image 
     - CloudWatch for logging and monitoring
       
@@ -132,8 +132,8 @@ The agents also have access to the following action groups:
 3. If the ALB recognizes the JWT tokens, it goes to step 5 directly.
 4. The ALB redirects the user to **Cognito** frontpage, where the user must authenticate.
 5. The ALB routes traffic to ECS tasks running in private subnets through a target group.
-6. ECS containers listen on port **8501** and process the request.
-7. Containers interact with **S3**, **Bedrock**, and other AWS services via **VPC endpoints**.
+6. ECS containers listen on port **8000** and process the request.
+7. Containers interact with **S3**, **Bedrock AgentCore**, and other AWS services via **VPC endpoints**.
 8. Logs and metrics are sent to **CloudWatch**.
 
 ### Security Groups
@@ -147,7 +147,7 @@ The agents also have access to the following action groups:
 | Elastic Container Service SG           | Port range/protocol                                     |        Source/Destination                       |
 |-------------------------|----------------------------------------------|----------------------------------------------|
 | Inbound        | HTTPS 443             | ECS SG|
-| Inbound       |  HTTP 8501  |  Load Balancer SG   |
+| Inbound       |  HTTP 8000  |  Load Balancer SG   |
 | Outbound           |    All TCP   | Default route 0.0.0.0/0 |
 
 > [!IMPORTANT]
@@ -165,7 +165,9 @@ The repository uses GitHub Actions (`.github/workflows/upload-to-ecr.yml`) with 
 | Push to `main` | `latest` | Dev ECR |
 | GitHub Release created | `<tag_name>` | Dev + Prod ECR |
 
-The Docker build uses a multi-stage Dockerfile (build stage with compilation tools, slim runtime stage) and fetches release notes from GitHub at build time.
+The Docker build uses a multi-stage Dockerfile:
+1. **Frontend build** — Node 22 Alpine builds the Vue app with Vite
+2. **Backend + runtime** — Python 3.14 Alpine (via `uv`) installs dependencies, copies backend source, frontend static files, and fetches release notes at build time
 
 ## How to Install & Run Project
 ### Folder structure
@@ -175,38 +177,70 @@ The Docker build uses a multi-stage Dockerfile (build stage with compilation too
     ├── .github/
     │   └── workflows/
     │       └── upload-to-ecr.yml       # CI/CD: build, scan, push Docker image to ECR
-    ├── .streamlit/
-    │   └── config.toml                 # Streamlit theme and server settings
+    ├── backend/
+    │   ├── src/
+    │   │   └── jouleverne/
+    │   │       ├── __init__.py
+    │   │       ├── __main__.py         # Uvicorn entrypoint
+    │   │       ├── app.py              # FastAPI app: middleware, routers, static files
+    │   │       ├── config.py           # Pydantic Settings (env vars)
+    │   │       ├── models/             # Pydantic request/response models
+    │   │       ├── routes/             # API route handlers (chat, documents, feedback, sources, releases, links)
+    │   │       └── services/           # Business logic (agent, clients, documents, feedback, security)
+    │   ├── tests/                      # pytest test suite
+    │   ├── pyproject.toml              # Python project config (dependencies via uv)
+    │   ├── uv.lock                     # Locked dependencies
+    │   ├── env.example                 # Example .env file
+    │   └── docker-compose.yml          # Local Docker dev setup
+    ├── frontend/
+    │   ├── src/
+    │   │   ├── components/             # Vue components
+    │   │   ├── composables/            # Vue composables (useChat, useDocuments)
+    │   │   ├── locales/                # i18n translation files
+    │   │   ├── router/                 # Vue Router configuration
+    │   │   ├── services/               # HTTP client (axios)
+    │   │   ├── stores/                 # Pinia stores (chat, language)
+    │   │   ├── types/                  # TypeScript type definitions
+    │   │   └── views/                  # Page-level Vue components
+    │   ├── package.json                # Node dependencies
+    │   └── vite.config.ts              # Vite build config with API proxy
+    ├── scripts/
+    │   ├── fetch_releases.py           # Fetches GitHub releases → release_notes.json
+    │   └── cloudfront_waf_config.md    # CloudFront/WAF setup notes
     ├── docs/
     │   ├── bfe-chatbot-demo-ezgif.com-speed.gif
     │   └── chatbot-instructions.docx
-    ├── img/
-    │   └── bundesamt_logo.jpeg         # Swiss Federal Office logo for the frontend
-    ├── pages/
-    │   └── release_notes.py            # Streamlit page: displays release notes
-    ├── scripts/
-    │   └── fetch_releases.py           # Fetches GitHub releases → release_notes.json
-    ├── src/
-    │   ├── __init__.py
-    │   ├── document_processing.py      # Multi-document upload: extraction, summarization, chunking
-    │   └── utils.py                    # AWS clients, agent invocation, S3 helpers, feedback
     ├── .dockerignore
-    ├── .env                            # Local environment variables (not committed)
     ├── .gitignore
-    ├── agent.py                        # Main Streamlit app: frontend + chat logic
-    ├── Dockerfile                      # Multi-stage build for ECS deployment
-    ├── README.md
-    └── requirements.txt
+    ├── Dockerfile                      # Multi-stage build (frontend + backend)
+    └── README.md
 ```
 
 ### Environment & Local Run
 
+**Backend:**
+
 ```bash
-python -m venv venv
-source venv/bin/activate         # macOS / Linux
-# venv\Scripts\activate          # Windows
-pip install -r requirements.txt
-streamlit run agent.py           # runs on http://localhost:8501
+cd backend
+uv sync                          # Install Python dependencies
+cp env.example .env              # Configure environment variables
+uv run jouleverne                # Runs FastAPI on http://localhost:8000
+```
+
+**Frontend (development with hot-reload):**
+
+```bash
+cd frontend
+npm install
+npm run dev                      # Runs Vite dev server on http://localhost:5173
+                                 # API requests are proxied to localhost:8000
+```
+
+**Full stack via Docker:**
+
+```bash
+docker build -t jouleverne .
+docker run -p 8000:8000 --env-file backend/.env jouleverne
 ```
 
 ### Environment Variables
@@ -216,18 +250,17 @@ The following environment variables are required (set in `.env` locally, or in t
 | Variable | Description |
 |----------|-------------|
 | `AWS_REGION` | AWS region (e.g. `eu-central-1`) |
-| `AGENT_ID` | Bedrock Agent ID (default/knowledge base agent) |
-| `AGENT_ALIAS_ID` | Alias ID for the default agent |
-| `AGENT_SEARCH_ID` | Bedrock Agent ID (web search agent) |
-| `AGENT_SEARCH_ALIAS_ID` | Alias ID for the web search agent |
+| `AGENTCORE_RUNTIME_ARN` | ARN of the Bedrock AgentCore runtime |
+| `AGENTCORE_ENDPOINT_ARN` | ARN of the AgentCore endpoint (optional) |
 | `PDF_BUCKET` | S3 bucket containing the PDF documents |
 | `EXTRACTED_BUCKET` | S3 bucket with extracted text files |
 | `WEBSITE_BUCKET` | S3 bucket with scraped BFE website content |
 | `FEDLEX_BUCKET` | S3 bucket with Fedlex law texts |
 | `FEEDBACK_BUCKET` | S3 bucket for storing user feedback |
-| `ALLOWED_COGNITO_GROUPS` | Comma-separated Cognito group names allowed to access the app |
+| `ALLOWED_COGNITO_GROUPS` | Comma-separated Cognito group names allowed to access the app (empty = open) |
+| `KB_DISPLAY_NAMES` | Knowledge base display names for the UI (format: `id:DE\|FR\|IT\|EN`) |
 
 ## References
 - Gao, Yunfan, et al. "Retrieval-augmented generation for large language models: A survey." arXiv preprint arXiv:2312.10997 2.1 (2023).
-- [LlamaIndex Python documentation](https://developers.llamaindex.ai/python/framework/)
+- [AWS Bedrock AgentCore documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/agentcore.html)
 - [AWS Python SDK documentation](https://boto3.amazonaws.com/v1/documentation/api/latest/index.html)
