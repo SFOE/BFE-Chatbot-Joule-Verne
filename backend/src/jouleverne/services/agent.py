@@ -1,5 +1,6 @@
 """AgentCore Runtime interaction — invoke and stream responses."""
 
+import base64
 import json
 import logging
 from collections.abc import Generator
@@ -239,7 +240,7 @@ def invoke_agent(
         session_id: Session identifier for conversation continuity.
         web_search: Whether to enable the web search tool.
         session_attributes: Dict with uploaded_document, document_name, context_mode.
-        files: Code Interpreter files (not yet supported in AgentCore).
+        files: Code Interpreter files to upload to the sandbox before agent invocation.
 
     Returns:
         AgentCore Runtime streaming response dict.
@@ -259,12 +260,17 @@ def invoke_agent(
         if "context_mode" in session_attributes:
             payload["context_mode"] = session_attributes["context_mode"]
 
-    # Code Interpreter file upload not yet supported in AgentCore
+    # Code Interpreter files — serialize as base64 in the payload for the agent
+    # to write into the sandbox via write_files()
     if files:
-        logger.warning(
-            "Code Interpreter file upload not yet supported in AgentCore. "
-            "Files ignored — use uploaded_document for text-based content."
-        )
+        payload["code_interpreter_files"] = [
+            {
+                "name": f["name"],
+                "media_type": f["source"]["byteContent"]["mediaType"],
+                "data": base64.b64encode(f["source"]["byteContent"]["data"]).decode("ascii"),
+            }
+            for f in files
+        ]
 
     return agentcore_client.invoke_agent_runtime(
         agentRuntimeArn=settings.AGENTCORE_RUNTIME_ARN,
