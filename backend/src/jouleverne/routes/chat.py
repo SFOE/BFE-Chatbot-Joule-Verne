@@ -7,7 +7,8 @@ from sse_starlette.sse import EventSourceResponse
 
 from ..models.chat import ChatRequest
 from ..services.agent import stream_agent_response
-from ..services.security import limiter, verify_cognito_auth
+from ..services.security import limiter, verify_cognito_auth, extract_user_email
+from ..services.usage import log_usage
 from ..config import settings
 
 router = APIRouter(prefix="/v1", tags=["chat"])
@@ -49,6 +50,8 @@ async def chat(
     - done: stream complete
     - error: something went wrong
     """
+    log_usage(extract_user_email(request), locale=body.locale, web_search=body.web_search)
+
     agent_files = _build_agent_files(body)
 
     def event_generator():

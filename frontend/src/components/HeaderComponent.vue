@@ -17,7 +17,10 @@
             height="68"
             fetchpriority="high"
           />
-          <h1 class="title">{{ t('header_title') }}</h1>
+          <div class="title-block">
+            <h1 class="title">{{ t('header_title') }}</h1>
+            <p class="app-title">{{ t('app_title') }}</p>
+          </div>
         </div>
       </div>
     </div>
@@ -96,6 +99,22 @@ const { t } = useI18n()
   line-height: 1.2;
 }
 
+.title-block {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-self: stretch;
+  gap: 0;
+}
+
+.app-title {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--color-text, #333);
+}
+
 .divider {
   width: 1px;
   background-color: var(--color-separator);
@@ -133,11 +152,19 @@ const { t } = useI18n()
   .title {
     font-size: 13px;
   }
+
+  .app-title {
+    font-size: 18px;
+  }
 }
 
 @media (max-width: 480px) {
   .title {
     font-size: 12px;
+  }
+
+  .app-title {
+    font-size: 16px;
   }
 }
 </style>
