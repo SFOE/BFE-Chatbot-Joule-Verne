@@ -4,7 +4,7 @@ from fastapi import APIRouter, Request, Depends
 
 from ..models.feedback import FeedbackRequest, FeedbackResponse
 from ..services.feedback import save_feedback
-from ..services.security import limiter, verify_cognito_auth, extract_user_email
+from ..services.security import limiter, verify_cognito_auth
 from ..config import settings
 
 router = APIRouter(prefix="/v1", tags=["feedback"])
@@ -30,6 +30,5 @@ async def submit_feedback(
         tools_used=body.tools_used,
         s3_key_override=body.s3_key_override,
         original_timestamp=body.original_timestamp,
-        user_email=extract_user_email(request),
     )
     return FeedbackResponse(s3_key=s3_key, timestamp=timestamp)

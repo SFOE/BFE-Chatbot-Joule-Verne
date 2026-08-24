@@ -23,7 +23,6 @@ def save_feedback(
     tools_used: list[str] | None = None,
     s3_key_override: str | None = None,
     original_timestamp: str | None = None,
-    user_email: str | None = None,
 ) -> tuple[str | None, str | None]:
     """Save user feedback to S3 as a JSON file.
 
@@ -41,7 +40,6 @@ def save_feedback(
         "session_id": session_id,
         "timestamp": timestamp,
         "rating": rating,
-        "user_email": user_email,
         "user_query": user_query,
         "agent_response": agent_response,
         "agent_variant": agent_variant,
