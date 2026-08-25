@@ -43,8 +43,8 @@ MEDIA_TYPES = {
 # Sensitivity / Classification
 # ---------------------------------------------------------------------------
 
-# Sensitivity labels that are NOT allowed (L3 and higher)
-RESTRICTED_SENSITIVITY_LABELS = {"L3", "L4"}
+# Sensitivity labels that are NOT allowed (empty = no MIP labels blocked)
+RESTRICTED_SENSITIVITY_LABELS: set[str] = set()
 
 # Classification keywords to search for in document headers/footers/text
 # These are common classifications used in the Swiss federal administration
