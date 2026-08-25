@@ -1,6 +1,7 @@
 """Chat endpoint — streams agent responses via SSE."""
 
 import base64
+import logging
 
 from fastapi import APIRouter, Request, Depends
 from sse_starlette.sse import EventSourceResponse
@@ -10,6 +11,8 @@ from ..services.agent import stream_agent_response
 from ..services.security import limiter, verify_cognito_auth, extract_user_email
 from ..services.usage import log_usage
 from ..config import settings
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/v1", tags=["chat"])
 
@@ -50,7 +53,12 @@ async def chat(
     - done: stream complete
     - error: something went wrong
     """
-    log_usage(extract_user_email(request), locale=body.locale, web_search=body.web_search)
+    email = extract_user_email(request)
+    logger.info("Usage tracking — email=%s, locale=%s, web_search=%s", email, body.locale, body.web_search)
+    logger.info("OIDC headers — oidc-data=%s, oidc-accesstoken=%s",
+                bool(request.headers.get("x-amzn-oidc-data")),
+                bool(request.headers.get("x-amzn-oidc-accesstoken")))
+    log_usage(email, locale=body.locale, web_search=body.web_search)
 
     agent_files = _build_agent_files(body)
 
