@@ -41,6 +41,10 @@ const paginatedFiles = computed(() => {
   const start = (currentPage.value - 1) * PAGE_SIZE
   return files.value.slice(start, start + PAGE_SIZE)
 })
+const selectedKbName = computed(() => {
+  const kb = kbs.value.find((k) => k.id === selectedKbId.value)
+  return kb ? kbName(kb) : ''
+})
 
 const ACCEPT = '.pdf,.txt,.md,.html,.doc,.docx,.csv,.xls,.xlsx,.jpeg,.jpg,.png'
 const MAX_DOC_SIZE = 50 * 1024 * 1024 // 50 MB for documents
@@ -51,9 +55,6 @@ onMounted(async () => {
   try {
     const response = await backendHttp.get<SpecificKb[]>('v1/kbs/specific')
     kbs.value = response.data
-    if (kbs.value.length) {
-      selectedKbId.value = kbs.value[0].id
-    }
   } catch {
     kbs.value = []
   }
@@ -203,6 +204,7 @@ async function uploadFiles(fileList: File[]) {
     <div v-if="kbs.length" class="kb-upload-form">
       <label class="kb-select-label" for="kb-select">{{ t('kb_upload_select_label') }}</label>
       <select id="kb-select" v-model="selectedKbId" class="kb-select" :disabled="uploading">
+        <option value="" disabled>{{ t('kb_upload_select_placeholder') }}</option>
         <option v-for="kb in kbs" :key="kb.id" :value="kb.id">{{ kbName(kb) }}</option>
       </select>
 
@@ -233,8 +235,8 @@ async function uploadFiles(fileList: File[]) {
       </div>
 
       <!-- File list -->
-      <div class="kb-files-section">
-        <h3>{{ t('kb_files_title') }}</h3>
+      <div v-if="selectedKbId" class="kb-files-section">
+        <h3>{{ t('kb_files_title', { name: selectedKbName }) }}</h3>
         <p v-if="loadingFiles" class="kb-files-loading">{{ t('kb_files_loading') }}</p>
         <p v-else-if="!files.length" class="kb-files-empty">{{ t('kb_files_empty') }}</p>
         <table v-else class="kb-files-table">
@@ -288,6 +290,8 @@ async function uploadFiles(fileList: File[]) {
   max-width: 720px;
   margin: 0 auto;
   padding: 1.5rem;
+  overflow-y: auto;
+  max-height: 100%;
 }
 
 .kb-upload-intro {
