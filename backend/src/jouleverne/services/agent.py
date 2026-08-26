@@ -335,6 +335,10 @@ def stream_agent_response(
         # buffering the entire response first.
         buffer = ""
         chunk_size = 1024  # bytes per read iteration
+        # Use incremental decoder to handle multi-byte UTF-8 characters
+        # that may be split across chunk boundaries (e.g. ä, ö, ü, é)
+        import codecs
+        utf8_decoder = codecs.getincrementaldecoder("utf-8")("ignore")
 
         # StreamingBody supports iter_chunks(); fall back to reading all at once
         # if the method isn't available (defensive against API changes).
@@ -347,7 +351,7 @@ def stream_agent_response(
 
         for chunk in chunk_iter:
             if isinstance(chunk, bytes):
-                chunk = chunk.decode("utf-8")
+                chunk = utf8_decoder.decode(chunk, final=False)
             buffer += chunk
 
             # Process all complete messages currently in the buffer
@@ -361,6 +365,10 @@ def stream_agent_response(
                 buffer = e.value if e.value else ""
 
         # Process any remaining content in the buffer (final flush)
+        # Flush any remaining bytes in the incremental decoder
+        remaining_decoded = utf8_decoder.decode(b"", final=True)
+        if remaining_decoded:
+            buffer += remaining_decoded
         if buffer.strip():
             gen = _process_buffer(buffer, locale, final=True)
             try:
@@ -614,8 +622,9 @@ def _route_parsed_value(
                 url = citation.get("url", "")
                 source_type = citation.get("source_type", "")
                 title = citation.get("title", "")
-                if url:
-                    evt = CitationEvent(source=url, text=title, source_type=source_type)
+                text = citation.get("text", "") or title
+                if url or text:
+                    evt = CitationEvent(source=url, text=text, source_type=source_type)
                     yield "citation", evt.model_dump_json()
         elif "text" in value and len(value) == 1:
             # Simple text response wrapped in {"text": "..."}
