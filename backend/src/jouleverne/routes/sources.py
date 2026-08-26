@@ -125,6 +125,17 @@ async def get_source_metadata(
 
         # Any other bucket — fallback
         else:
+            # Specific KBs bucket — generate download URL directly
+            if bucket == settings.SPECIFIC_KBS_BUCKET:
+                try:
+                    download_url = s3_client.generate_presigned_url(
+                        "get_object",
+                        Params={"Bucket": bucket, "Key": key},
+                        ExpiresIn=300,
+                    )
+                    result["download_url"] = download_url
+                except Exception:
+                    pass
             result["type"] = "document"
 
     except Exception as e:

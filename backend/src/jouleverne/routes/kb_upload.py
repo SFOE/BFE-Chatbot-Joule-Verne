@@ -113,3 +113,114 @@ async def create_upload_url(
         "content_type": content_type,
         "expires_in": settings.UPLOAD_URL_EXPIRATION,
     }
+
+
+@router.get("/kbs/{kb_id}/files")
+@limiter.limit(settings.RATE_LIMIT)
+async def list_kb_files(
+    kb_id: str,
+    request: Request,
+    _auth: None = Depends(verify_cognito_auth),
+):
+    """List all files in a specific KB's S3 prefix."""
+    if not settings.SPECIFIC_KBS_BUCKET:
+        raise HTTPException(status_code=500, detail="Upload is not configured.")
+
+    prefix = get_prefix_for_kb(kb_id)
+    if prefix is None:
+        raise HTTPException(status_code=403, detail="Unknown or not-allowed knowledge base.")
+
+    try:
+        files = []
+        paginator = s3_client.get_paginator("list_objects_v2")
+        for page in paginator.paginate(Bucket=settings.SPECIFIC_KBS_BUCKET, Prefix=f"{prefix}/"):
+            for obj in page.get("Contents", []):
+                name = obj["Key"].split("/")[-1]
+                if not name:
+                    continue
+                files.append({
+                    "key": obj["Key"],
+                    "name": name,
+                    "size": obj["Size"],
+                    "last_modified": obj["LastModified"].isoformat(),
+                })
+        return files
+    except Exception as e:
+        logger.error("Failed to list objects for KB %s: %s", kb_id, e)
+        raise HTTPException(status_code=500, detail="Failed to list files.")
+
+
+class DeleteFileRequest(BaseModel):
+    key: str
+
+
+@router.delete("/kbs/{kb_id}/files")
+@limiter.limit(settings.RATE_LIMIT)
+async def delete_kb_file(
+    kb_id: str,
+    body: DeleteFileRequest,
+    request: Request,
+    _auth: None = Depends(verify_cognito_auth),
+):
+    """Delete a file from a specific KB's S3 prefix."""
+    if not settings.SPECIFIC_KBS_BUCKET:
+        raise HTTPException(status_code=500, detail="Upload is not configured.")
+
+    prefix = get_prefix_for_kb(kb_id)
+    if prefix is None:
+        raise HTTPException(status_code=403, detail="Unknown or not-allowed knowledge base.")
+
+    # Ensure the key belongs to the KB's prefix (prevent deletion of other files)
+    if not body.key.startswith(f"{prefix}/"):
+        raise HTTPException(status_code=403, detail="Cannot delete files outside this knowledge base.")
+
+    try:
+        s3_client.delete_object(
+            Bucket=settings.SPECIFIC_KBS_BUCKET,
+            Key=body.key,
+        )
+    except Exception as e:
+        logger.error("Failed to delete object %s: %s", body.key, e)
+        raise HTTPException(status_code=500, detail="Failed to delete file.")
+
+    return {"deleted": body.key}
+
+
+class DownloadUrlRequest(BaseModel):
+    key: str
+
+
+@router.post("/kbs/{kb_id}/download-url")
+@limiter.limit(settings.RATE_LIMIT)
+async def create_download_url(
+    kb_id: str,
+    body: DownloadUrlRequest,
+    request: Request,
+    _auth: None = Depends(verify_cognito_auth),
+):
+    """Generate a presigned S3 GET URL for downloading a file from a specific KB."""
+    if not settings.SPECIFIC_KBS_BUCKET:
+        raise HTTPException(status_code=500, detail="Upload is not configured.")
+
+    prefix = get_prefix_for_kb(kb_id)
+    if prefix is None:
+        raise HTTPException(status_code=403, detail="Unknown or not-allowed knowledge base.")
+
+    # Ensure the key belongs to the KB's prefix
+    if not body.key.startswith(f"{prefix}/"):
+        raise HTTPException(status_code=403, detail="Cannot download files outside this knowledge base.")
+
+    try:
+        url = s3_client.generate_presigned_url(
+            "get_object",
+            Params={
+                "Bucket": settings.SPECIFIC_KBS_BUCKET,
+                "Key": body.key,
+            },
+            ExpiresIn=settings.UPLOAD_URL_EXPIRATION,
+        )
+    except Exception as e:
+        logger.error("Failed to generate download URL for %s: %s", body.key, e)
+        raise HTTPException(status_code=500, detail="Failed to generate download URL.")
+
+    return {"download_url": url}
