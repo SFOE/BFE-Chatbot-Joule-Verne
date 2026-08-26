@@ -34,7 +34,7 @@
   "release_notes_link": "Note di rilascio",
   "kb_upload_link": "Integrare la base di conoscenza",
   "kb_upload_title": "Carica documenti in una base di conoscenza",
-  "kb_upload_intro": "Selezioni una base di conoscenza specifica e carichi i documenti. I documenti vengono indicizzati automaticamente.",
+  "kb_upload_intro": "Selezioni una base di conoscenza specifica e carichi i documenti. I documenti vengono indicizzati automaticamente. Possono essere necessari fino a 10 minuti prima che i documenti siano disponibili nella base di conoscenza.",
   "kb_upload_select_label": "Base di conoscenza",
   "kb_upload_select_files": "Seleziona file",
   "kb_upload_hint": "Formati supportati: PDF, TXT, MD, HTML, DOC, DOCX, CSV, XLS, XLSX, JPEG, PNG. Massimo 50 MB (immagini: 3.75 MB).",

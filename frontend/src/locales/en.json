@@ -34,7 +34,7 @@
   "release_notes_link": "Release Notes",
   "kb_upload_link": "Supplement knowledge base",
   "kb_upload_title": "Upload documents to a knowledge base",
-  "kb_upload_intro": "Select a specific knowledge base and upload documents. The documents are indexed automatically.",
+  "kb_upload_intro": "Select a specific knowledge base and upload documents. The documents are indexed automatically. It can take up to 10 minutes for the documents to become available in the knowledge base.",
   "kb_upload_select_label": "Knowledge base",
   "kb_upload_select_files": "Select files",
   "kb_upload_hint": "Supported formats: PDF, TXT, MD, HTML, DOC, DOCX, CSV, XLS, XLSX, JPEG, PNG. Max 50 MB (images: 3.75 MB).",

@@ -34,7 +34,7 @@
   "release_notes_link": "Release Notes",
   "kb_upload_link": "Wissensdatenbank ergänzen",
   "kb_upload_title": "Dokumente in Wissensdatenbank hochladen",
-  "kb_upload_intro": "Wählen Sie eine spezifische Wissensdatenbank und laden Sie Dokumente hoch. Die Dokumente werden automatisch indexiert.",
+  "kb_upload_intro": "Wählen Sie eine spezifische Wissensdatenbank und laden Sie Dokumente hoch. Die Dokumente werden automatisch indexiert. Es kann bis zu 10 Minuten dauern, bis die Dokumente in der Wissensdatenbank verfügbar sind.",
   "kb_upload_select_label": "Wissensdatenbank",
   "kb_upload_select_files": "Dateien auswählen",
   "kb_upload_hint": "Unterstützte Formate: PDF, TXT, MD, HTML, DOC, DOCX, CSV, XLS, XLSX, JPEG, PNG. Max. 50 MB (Bilder: 3.75 MB).",

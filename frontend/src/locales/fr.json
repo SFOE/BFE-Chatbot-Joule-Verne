@@ -34,7 +34,7 @@
   "release_notes_link": "Notes de version",
   "kb_upload_link": "Compléter la base de connaissances",
   "kb_upload_title": "Téléverser des documents vers une base de connaissances",
-  "kb_upload_intro": "Sélectionnez une base de connaissances spécifique et téléversez des documents. Les documents sont indexés automatiquement.",
+  "kb_upload_intro": "Sélectionnez une base de connaissances spécifique et téléversez des documents. Les documents sont indexés automatiquement. La mise à disposition dans la base de connaissances peut prendre jusqu'à 10 minutes.",
   "kb_upload_select_label": "Base de connaissances",
   "kb_upload_select_files": "Sélectionner des fichiers",
   "kb_upload_hint": "Formats pris en charge : PDF, TXT, MD, HTML, DOC, DOCX, CSV, XLS, XLSX, JPEG, PNG. 50 Mo max (images : 3.75 Mo).",
