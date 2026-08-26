@@ -59,6 +59,8 @@ async def chat(
             message=body.message,
             session_id=body.session_id,
             web_search=body.web_search,
+            agent_type=body.agent_type,
+            specific_kb_id=body.specific_kb_id,
             locale=body.locale,
             session_attributes=body.session_attributes,
             files=agent_files,

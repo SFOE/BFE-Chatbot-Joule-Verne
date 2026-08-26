@@ -34,5 +34,16 @@ class Settings(BaseSettings):
     # Single name (all locales): "id:Name"
     KB_DISPLAY_NAMES: str = ""
 
+    # Specific (personal/group) knowledge bases selectable as a chat mode.
+    # Format: "id:prefix:DE_Name|FR_Name|IT_Name|EN_Name" or "id:prefix:Name"
+    # The prefix is the S3 folder the KB ingests from (used for uploads).
+    SPECIFIC_KB_DISPLAY_NAMES: str = ""
+
+    # S3 bucket holding documents for specific (personal/group) KBs
+    SPECIFIC_KBS_BUCKET: str = ""
+
+    # Presigned upload URL expiration in seconds
+    UPLOAD_URL_EXPIRATION: int = 900
+
 
 settings = Settings()

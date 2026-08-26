@@ -20,6 +20,8 @@ class ChatRequest(BaseModel):
     locale: str = "de"
     session_attributes: dict[str, str] | None = None
     files: list[CodeInterpreterFile] | None = None
+    agent_type: str = "default"
+    specific_kb_id: str | None = None
 
 
 class TokenEvent(BaseModel):

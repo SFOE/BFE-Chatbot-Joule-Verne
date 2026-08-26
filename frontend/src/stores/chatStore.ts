@@ -11,6 +11,9 @@ export const useChatStore = defineStore('chat', () => {
   const webSearchEnabled = ref(false)
   const searchModeLocked = ref(false)
 
+  // Selected specific KB ID (null when using BFE-Wissen or Websuche)
+  const specificKbId = ref<string | null>(null)
+
   // Document upload state
   const textDocs = ref<TextDoc[]>([])
   const codeInterpreterDocs = ref<CodeInterpreterDoc[]>([])
@@ -50,6 +53,7 @@ export const useChatStore = defineStore('chat', () => {
     messages.value = []
     citations.value = []
     webSearchEnabled.value = false
+    specificKbId.value = null
     searchModeLocked.value = false
     textDocs.value = []
     codeInterpreterDocs.value = []
@@ -63,6 +67,17 @@ export const useChatStore = defineStore('chat', () => {
   function setWebSearch(enabled: boolean) {
     webSearchEnabled.value = enabled
     if (enabled) {
+      specificKbId.value = null
+      textDocs.value = []
+      codeInterpreterDocs.value = []
+    }
+  }
+
+  function setSpecificKb(kbId: string | null) {
+    specificKbId.value = kbId
+    if (kbId) {
+      // Specific KB mode does not use web search or uploaded documents
+      webSearchEnabled.value = false
       textDocs.value = []
       codeInterpreterDocs.value = []
     }
@@ -74,6 +89,7 @@ export const useChatStore = defineStore('chat', () => {
     isStreaming,
     streamingStatus,
     webSearchEnabled,
+    specificKbId,
     searchModeLocked,
     textDocs,
     codeInterpreterDocs,
@@ -86,5 +102,6 @@ export const useChatStore = defineStore('chat', () => {
     clearChat,
     lockSearchMode,
     setWebSearch,
+    setSpecificKb,
   }
 })

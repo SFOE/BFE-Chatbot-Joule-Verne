@@ -7,7 +7,7 @@ from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 
 from .config import settings
-from .routes import chat, feedback, documents, sources, releases, links
+from .routes import chat, feedback, documents, sources, releases, links, kbs, kb_upload
 from .services.security import limiter, rate_limit_handler, RateLimitExceeded
 
 # ---------------------------------------------------------------------------
@@ -63,6 +63,8 @@ app.include_router(documents.router)
 app.include_router(sources.router)
 app.include_router(releases.router)
 app.include_router(links.router)
+app.include_router(kbs.router)
+app.include_router(kb_upload.router)
 
 
 # ---------------------------------------------------------------------------
