@@ -67,12 +67,21 @@ async def create_upload_url(
     if not filename:
         raise HTTPException(status_code=400, detail="Missing filename.")
 
-    # Sanitize filename — letters, numbers, hyphens, underscores, spaces, dots
-    if not re.match(r"^[\w\-. ]+$", filename):
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid filename. Use only letters, numbers, hyphens, underscores, spaces, and dots.",
-        )
+    # Sanitize filename — similar to the BFE publications pipeline
+    # Remove forbidden/dangerous characters, collapse whitespace, truncate
+    forbidden_chars = r'\/:*?"<>|'
+    cleaned = ''.join(c for c in filename if c not in forbidden_chars)
+    cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+    cleaned = cleaned[:150] if cleaned else "document"
+
+    # Reconstruct with the cleaned base name but preserve extension
+    name_part, ext_part = os.path.splitext(cleaned)
+    if not name_part:
+        name_part = "document"
+    filename = name_part + ext_part
+
+    if not filename or filename.startswith("."):
+        raise HTTPException(status_code=400, detail="Invalid filename.")
 
     ext = os.path.splitext(filename)[1].lower()
     if ext not in ALLOWED_EXTENSIONS:
