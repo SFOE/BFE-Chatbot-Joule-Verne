@@ -22,7 +22,7 @@ const uploading = ref(false)
 const results = ref<UploadResult[]>([])
 const fileInput = ref<HTMLInputElement | null>(null)
 
-const ACCEPT = '.pdf,.txt,.md,.html,.doc,.docx,.csv,.xls,.xlsx'
+const ACCEPT = '.pdf,.txt,.md,.html,.doc,.docx,.csv,.xls,.xlsx,.jpeg,.jpg,.png'
 
 onMounted(async () => {
   try {

@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 ALLOWED_EXTENSIONS = {
     ".txt", ".md", ".html", ".doc", ".docx",
     ".csv", ".xls", ".xlsx", ".pdf",
+    ".jpeg", ".jpg", ".png",
 }
 
 CONTENT_TYPES = {
@@ -36,6 +37,9 @@ CONTENT_TYPES = {
     ".xls": "application/vnd.ms-excel",
     ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     ".pdf": "application/pdf",
+    ".jpeg": "image/jpeg",
+    ".jpg": "image/jpeg",
+    ".png": "image/png",
 }
 
 
