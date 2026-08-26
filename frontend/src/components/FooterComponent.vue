@@ -20,6 +20,9 @@
           <li>
             <router-link to="/release-notes">{{ t('release_notes_link') }}</router-link>
           </li>
+          <li>
+            <router-link to="/kb-upload">{{ t('kb_upload_link') }}</router-link>
+          </li>
         </ul>
       </div>
 

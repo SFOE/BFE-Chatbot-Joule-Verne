@@ -12,6 +12,10 @@ const router = createRouter({
       path: '/release-notes',
       component: () => import('@/views/ReleaseNotesView.vue'),
     },
+    {
+      path: '/kb-upload',
+      component: () => import('@/views/KbUploadView.vue'),
+    },
   ],
 })
 
