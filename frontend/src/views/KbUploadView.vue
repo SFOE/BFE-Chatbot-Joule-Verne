@@ -23,6 +23,9 @@ const results = ref<UploadResult[]>([])
 const fileInput = ref<HTMLInputElement | null>(null)
 
 const ACCEPT = '.pdf,.txt,.md,.html,.doc,.docx,.csv,.xls,.xlsx,.jpeg,.jpg,.png'
+const MAX_DOC_SIZE = 50 * 1024 * 1024 // 50 MB for documents
+const MAX_IMAGE_SIZE = 3.75 * 1024 * 1024 // 3.75 MB for images
+const IMAGE_EXTENSIONS = ['.jpeg', '.jpg', '.png']
 
 onMounted(async () => {
   try {
@@ -59,6 +62,21 @@ async function uploadFiles(files: File[]) {
 
   for (const file of files) {
     try {
+      // Check file size before requesting presigned URL
+      const ext = '.' + file.name.split('.').pop()?.toLowerCase()
+      const isImage = IMAGE_EXTENSIONS.includes(ext)
+      const maxSize = isImage ? MAX_IMAGE_SIZE : MAX_DOC_SIZE
+      const maxLabel = isImage ? '3.75 MB' : '50 MB'
+
+      if (file.size > maxSize) {
+        results.value.push({
+          name: file.name,
+          status: 'error',
+          message: t('kb_upload_error_too_large', { max: maxLabel }),
+        })
+        continue
+      }
+
       // 1. Get a presigned URL from the backend
       const { data } = await backendHttp.post<{ upload_url: string; content_type: string }>(
         'v1/kbs/upload-url',
