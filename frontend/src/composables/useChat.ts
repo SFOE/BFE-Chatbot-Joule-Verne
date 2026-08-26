@@ -62,6 +62,8 @@ export function useChat() {
           message,
           session_id: store.sessionId,
           web_search: store.webSearchEnabled,
+          agent_type: store.specificKbId ? 'specific' : 'default',
+          specific_kb_id: store.specificKbId || undefined,
           locale: i18n.global.locale.value,
           session_attributes: sessionAttributes,
           files,
@@ -131,7 +133,11 @@ export function useChat() {
             rating: null,
             user_query: message,
             agent_response: fullText,
-            agent_variant: store.webSearchEnabled ? 'web_search' : 'default',
+            agent_variant: store.specificKbId
+              ? `specific:${store.specificKbId}`
+              : store.webSearchEnabled
+                ? 'web_search'
+                : 'default',
             retrieved_chunks: citations.map((c) => ({ text: c.text, source: c.source })),
             tools_used: toolsUsed,
           }

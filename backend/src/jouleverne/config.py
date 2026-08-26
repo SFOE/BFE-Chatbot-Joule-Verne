@@ -34,5 +34,10 @@ class Settings(BaseSettings):
     # Single name (all locales): "id:Name"
     KB_DISPLAY_NAMES: str = ""
 
+    # Specific (personal/group) knowledge bases selectable as a chat mode.
+    # Same format as KB_DISPLAY_NAMES:
+    # "id:DE_Name|FR_Name|IT_Name|EN_Name" or "id:Name"
+    SPECIFIC_KB_DISPLAY_NAMES: str = ""
+
 
 settings = Settings()

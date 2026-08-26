@@ -10,6 +10,7 @@
   "search_mode_label": "Mode de recherche",
   "search_mode_kb": "Connaissances OFEN",
   "search_mode_web": "Recherche web",
+  "search_mode_specific_label": "Bases de connaissances spécifiques",
   "web_search_confirm_title": "Activer la recherche web ?",
   "web_search_confirm_body": "Lorsque la recherche web est activée, vos requêtes peuvent être envoyées à des services de recherche externes. Les résultats peuvent contenir des informations non vérifiées provenant d'Internet.",
   "web_search_confirm_yes": "Oui, activer",

@@ -1,25 +1,57 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useChatStore } from '@/stores/chatStore'
 
-const { t } = useI18n()
+interface SpecificKb {
+  id: string
+  names: { de: string; fr: string; it: string; en: string }
+}
+
+const { t, locale } = useI18n()
 const store = useChatStore()
 
 const showConfirmDialog = ref(false)
+const specificKbs = ref<SpecificKb[]>([])
 
-function setMode(webSearch: boolean) {
+onMounted(async () => {
+  try {
+    const response = await fetch('/v1/kbs/specific')
+    if (response.ok) {
+      specificKbs.value = await response.json()
+    }
+  } catch {
+    // Silently ignore — specific KBs are optional
+  }
+})
+
+function kbName(kb: SpecificKb): string {
+  const loc = locale.value as keyof SpecificKb['names']
+  return kb.names[loc] || kb.names.de || kb.id
+}
+
+const isKbMode = computed(() => !store.webSearchEnabled && !store.specificKbId)
+
+function selectKbMode() {
   if (store.searchModeLocked) return
+  store.setSpecificKb(null)
+  store.setWebSearch(false)
+}
 
-  if (webSearch && !store.webSearchEnabled) {
-    // Show confirmation before enabling web search
+function selectWebMode() {
+  if (store.searchModeLocked) return
+  if (!store.webSearchEnabled) {
     showConfirmDialog.value = true
-  } else {
-    store.setWebSearch(webSearch)
   }
 }
 
+function selectSpecificKb(kbId: string) {
+  if (store.searchModeLocked) return
+  store.setSpecificKb(kbId)
+}
+
 function confirmWebSearch() {
+  store.setSpecificKb(null)
   store.setWebSearch(true)
   showConfirmDialog.value = false
 }
@@ -33,13 +65,13 @@ function cancelWebSearch() {
   <div class="search-mode-toggle">
     <span class="toggle-label">{{ t('search_mode_label') }}</span>
     <div class="toggle-options">
-      <label :class="{ active: !store.webSearchEnabled, disabled: store.searchModeLocked }">
+      <label :class="{ active: isKbMode, disabled: store.searchModeLocked }">
         <input
           type="radio"
           name="searchMode"
-          :checked="!store.webSearchEnabled"
+          :checked="isKbMode"
           :disabled="store.searchModeLocked"
-          @change="setMode(false)"
+          @change="selectKbMode"
         />
         {{ t('search_mode_kb') }}
       </label>
@@ -49,11 +81,32 @@ function cancelWebSearch() {
           name="searchMode"
           :checked="store.webSearchEnabled"
           :disabled="store.searchModeLocked"
-          @change="setMode(true)"
+          @change="selectWebMode"
         />
         {{ t('search_mode_web') }}
       </label>
     </div>
+
+    <!-- Specific knowledge bases -->
+    <template v-if="specificKbs.length">
+      <span class="toggle-label toggle-label--sub">{{ t('search_mode_specific_label') }}</span>
+      <div class="toggle-options">
+        <label
+          v-for="kb in specificKbs"
+          :key="kb.id"
+          :class="{ active: store.specificKbId === kb.id, disabled: store.searchModeLocked }"
+        >
+          <input
+            type="radio"
+            name="searchMode"
+            :checked="store.specificKbId === kb.id"
+            :disabled="store.searchModeLocked"
+            @change="selectSpecificKb(kb.id)"
+          />
+          {{ kbName(kb) }}
+        </label>
+      </div>
+    </template>
 
     <!-- Confirmation dialog -->
     <div v-if="showConfirmDialog" class="confirm-overlay" @click.self="cancelWebSearch">
@@ -72,3 +125,11 @@ function cancelWebSearch() {
     </div>
   </div>
 </template>
+
+<style scoped>
+.toggle-label--sub {
+  margin-top: 0.75rem;
+  font-size: 0.85em;
+  opacity: 0.8;
+}
+</style>

@@ -10,6 +10,7 @@
   "search_mode_label": "Search mode",
   "search_mode_kb": "SFOE knowledge",
   "search_mode_web": "Web search",
+  "search_mode_specific_label": "Specific knowledge bases",
   "web_search_confirm_title": "Enable web search?",
   "web_search_confirm_body": "When web search is enabled, your queries may be sent to external search services. Results may contain unverified information from the internet.",
   "web_search_confirm_yes": "Yes, enable",

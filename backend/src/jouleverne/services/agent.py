@@ -230,6 +230,8 @@ def invoke_agent(
     session_id: str,
     *,
     web_search: bool = False,
+    agent_type: str = "default",
+    specific_kb_id: str | None = None,
     session_attributes: dict[str, str] | None = None,
     files: list[dict] | None = None,
 ) -> dict:
@@ -239,6 +241,8 @@ def invoke_agent(
         message: User message text.
         session_id: Session identifier for conversation continuity.
         web_search: Whether to enable the web search tool.
+        agent_type: Agent routing type ("default" or "specific").
+        specific_kb_id: KB ID to use when agent_type is "specific".
         session_attributes: Dict with uploaded_document, document_name, context_mode.
         files: Code Interpreter files to upload to the sandbox before agent invocation.
 
@@ -250,6 +254,12 @@ def invoke_agent(
         "session_id": session_id,
         "enable_web_search": web_search,
     }
+
+    # Specific KB routing
+    if agent_type != "default":
+        payload["agent_type"] = agent_type
+    if specific_kb_id:
+        payload["specific_kb_id"] = specific_kb_id
 
     # Document context (replaces Classic's sessionState.promptSessionAttributes)
     if session_attributes:
@@ -283,6 +293,8 @@ def stream_agent_response(
     session_id: str,
     *,
     web_search: bool = False,
+    agent_type: str = "default",
+    specific_kb_id: str | None = None,
     locale: str = "de",
     session_attributes: dict[str, str] | None = None,
     files: list[dict] | None = None,
@@ -300,6 +312,8 @@ def stream_agent_response(
             message,
             session_id,
             web_search=web_search,
+            agent_type=agent_type,
+            specific_kb_id=specific_kb_id,
             session_attributes=session_attributes,
             files=files,
         )

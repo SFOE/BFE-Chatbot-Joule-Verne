@@ -10,6 +10,7 @@
   "search_mode_label": "Suchmodus",
   "search_mode_kb": "BFE-Wissen",
   "search_mode_web": "Websuche",
+  "search_mode_specific_label": "Spezifische Wissensdatenbanken",
   "web_search_confirm_title": "Websuche aktivieren?",
   "web_search_confirm_body": "Wenn die Websuche aktiviert ist, können Ihre Anfragen an externe Suchdienste gesendet werden. Ergebnisse können ungeprüfte Informationen aus dem Internet enthalten.",
   "web_search_confirm_yes": "Ja, aktivieren",
