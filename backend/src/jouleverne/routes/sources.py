@@ -123,19 +123,35 @@ async def get_source_metadata(
                 pass
             result["type"] = "document"
 
-        # Any other bucket — fallback
+        # Specific KBs bucket — documents are ingested raw (no extraction
+        # pipeline), so the S3 object IS the citable document. Return the
+        # real filename and a presigned URL pointing directly at it, with a
+        # dedicated "specific" type so the frontend does not apply the
+        # extracted-text -> PDF filename rewriting used for EXTRACTED_BUCKET.
+        elif settings.SPECIFIC_KBS_BUCKET and bucket == settings.SPECIFIC_KBS_BUCKET:
+            try:
+                download_url = s3_client.generate_presigned_url(
+                    "get_object",
+                    Params={"Bucket": bucket, "Key": key},
+                    ExpiresIn=300,
+                )
+                result["download_url"] = download_url
+            except Exception:
+                pass
+            result["type"] = "specific"
+
+        # Any other bucket — fallback: try a direct presigned download so the
+        # source is still clickable rather than silently dropped.
         else:
-            # Specific KBs bucket — generate download URL directly
-            if bucket == settings.SPECIFIC_KBS_BUCKET:
-                try:
-                    download_url = s3_client.generate_presigned_url(
-                        "get_object",
-                        Params={"Bucket": bucket, "Key": key},
-                        ExpiresIn=300,
-                    )
-                    result["download_url"] = download_url
-                except Exception:
-                    pass
+            try:
+                download_url = s3_client.generate_presigned_url(
+                    "get_object",
+                    Params={"Bucket": bucket, "Key": key},
+                    ExpiresIn=300,
+                )
+                result["download_url"] = download_url
+            except Exception:
+                pass
             result["type"] = "document"
 
     except Exception as e:
