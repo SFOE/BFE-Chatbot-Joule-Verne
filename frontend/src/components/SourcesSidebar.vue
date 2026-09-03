@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { useChatStore } from '@/stores/chatStore'
 
 interface ResolvedSource {
-  type: 'web' | 'website' | 'fedlex' | 'document' | 'aramis'
+  type: 'web' | 'website' | 'fedlex' | 'document' | 'specific' | 'aramis'
   url: string
   label: string
 }
@@ -60,8 +60,19 @@ watch(
                   : meta.title || meta.filename
               sources.push({ type: 'fedlex', url: meta.fedlex_url, label })
             }
+          } else if (meta.type === 'specific') {
+            // Specific-KB documents are ingested raw (no extraction pipeline),
+            // so the S3 object is the citable document. Use the real filename
+            // and link straight to the presigned download — no .txt -> .pdf rewrite.
+            const filename = meta.filename || citation.text || src
+            if (meta.download_url && !seen.has(meta.download_url)) {
+              seen.add(meta.download_url)
+              sources.push({ type: 'specific', url: meta.download_url, label: filename })
+            }
           } else if (meta.type === 'document') {
+            // Main corpus: extracted text (.txt) maps back to the source PDF.
             const filename = meta.pdf_filename || meta.filename
+            if (!filename) continue
             const pdfName = filename.replace(/(_part\d+)?\.txt$/, '.pdf')
             if (!seen.has(pdfName)) {
               seen.add(pdfName)
