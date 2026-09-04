@@ -55,6 +55,13 @@ export function useChat() {
       : undefined
 
     try {
+    // In "own choice" mode, send an explicit capabilities payload composed
+    // from exactly the selected tools. The agent gets only these. Otherwise
+    // fall back to the legacy fields (web_search / agent_type / specific_kb_id).
+    const capabilities = store.customMode
+      ? { static: Array.from(store.customTools), kb_ids: [] as string[] }
+      : undefined
+
       const response = await fetch('/v1/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -64,6 +71,7 @@ export function useChat() {
           web_search: store.webSearchEnabled,
           agent_type: store.specificKbId ? 'specific' : 'default',
           specific_kb_id: store.specificKbId || undefined,
+          capabilities,
           locale: i18n.global.locale.value,
           session_attributes: sessionAttributes,
           files,
@@ -133,11 +141,13 @@ export function useChat() {
             rating: null,
             user_query: message,
             agent_response: fullText,
-            agent_variant: store.specificKbId
-              ? `specific:${store.specificKbId}`
-              : store.webSearchEnabled
-                ? 'web_search'
-                : 'default',
+            agent_variant: store.customMode
+              ? `custom:${Array.from(store.customTools).sort().join('+') || 'none'}`
+              : store.specificKbId
+                ? `specific:${store.specificKbId}`
+                : store.webSearchEnabled
+                  ? 'web_search'
+                  : 'default',
             retrieved_chunks: citations.map((c) => ({ text: c.text, source: c.source })),
             tools_used: toolsUsed,
           }

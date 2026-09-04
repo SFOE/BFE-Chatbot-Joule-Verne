@@ -232,6 +232,7 @@ def invoke_agent(
     web_search: bool = False,
     agent_type: str = "default",
     specific_kb_id: str | None = None,
+    capabilities: dict | None = None,
     session_attributes: dict[str, str] | None = None,
     files: list[dict] | None = None,
 ) -> dict:
@@ -255,7 +256,12 @@ def invoke_agent(
         "enable_web_search": web_search,
     }
 
-    # Specific KB routing
+    # Explicit capabilities ("own choice" mode) take precedence over legacy
+    # routing. The agent composes from exactly this grant.
+    if capabilities is not None:
+        payload["capabilities"] = capabilities
+
+    # Specific KB routing (legacy)
     if agent_type != "default":
         payload["agent_type"] = agent_type
     if specific_kb_id:
@@ -295,6 +301,7 @@ def stream_agent_response(
     web_search: bool = False,
     agent_type: str = "default",
     specific_kb_id: str | None = None,
+    capabilities: dict | None = None,
     locale: str = "de",
     session_attributes: dict[str, str] | None = None,
     files: list[dict] | None = None,
@@ -314,6 +321,7 @@ def stream_agent_response(
             web_search=web_search,
             agent_type=agent_type,
             specific_kb_id=specific_kb_id,
+            capabilities=capabilities,
             session_attributes=session_attributes,
             files=files,
         )

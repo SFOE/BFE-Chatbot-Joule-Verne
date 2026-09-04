@@ -11,6 +11,19 @@ class CodeInterpreterFile(BaseModel):
     data: str  # base64-encoded
 
 
+class Capabilities(BaseModel):
+    """Explicit capability grant for "own choice" mode.
+
+    When present, the agent is composed from exactly these capabilities:
+    - static: capability keys (e.g. "kb_search", "aramis", "web_search",
+      "code_interpreter") matching the agent's CAPABILITY_REGISTRY.
+    - kb_ids: specific Knowledge Base IDs to attach (validated agent-side).
+    """
+
+    static: list[str] = []
+    kb_ids: list[str] = []
+
+
 class ChatRequest(BaseModel):
     """Incoming chat message from the frontend."""
 
@@ -22,6 +35,7 @@ class ChatRequest(BaseModel):
     files: list[CodeInterpreterFile] | None = None
     agent_type: str = "default"
     specific_kb_id: str | None = None
+    capabilities: Capabilities | None = None
 
 
 class TokenEvent(BaseModel):
