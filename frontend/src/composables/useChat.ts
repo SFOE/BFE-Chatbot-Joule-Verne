@@ -59,7 +59,7 @@ export function useChat() {
     // from exactly the selected tools. The agent gets only these. Otherwise
     // fall back to the legacy fields (web_search / agent_type / specific_kb_id).
     const capabilities = store.customMode
-      ? { static: Array.from(store.customTools), kb_ids: [] as string[] }
+      ? { static: Array.from(store.customTools), kb_ids: Array.from(store.customKbIds) }
       : undefined
 
       const response = await fetch('/v1/chat', {
@@ -142,7 +142,7 @@ export function useChat() {
             user_query: message,
             agent_response: fullText,
             agent_variant: store.customMode
-              ? `custom:${Array.from(store.customTools).sort().join('+') || 'none'}`
+              ? `custom:${[...Array.from(store.customTools), ...Array.from(store.customKbIds).map((k) => `kb:${k}`)].sort().join('+') || 'none'}`
               : store.specificKbId
                 ? `specific:${store.specificKbId}`
                 : store.webSearchEnabled

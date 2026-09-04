@@ -180,6 +180,24 @@ _TRACE_LABELS: dict[str, dict[str, str]] = {
         "it": "Ricerca nella base di conoscenze...",
         "en": "Searching knowledge base...",
     },
+    "tool_kb_documents": {
+        "de": "BFE-Dokumente werden durchsucht...",
+        "fr": "Recherche dans les documents OFEN...",
+        "it": "Ricerca nei documenti UFE...",
+        "en": "Searching SFOE documents...",
+    },
+    "tool_kb_website": {
+        "de": "BFE-Website wird durchsucht...",
+        "fr": "Recherche sur le site web OFEN...",
+        "it": "Ricerca nel sito web UFE...",
+        "en": "Searching SFOE website...",
+    },
+    "tool_kb_legislation": {
+        "de": "Gesetzgebung wird durchsucht...",
+        "fr": "Recherche dans la législation...",
+        "it": "Ricerca nella legislazione...",
+        "en": "Searching legislation...",
+    },
     "tool_aramis_search": {
         "de": "ARAMIS wird durchsucht...",
         "fr": "Recherche dans ARAMIS...",
@@ -218,6 +236,9 @@ logger = logging.getLogger(__name__)
 # Map tool names to translation keys for user-facing status labels
 TOOL_LABEL_MAP: dict[str, str] = {
     "filtered_kb_search": "tool_kb_search",
+    "documents_search": "tool_kb_documents",
+    "website_search": "tool_kb_website",
+    "legislation_search": "tool_kb_legislation",
     "aramis_search": "tool_aramis_search",
     "aramis_project_details": "tool_aramis_details",
     "web_search": "tool_web_search",

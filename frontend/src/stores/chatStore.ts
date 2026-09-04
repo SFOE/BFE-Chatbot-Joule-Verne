@@ -21,6 +21,8 @@ export const useChatStore = defineStore('chat', () => {
   // Static capability keys the agent understands (must match the agent's
   // CAPABILITY_REGISTRY keys in agent-jouleverne/main.py).
   const customTools = ref<Set<string>>(new Set())
+  // Specific Knowledge Base IDs selected in custom mode (validated agent-side).
+  const customKbIds = ref<Set<string>>(new Set())
 
   // Document upload state
   const textDocs = ref<TextDoc[]>([])
@@ -75,6 +77,7 @@ export const useChatStore = defineStore('chat', () => {
     specificKbId.value = null
     customMode.value = false
     customTools.value = new Set()
+    customKbIds.value = new Set()
     searchModeLocked.value = false
     textDocs.value = []
     codeInterpreterDocs.value = []
@@ -91,6 +94,7 @@ export const useChatStore = defineStore('chat', () => {
       specificKbId.value = null
       customMode.value = false
       customTools.value = new Set()
+      customKbIds.value = new Set()
       textDocs.value = []
       codeInterpreterDocs.value = []
     }
@@ -103,6 +107,7 @@ export const useChatStore = defineStore('chat', () => {
       webSearchEnabled.value = false
       customMode.value = false
       customTools.value = new Set()
+      customKbIds.value = new Set()
       textDocs.value = []
       codeInterpreterDocs.value = []
     }
@@ -119,6 +124,18 @@ export const useChatStore = defineStore('chat', () => {
   function disableCustomMode() {
     customMode.value = false
     customTools.value = new Set()
+    customKbIds.value = new Set()
+  }
+
+  /** Toggle a specific Knowledge Base ID in the custom selection. */
+  function toggleCustomKb(kbId: string) {
+    const next = new Set(customKbIds.value)
+    if (next.has(kbId)) {
+      next.delete(kbId)
+    } else {
+      next.add(kbId)
+    }
+    customKbIds.value = next
   }
 
   /** Toggle a single tool in the custom selection. */
@@ -146,6 +163,7 @@ export const useChatStore = defineStore('chat', () => {
     specificKbId,
     customMode,
     customTools,
+    customKbIds,
     webSearchActive,
     uploadAllowed,
     searchModeLocked,
@@ -164,5 +182,6 @@ export const useChatStore = defineStore('chat', () => {
     enableCustomMode,
     disableCustomMode,
     toggleCustomTool,
+    toggleCustomKb,
   }
 })

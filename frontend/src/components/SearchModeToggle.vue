@@ -19,7 +19,14 @@ const specificKbs = ref<SpecificKb[]>([])
 
 // Selectable tools in "own choice" mode. Keys must match the agent's
 // CAPABILITY_REGISTRY keys (agent-jouleverne/main.py).
-const CUSTOM_TOOLS = ['kb_search', 'aramis', 'web_search', 'code_interpreter'] as const
+const CUSTOM_TOOLS = [
+  'kb_documents',
+  'kb_website',
+  'kb_legislation',
+  'aramis',
+  'web_search',
+  'code_interpreter',
+] as const
 
 function toolLabel(tool: string): string {
   return t(`tool_${tool}`)
@@ -66,6 +73,11 @@ function toggleTool(tool: string) {
     return
   }
   store.toggleCustomTool(tool)
+}
+
+function toggleKb(kbId: string) {
+  if (store.searchModeLocked) return
+  store.toggleCustomKb(kbId)
 }
 
 function selectWebMode() {
@@ -175,6 +187,26 @@ function cancelWebSearch() {
           {{ toolLabel(tool) }}
         </label>
       </div>
+
+      <!-- Specific knowledge bases (selectable alongside the tools above) -->
+      <template v-if="specificKbs.length">
+        <span class="toggle-label toggle-label--sub">{{ t('search_mode_specific_label') }}</span>
+        <div class="tool-options">
+          <label
+            v-for="kb in specificKbs"
+            :key="kb.id"
+            :class="{ active: store.customKbIds.has(kb.id), disabled: store.searchModeLocked }"
+          >
+            <input
+              type="checkbox"
+              :checked="store.customKbIds.has(kb.id)"
+              :disabled="store.searchModeLocked"
+              @change="toggleKb(kb.id)"
+            />
+            {{ kbName(kb) }}
+          </label>
+        </div>
+      </template>
     </template>
 
     <!-- Confirmation dialog -->
