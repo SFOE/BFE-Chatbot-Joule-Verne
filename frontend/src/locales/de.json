@@ -20,6 +20,7 @@
   "tool_aramis": "ARAMIS-Forschungsprojekte",
   "tool_web_search": "Websuche",
   "tool_code_interpreter": "Code Interpreter",
+  "tool_mcp_i14y": "MCP I14Y",
   "web_search_confirm_title": "Websuche aktivieren?",
   "web_search_confirm_body": "Wenn die Websuche aktiviert ist, können Ihre Anfragen an externe Suchdienste gesendet werden. Ergebnisse können ungeprüfte Informationen aus dem Internet enthalten.",
   "web_search_confirm_yes": "Ja, aktivieren",

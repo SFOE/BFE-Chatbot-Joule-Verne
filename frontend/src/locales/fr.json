@@ -20,6 +20,7 @@
   "tool_aramis": "Projets de recherche ARAMIS",
   "tool_web_search": "Recherche web",
   "tool_code_interpreter": "Code Interpreter",
+  "tool_mcp_i14y": "MCP I14Y",
   "web_search_confirm_title": "Activer la recherche web ?",
   "web_search_confirm_body": "Lorsque la recherche web est activée, vos requêtes peuvent être envoyées à des services de recherche externes. Les résultats peuvent contenir des informations non vérifiées provenant d'Internet.",
   "web_search_confirm_yes": "Oui, activer",

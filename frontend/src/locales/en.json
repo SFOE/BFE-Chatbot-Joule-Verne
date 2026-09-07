@@ -20,6 +20,7 @@
   "tool_aramis": "ARAMIS research projects",
   "tool_web_search": "Web search",
   "tool_code_interpreter": "Code Interpreter",
+  "tool_mcp_i14y": "MCP I14Y",
   "web_search_confirm_title": "Enable web search?",
   "web_search_confirm_body": "When web search is enabled, your queries may be sent to external search services. Results may contain unverified information from the internet.",
   "web_search_confirm_yes": "Yes, enable",
