@@ -631,3 +631,62 @@ a:focus {
 .back-link:hover {
   text-decoration: underline;
 }
+
+/* Help page */
+.help-page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 32px 20px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.help-page h2 {
+  margin-bottom: 12px;
+}
+
+.help-intro {
+  line-height: 1.6;
+  margin-bottom: 24px;
+}
+
+.help-section {
+  margin-bottom: 28px;
+}
+
+.help-section h3 {
+  font-size: 1.1rem;
+  margin-bottom: 12px;
+}
+
+.help-section p {
+  line-height: 1.6;
+  margin-bottom: 8px;
+}
+
+.help-section ul {
+  margin: 8px 0 0;
+  padding-left: 20px;
+  line-height: 1.6;
+}
+
+.help-section li {
+  margin-bottom: 6px;
+}
+
+.help-mode {
+  margin-bottom: 16px;
+}
+
+.help-mode h4 {
+  font-size: 0.95rem;
+  margin-bottom: 4px;
+}
+
+.help-tools-intro {
+  margin-top: 16px;
+}
+
+.help-tools {
+  margin-top: 4px;
+}
