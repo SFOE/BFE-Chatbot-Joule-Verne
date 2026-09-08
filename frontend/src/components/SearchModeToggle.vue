@@ -81,26 +81,9 @@ function toggleKb(kbId: string) {
   store.toggleCustomKb(kbId)
 }
 
-function selectWebMode() {
-  if (store.searchModeLocked) return
-  if (!store.webSearchEnabled) {
-    showConfirmDialog.value = true
-  }
-}
-
-function selectSpecificKb(kbId: string) {
-  if (store.searchModeLocked) return
-  store.setSpecificKb(kbId)
-}
-
 function confirmWebSearch() {
-  if (pendingCustomWebSearch.value) {
-    store.toggleCustomTool('web_search')
-    pendingCustomWebSearch.value = false
-  } else {
-    store.setSpecificKb(null)
-    store.setWebSearch(true)
-  }
+  store.toggleCustomTool('web_search')
+  pendingCustomWebSearch.value = false
   showConfirmDialog.value = false
 }
 
@@ -124,41 +107,6 @@ function cancelWebSearch() {
         />
         {{ t('search_mode_kb') }}
       </label>
-      <label :class="{ active: store.webSearchEnabled, disabled: store.searchModeLocked }">
-        <input
-          type="radio"
-          name="searchMode"
-          :checked="store.webSearchEnabled"
-          :disabled="store.searchModeLocked"
-          @change="selectWebMode"
-        />
-        {{ t('search_mode_web') }}
-      </label>
-    </div>
-
-    <!-- Specific knowledge bases -->
-    <template v-if="specificKbs.length">
-      <span class="toggle-label toggle-label--sub">{{ t('search_mode_specific_label') }}</span>
-      <div class="toggle-options">
-        <label
-          v-for="kb in specificKbs"
-          :key="kb.id"
-          :class="{ active: store.specificKbId === kb.id, disabled: store.searchModeLocked }"
-        >
-          <input
-            type="radio"
-            name="searchMode"
-            :checked="store.specificKbId === kb.id"
-            :disabled="store.searchModeLocked"
-            @change="selectSpecificKb(kb.id)"
-          />
-          {{ kbName(kb) }}
-        </label>
-      </div>
-    </template>
-
-    <!-- Own choice (custom tool selection) -->
-    <div class="toggle-options">
       <label :class="{ active: store.customMode, disabled: store.searchModeLocked }">
         <input
           type="radio"
@@ -167,7 +115,7 @@ function cancelWebSearch() {
           :disabled="store.searchModeLocked"
           @change="selectCustomMode"
         />
-        {{ t('search_mode_custom') }}
+        {{ t('search_mode_custom_label') }}
       </label>
     </div>
 
