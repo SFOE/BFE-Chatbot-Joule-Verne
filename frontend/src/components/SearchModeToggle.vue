@@ -193,8 +193,11 @@ function cancelWebSearch() {
 .tool-options label {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 6px;
+  font-size: 0.85rem;
   cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
 }
 
 .tool-options label.disabled {
