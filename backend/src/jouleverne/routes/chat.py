@@ -61,6 +61,7 @@ async def chat(
             web_search=body.web_search,
             agent_type=body.agent_type,
             specific_kb_id=body.specific_kb_id,
+            capabilities=body.capabilities.model_dump() if body.capabilities else None,
             locale=body.locale,
             session_attributes=body.session_attributes,
             files=agent_files,

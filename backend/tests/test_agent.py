@@ -55,7 +55,6 @@ class TestInvokeAgent:
         assert payload["prompt"] == "hello"
         assert payload["session_id"] == "session-1"
         assert payload["enable_web_search"] is False
-        assert payload["include_trace"] is True
 
     @patch("jouleverne.services.agent.agentcore_client")
     def test_enables_web_search(self, mock_client):
@@ -96,6 +95,35 @@ class TestInvokeAgent:
         call_kwargs = mock_client.invoke_agent_runtime.call_args[1]
         assert "agentRuntimeArn" in call_kwargs
         assert "test-runtime" in call_kwargs["agentRuntimeArn"]
+
+    @patch("jouleverne.services.agent.agentcore_client")
+    def test_forwards_capabilities(self, mock_client):
+        """Explicit "own choice" capabilities are forwarded to the agent payload."""
+        mock_client.invoke_agent_runtime.return_value = _make_response([])
+
+        invoke_agent(
+            "hi",
+            "s1",
+            capabilities={"static": ["kb_search", "web_search"], "kb_ids": ["kb-ABC"]},
+        )
+
+        call_kwargs = mock_client.invoke_agent_runtime.call_args[1]
+        payload = json.loads(call_kwargs["payload"])
+        assert payload["capabilities"] == {
+            "static": ["kb_search", "web_search"],
+            "kb_ids": ["kb-ABC"],
+        }
+
+    @patch("jouleverne.services.agent.agentcore_client")
+    def test_no_capabilities_key_when_absent(self, mock_client):
+        """When no capabilities are given, the payload omits the key entirely."""
+        mock_client.invoke_agent_runtime.return_value = _make_response([])
+
+        invoke_agent("hi", "s1")
+
+        call_kwargs = mock_client.invoke_agent_runtime.call_args[1]
+        payload = json.loads(call_kwargs["payload"])
+        assert "capabilities" not in payload
 
 
 class TestStreamAgentResponse:

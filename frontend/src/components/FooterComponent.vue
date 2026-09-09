@@ -18,6 +18,9 @@
             <a href="mailto:digitalisierung@bfe.admin.ch">{{ t('footer_contact') }}</a>
           </li>
           <li>
+            <router-link to="/help">{{ t('help_link') }}</router-link>
+          </li>
+          <li>
             <router-link to="/release-notes">{{ t('release_notes_link') }}</router-link>
           </li>
           <li>

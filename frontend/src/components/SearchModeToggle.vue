@@ -12,7 +12,26 @@ const { t, locale } = useI18n()
 const store = useChatStore()
 
 const showConfirmDialog = ref(false)
+// When set, confirming the web-search dialog toggles this custom tool instead
+// of switching to classic web mode.
+const pendingCustomWebSearch = ref(false)
 const specificKbs = ref<SpecificKb[]>([])
+
+// Selectable tools in "own choice" mode. Keys must match the agent's
+// CAPABILITY_REGISTRY keys (agent-jouleverne/main.py).
+const CUSTOM_TOOLS = [
+  'kb_documents',
+  'kb_website',
+  'kb_legislation',
+  'aramis',
+  'web_search',
+  'code_interpreter',
+  'mcp_i14y',
+] as const
+
+function toolLabel(tool: string): string {
+  return t(`tool_${tool}`)
+}
 
 onMounted(async () => {
   try {
@@ -30,33 +49,46 @@ function kbName(kb: SpecificKb): string {
   return kb.names[loc] || kb.names.de || kb.id
 }
 
-const isKbMode = computed(() => !store.webSearchEnabled && !store.specificKbId)
+const isKbMode = computed(
+  () => !store.webSearchEnabled && !store.specificKbId && !store.customMode,
+)
 
 function selectKbMode() {
   if (store.searchModeLocked) return
+  store.disableCustomMode()
   store.setSpecificKb(null)
   store.setWebSearch(false)
 }
 
-function selectWebMode() {
+function selectCustomMode() {
   if (store.searchModeLocked) return
-  if (!store.webSearchEnabled) {
-    showConfirmDialog.value = true
-  }
+  store.enableCustomMode()
 }
 
-function selectSpecificKb(kbId: string) {
+function toggleTool(tool: string) {
   if (store.searchModeLocked) return
-  store.setSpecificKb(kbId)
+  // Turning web search ON requires the same confirmation as classic web mode.
+  if (tool === 'web_search' && !store.customTools.has('web_search')) {
+    pendingCustomWebSearch.value = true
+    showConfirmDialog.value = true
+    return
+  }
+  store.toggleCustomTool(tool)
+}
+
+function toggleKb(kbId: string) {
+  if (store.searchModeLocked) return
+  store.toggleCustomKb(kbId)
 }
 
 function confirmWebSearch() {
-  store.setSpecificKb(null)
-  store.setWebSearch(true)
+  store.toggleCustomTool('web_search')
+  pendingCustomWebSearch.value = false
   showConfirmDialog.value = false
 }
 
 function cancelWebSearch() {
+  pendingCustomWebSearch.value = false
   showConfirmDialog.value = false
 }
 </script>
@@ -75,37 +107,55 @@ function cancelWebSearch() {
         />
         {{ t('search_mode_kb') }}
       </label>
-      <label :class="{ active: store.webSearchEnabled, disabled: store.searchModeLocked }">
+      <label :class="{ active: store.customMode, disabled: store.searchModeLocked }">
         <input
           type="radio"
           name="searchMode"
-          :checked="store.webSearchEnabled"
+          :checked="store.customMode"
           :disabled="store.searchModeLocked"
-          @change="selectWebMode"
+          @change="selectCustomMode"
         />
-        {{ t('search_mode_web') }}
+        {{ t('search_mode_custom_label') }}
       </label>
     </div>
 
-    <!-- Specific knowledge bases -->
-    <template v-if="specificKbs.length">
-      <span class="toggle-label toggle-label--sub">{{ t('search_mode_specific_label') }}</span>
-      <div class="toggle-options">
+    <template v-if="store.customMode">
+      <span class="toggle-label toggle-label--sub">{{ t('search_mode_custom_label') }}</span>
+      <div class="tool-options">
         <label
-          v-for="kb in specificKbs"
-          :key="kb.id"
-          :class="{ active: store.specificKbId === kb.id, disabled: store.searchModeLocked }"
+          v-for="tool in CUSTOM_TOOLS"
+          :key="tool"
+          :class="{ active: store.customTools.has(tool), disabled: store.searchModeLocked }"
         >
           <input
-            type="radio"
-            name="searchMode"
-            :checked="store.specificKbId === kb.id"
+            type="checkbox"
+            :checked="store.customTools.has(tool)"
             :disabled="store.searchModeLocked"
-            @change="selectSpecificKb(kb.id)"
+            @change="toggleTool(tool)"
           />
-          {{ kbName(kb) }}
+          {{ toolLabel(tool) }}
         </label>
       </div>
+
+      <!-- Specific knowledge bases (selectable alongside the tools above) -->
+      <template v-if="specificKbs.length">
+        <span class="toggle-label toggle-label--sub">{{ t('search_mode_specific_label') }}</span>
+        <div class="tool-options">
+          <label
+            v-for="kb in specificKbs"
+            :key="kb.id"
+            :class="{ active: store.customKbIds.has(kb.id), disabled: store.searchModeLocked }"
+          >
+            <input
+              type="checkbox"
+              :checked="store.customKbIds.has(kb.id)"
+              :disabled="store.searchModeLocked"
+              @change="toggleKb(kb.id)"
+            />
+            {{ kbName(kb) }}
+          </label>
+        </div>
+      </template>
     </template>
 
     <!-- Confirmation dialog -->
@@ -131,5 +181,27 @@ function cancelWebSearch() {
   margin-top: 0.75rem;
   font-size: 0.85em;
   opacity: 0.8;
+}
+
+.tool-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-top: 0.25rem;
+}
+
+.tool-options label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.tool-options label.disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 </style>

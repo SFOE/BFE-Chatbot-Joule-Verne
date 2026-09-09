@@ -180,6 +180,24 @@ _TRACE_LABELS: dict[str, dict[str, str]] = {
         "it": "Ricerca nella base di conoscenze...",
         "en": "Searching knowledge base...",
     },
+    "tool_kb_documents": {
+        "de": "BFE-Dokumente werden durchsucht...",
+        "fr": "Recherche dans les documents OFEN...",
+        "it": "Ricerca nei documenti UFE...",
+        "en": "Searching SFOE documents...",
+    },
+    "tool_kb_website": {
+        "de": "BFE-Website wird durchsucht...",
+        "fr": "Recherche sur le site web OFEN...",
+        "it": "Ricerca nel sito web UFE...",
+        "en": "Searching SFOE website...",
+    },
+    "tool_kb_legislation": {
+        "de": "Gesetzgebung wird durchsucht...",
+        "fr": "Recherche dans la législation...",
+        "it": "Ricerca nella legislazione...",
+        "en": "Searching legislation...",
+    },
     "tool_aramis_search": {
         "de": "ARAMIS wird durchsucht...",
         "fr": "Recherche dans ARAMIS...",
@@ -218,6 +236,9 @@ logger = logging.getLogger(__name__)
 # Map tool names to translation keys for user-facing status labels
 TOOL_LABEL_MAP: dict[str, str] = {
     "filtered_kb_search": "tool_kb_search",
+    "documents_search": "tool_kb_documents",
+    "website_search": "tool_kb_website",
+    "legislation_search": "tool_kb_legislation",
     "aramis_search": "tool_aramis_search",
     "aramis_project_details": "tool_aramis_details",
     "web_search": "tool_web_search",
@@ -232,6 +253,7 @@ def invoke_agent(
     web_search: bool = False,
     agent_type: str = "default",
     specific_kb_id: str | None = None,
+    capabilities: dict | None = None,
     session_attributes: dict[str, str] | None = None,
     files: list[dict] | None = None,
 ) -> dict:
@@ -255,7 +277,12 @@ def invoke_agent(
         "enable_web_search": web_search,
     }
 
-    # Specific KB routing
+    # Explicit capabilities ("own choice" mode) take precedence over legacy
+    # routing. The agent composes from exactly this grant.
+    if capabilities is not None:
+        payload["capabilities"] = capabilities
+
+    # Specific KB routing (legacy)
     if agent_type != "default":
         payload["agent_type"] = agent_type
     if specific_kb_id:
@@ -295,6 +322,7 @@ def stream_agent_response(
     web_search: bool = False,
     agent_type: str = "default",
     specific_kb_id: str | None = None,
+    capabilities: dict | None = None,
     locale: str = "de",
     session_attributes: dict[str, str] | None = None,
     files: list[dict] | None = None,
@@ -314,6 +342,7 @@ def stream_agent_response(
             web_search=web_search,
             agent_type=agent_type,
             specific_kb_id=specific_kb_id,
+            capabilities=capabilities,
             session_attributes=session_attributes,
             files=files,
         )
