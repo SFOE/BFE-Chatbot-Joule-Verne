@@ -9,6 +9,10 @@ const router = createRouter({
       component: ChatView,
     },
     {
+      path: '/help',
+      component: () => import('@/views/HelpView.vue'),
+    },
+    {
       path: '/release-notes',
       component: () => import('@/views/ReleaseNotesView.vue'),
     },

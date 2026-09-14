@@ -33,6 +33,15 @@ COPY scripts/ ./scripts/
 ARG GITHUB_TOKEN=""
 RUN uv run --no-project python scripts/fetch_releases.py || true
 
+# Run as a non-root user (hardening). Create an unprivileged user, point uv's cache at a
+# writable location, and hand ownership of the app dir to that user so `uv run` can resolve
+# and execute from the project's .venv at runtime.
+ENV UV_CACHE_DIR=/app/.uv-cache
+RUN adduser -D -u 1000 appuser \
+    && mkdir -p "$UV_CACHE_DIR" \
+    && chown -R 1000:1000 /app
+USER 1000
+
 EXPOSE 8000
 
 CMD ["uv", "run", "uvicorn", "jouleverne.app:app", "--host", "0.0.0.0", "--port", "8000", "--timeout-keep-alive", "125", "--app-dir", "src"]

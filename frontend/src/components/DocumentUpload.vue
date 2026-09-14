@@ -36,7 +36,7 @@ function formatSensitivityError(error: string): string {
   <div class="document-upload">
     <h3>{{ t('upload_title') }}</h3>
 
-    <template v-if="store.webSearchEnabled">
+    <template v-if="!store.uploadAllowed">
       <p class="upload-disabled">{{ t('upload_disabled_web_search') }}</p>
     </template>
 
