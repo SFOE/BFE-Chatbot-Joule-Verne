@@ -114,3 +114,55 @@ async def test_metadata_document_source(client):
     assert response.status_code == 200
     data = response.json()
     assert data["type"] == "document"
+
+
+@pytest.mark.asyncio
+async def test_metadata_specific_kb_website_subprefix(client):
+    """Specific-KB objects under a 'website/' sub-prefix resolve like website
+    sources: type 'website' with the source_url from S3 metadata."""
+    with patch("jouleverne.routes.sources.s3_client") as mock_s3, \
+         patch("jouleverne.routes.sources.settings") as mock_settings:
+        mock_settings.WEBSITE_BUCKET = "website-bucket"
+        mock_settings.FEDLEX_BUCKET = "fedlex-bucket"
+        mock_settings.EXTRACTED_BUCKET = "extracted-bucket"
+        mock_settings.SPECIFIC_KBS_BUCKET = "specific-kbs-bucket"
+        mock_settings.RATE_LIMIT = "100/minute"
+
+        mock_s3.head_object.return_value = {
+            "Metadata": {"source_url": "https://www.dasgebaeudeprogramm.ch/page"}
+        }
+
+        response = await client.get(
+            "/v1/sources/metadata",
+            params={"uri": "s3://specific-kbs-bucket/gebaeude/website/page.txt"},
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["type"] == "website"
+    assert data["source_url"] == "https://www.dasgebaeudeprogramm.ch/page"
+
+
+@pytest.mark.asyncio
+async def test_metadata_specific_kb_uploaded_file(client):
+    """Specific-KB objects NOT under 'website/' resolve as raw downloads
+    with type 'specific'."""
+    with patch("jouleverne.routes.sources.s3_client") as mock_s3, \
+         patch("jouleverne.routes.sources.settings") as mock_settings:
+        mock_settings.WEBSITE_BUCKET = "website-bucket"
+        mock_settings.FEDLEX_BUCKET = "fedlex-bucket"
+        mock_settings.EXTRACTED_BUCKET = "extracted-bucket"
+        mock_settings.SPECIFIC_KBS_BUCKET = "specific-kbs-bucket"
+        mock_settings.RATE_LIMIT = "100/minute"
+
+        mock_s3.generate_presigned_url.return_value = "https://s3.example.com/presigned"
+
+        response = await client.get(
+            "/v1/sources/metadata",
+            params={"uri": "s3://specific-kbs-bucket/gebaeude/report.pdf"},
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["type"] == "specific"
+    assert data["download_url"] == "https://s3.example.com/presigned"

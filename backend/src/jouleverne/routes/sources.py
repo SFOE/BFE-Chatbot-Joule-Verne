@@ -123,22 +123,42 @@ async def get_source_metadata(
                 pass
             result["type"] = "document"
 
-        # Specific KBs bucket — documents are ingested raw (no extraction
-        # pipeline), so the S3 object IS the citable document. Return the
-        # real filename and a presigned URL pointing directly at it, with a
-        # dedicated "specific" type so the frontend does not apply the
-        # extracted-text -> PDF filename rewriting used for EXTRACTED_BUCKET.
+        # Specific KBs bucket. Two kinds of objects live here:
+        #
+        # 1. Website content under a "website/" sub-prefix (e.g.
+        #    "<kb-prefix>/website/<page>.txt"). These are produced by the same
+        #    crawling pipeline as the shared website KB, so they carry the
+        #    original page URL in S3 user-metadata "source_url". Resolve them
+        #    exactly like WEBSITE_BUCKET sources so the sidebar links to the
+        #    webpage instead of offering a raw .txt download.
+        #
+        # 2. Everything else — documents ingested raw (no extraction pipeline),
+        #    where the S3 object IS the citable document. Return the real
+        #    filename and a presigned URL pointing directly at it, with a
+        #    dedicated "specific" type so the frontend does not apply the
+        #    extracted-text -> PDF filename rewriting used for EXTRACTED_BUCKET.
         elif settings.SPECIFIC_KBS_BUCKET and bucket == settings.SPECIFIC_KBS_BUCKET:
-            try:
-                download_url = s3_client.generate_presigned_url(
-                    "get_object",
-                    Params={"Bucket": bucket, "Key": key},
-                    ExpiresIn=300,
-                )
-                result["download_url"] = download_url
-            except Exception:
-                pass
-            result["type"] = "specific"
+            # A "/website/" path segment marks crawled website content.
+            is_website = "/website/" in f"/{key}"
+            if is_website:
+                try:
+                    head = s3_client.head_object(Bucket=bucket, Key=key)
+                    metadata = head.get("Metadata", {})
+                    result["source_url"] = metadata.get("source_url", "")
+                except Exception:
+                    result["source_url"] = ""
+                result["type"] = "website"
+            else:
+                try:
+                    download_url = s3_client.generate_presigned_url(
+                        "get_object",
+                        Params={"Bucket": bucket, "Key": key},
+                        ExpiresIn=300,
+                    )
+                    result["download_url"] = download_url
+                except Exception:
+                    pass
+                result["type"] = "specific"
 
         # Any other bucket — fallback: try a direct presigned download so the
         # source is still clickable rather than silently dropped.
