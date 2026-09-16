@@ -68,6 +68,24 @@ def _resolve_specific_original_key(extracted_bucket: str, extracted_key: str) ->
     return None
 
 
+def _sidecar_source_url(extracted_bucket: str, extracted_key: str) -> str | None:
+    """Return the "source_url" from an extracted object's ".metadata.json" sidecar.
+
+    API-generated documents (e.g. BFE Medienmitteilungen) have no inbox original;
+    their sidecar carries a "source_url" (public page URL) instead of "original_key".
+    Returns None when there is no sidecar or no source_url.
+    """
+    try:
+        obj = s3_client.get_object(
+            Bucket=extracted_bucket, Key=f"{extracted_key}.metadata.json"
+        )
+        attrs = json.loads(obj["Body"].read()).get("metadataAttributes", {})
+        source_url = attrs.get("source_url", {}).get("value", {}).get("stringValue", "")
+        return source_url or None
+    except Exception:
+        return None
+
+
 def _inbox_object_exists(key: str) -> bool:
     if not settings.SPECIFIC_KBS_BUCKET:
         return False
@@ -199,6 +217,13 @@ async def get_source_metadata(
                     result["source_url"] = head.get("Metadata", {}).get("source_url", "")
                 except Exception:
                     result["source_url"] = ""
+                result["type"] = "website"
+            elif (_source_url := _sidecar_source_url(bucket, key)):
+                # API-generated documents (e.g. BFE Medienmitteilungen) have no inbox
+                # original to download. Their ".metadata.json" sidecar carries a
+                # "source_url" pointing at the public page. Cite it like a website
+                # source so the sidebar links to the live page.
+                result["source_url"] = _source_url
                 result["type"] = "website"
             else:
                 original_key = _resolve_specific_original_key(bucket, key)
