@@ -25,8 +25,6 @@ const CUSTOM_TOOLS = [
   'kb_legislation',
   'aramis',
   'web_search',
-  'code_interpreter',
-  'mcp_i14y',
 ] as const
 
 function toolLabel(tool: string): string {

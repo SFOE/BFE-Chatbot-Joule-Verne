@@ -133,7 +133,16 @@ async def list_kb_files(
     try:
         files = []
         paginator = s3_client.get_paginator("list_objects_v2")
-        for page in paginator.paginate(Bucket=settings.SPECIFIC_KBS_BUCKET, Prefix=f"{prefix}/"):
+        # Delimiter="/" keeps the listing flat: objects directly under the
+        # prefix land in "Contents", while anything inside a subdirectory is
+        # rolled up into "CommonPrefixes" (which we ignore). This mirrors the
+        # upload endpoint, which only ever writes flat "{prefix}/{filename}"
+        # keys.
+        for page in paginator.paginate(
+            Bucket=settings.SPECIFIC_KBS_BUCKET,
+            Prefix=f"{prefix}/",
+            Delimiter="/",
+        ):
             for obj in page.get("Contents", []):
                 name = obj["Key"].split("/")[-1]
                 if not name:

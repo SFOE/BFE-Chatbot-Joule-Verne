@@ -39,8 +39,17 @@ class Settings(BaseSettings):
     # The prefix is the S3 folder the KB ingests from (used for uploads).
     SPECIFIC_KB_DISPLAY_NAMES: str = ""
 
-    # S3 bucket holding documents for specific (personal/group) KBs
+    # S3 bucket holding the original uploaded documents for specific
+    # (personal/group) KBs. This is the immutable "inbox" and the source of
+    # truth for downloads/citations.
     SPECIFIC_KBS_BUCKET: str = ""
+
+    # S3 bucket holding the processed/extracted content the specific KBs sync
+    # from (extracted .txt / _partN.txt, passthrough copies, crawled website
+    # text). Citations reference objects here; the backend maps them back to the
+    # original file in SPECIFIC_KBS_BUCKET via each object's ".metadata.json"
+    # sidecar (original_key attribute).
+    SPECIFIC_KBS_EXTRACTED_BUCKET: str = ""
 
     # Presigned upload URL expiration in seconds
     UPLOAD_URL_EXPIRATION: int = 900
