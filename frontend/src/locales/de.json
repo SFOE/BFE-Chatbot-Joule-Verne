@@ -70,7 +70,7 @@
   "help_kb_i14y": "I14Y",
   "help_kb_i14y_desc": "Datenkataloge und standardisierte Datenbeschreibungen der {i14y}. Bei Auswahl dieser Wissensdatenbank wird die I14Y-Interoperabilitätsplattform (MCP) automatisch verbunden und muss nicht separat aktiviert werden.",
   "help_tool_kb_documents_desc": "Durchsucht BFE-Berichte, Studien, Evaluationen und technische Publikationen. Geeignet für inhaltliche Fragen zu Dokumenten.",
-  "help_tool_kb_website_desc": "Durchsucht die {bfe} und {energieschweiz}. Geeignet für allgemeine Informationen, aktuelle Themen, Programme und Dienstleistungen des BFE.",
+  "help_tool_kb_website_desc": "Durchsucht die {bfe} und {energieschweiz} sowie die Medienmitteilungen des BFE. Geeignet für allgemeine Informationen, aktuelle Themen, Programme, Dienstleistungen und Medienmitteilungen des BFE.",
   "help_tool_kb_legislation_desc": "Durchsucht die Gesetzgebung {fedlex} sowie {parlament}. Geeignet für Fragen zu Gesetzen, Verordnungen, Pflichten, Zuständigkeiten, Förderbedingungen und parlamentarischen Geschäften.",
   "help_tool_aramis_desc": "Findet BFE-Forschungsprojekte über {aramis} und liefert Projektdaten wie Beteiligte, Kosten, Dauer, Status und Publikationslinks.",
   "help_tool_web_search_desc": "Durchsucht das Internet. Geeignet für aktuelle oder externe Informationen ausserhalb der BFE-Quellen. Anfragen können an externe Dienste gesendet werden.",

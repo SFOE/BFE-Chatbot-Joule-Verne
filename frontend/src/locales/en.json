@@ -70,7 +70,7 @@
   "help_kb_i14y": "I14Y",
   "help_kb_i14y_desc": "Data catalogues and standardised data descriptions from the {i14y}. When you select this knowledge base, the I14Y interoperability platform (MCP) is connected automatically and does not need to be enabled separately.",
   "help_tool_kb_documents_desc": "Searches SFOE reports, studies, evaluations and technical publications. Suitable for content questions about documents.",
-  "help_tool_kb_website_desc": "Searches the {bfe} and {energieschweiz}. Suitable for general information, current topics, programmes and services of the SFOE.",
+  "help_tool_kb_website_desc": "Searches the {bfe} and {energieschweiz} as well as the SFOE's press releases. Suitable for general information, current topics, programmes, services and press releases of the SFOE.",
   "help_tool_kb_legislation_desc": "Searches the legislation {fedlex} as well as {parlament}. Suitable for questions about laws, ordinances, obligations, responsibilities, funding conditions and parliamentary business.",
   "help_tool_aramis_desc": "Finds SFOE research projects via {aramis} and provides project data such as participants, costs, duration, status and publication links.",
   "help_tool_web_search_desc": "Searches the internet. Suitable for current or external information beyond the SFOE sources. Queries may be sent to external services.",
