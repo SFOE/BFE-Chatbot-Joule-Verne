@@ -16,6 +16,7 @@ const searchModes = [
 const sourceUrls = {
   bfe: 'https://www.bfe.admin.ch',
   energieschweiz: 'https://www.energieschweiz.ch',
+  medienmitteilungen: 'https://www.bfe.admin.ch/de/newnsb',
   fedlex: 'https://www.fedlex.admin.ch',
   parlament: 'https://www.parlament.ch/de/ratsbetrieb/curia-vista',
   aramis: 'https://www.aramis.admin.ch',
@@ -53,6 +54,9 @@ const sourceUrls = {
             </template>
             <template #energieschweiz>
               <a :href="sourceUrls.energieschweiz" target="_blank" rel="noopener noreferrer">{{ t('help_source_energieschweiz') }}</a>
+            </template>
+            <template #medienmitteilungen>
+              <a :href="sourceUrls.medienmitteilungen" target="_blank" rel="noopener noreferrer">{{ t('help_source_medienmitteilungen') }}</a>
             </template>
           </i18n-t>
         </li>
