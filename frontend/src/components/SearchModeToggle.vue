@@ -51,11 +51,22 @@ const isKbMode = computed(
   () => !store.webSearchEnabled && !store.specificKbId && !store.customMode,
 )
 
+const isWebMode = computed(() => store.webSearchEnabled)
+
 function selectKbMode() {
   if (store.searchModeLocked) return
   store.disableCustomMode()
   store.setSpecificKb(null)
   store.setWebSearch(false)
+}
+
+function selectWebMode() {
+  if (store.searchModeLocked) return
+  // Turning web search ON requires confirmation (external search service).
+  if (!store.webSearchEnabled) {
+    pendingCustomWebSearch.value = false
+    showConfirmDialog.value = true
+  }
 }
 
 function selectCustomMode() {
@@ -80,7 +91,13 @@ function toggleKb(kbId: string) {
 }
 
 function confirmWebSearch() {
-  store.toggleCustomTool('web_search')
+  if (pendingCustomWebSearch.value) {
+    // Confirmation came from the "Eigene Auswahl" web_search checkbox.
+    store.toggleCustomTool('web_search')
+  } else {
+    // Confirmation came from the standalone "Websuche" radio.
+    store.setWebSearch(true)
+  }
   pendingCustomWebSearch.value = false
   showConfirmDialog.value = false
 }
@@ -104,6 +121,16 @@ function cancelWebSearch() {
           @change="selectKbMode"
         />
         {{ t('search_mode_kb') }}
+      </label>
+      <label :class="{ active: isWebMode, disabled: store.searchModeLocked }">
+        <input
+          type="radio"
+          name="searchMode"
+          :checked="isWebMode"
+          :disabled="store.searchModeLocked"
+          @change="selectWebMode"
+        />
+        {{ t('search_mode_web') }}
       </label>
       <label :class="{ active: store.customMode, disabled: store.searchModeLocked }">
         <input
