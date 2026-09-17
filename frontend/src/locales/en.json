@@ -92,7 +92,7 @@
   "kb_upload_select_label": "Knowledge base",
   "kb_upload_select_placeholder": "Select a knowledge base...",
   "kb_upload_select_files": "Select files",
-  "kb_upload_hint": "Supported formats: PDF, TXT, MD, HTML, DOC, DOCX, CSV, XLS, XLSX, JPEG, PNG. Max 50 MB (images: 3.75 MB).",
+  "kb_upload_hint": "Supported formats: PDF, TXT, MD, HTML, DOC, DOCX, CSV, XLS, XLSX, JPEG, PNG, MSG. Max 50 MB (images: 3.75 MB).",
   "kb_upload_uploading": "Uploading ...",
   "kb_upload_done": "uploaded",
   "kb_upload_error_generic": "Upload failed",

@@ -25,6 +25,7 @@ ALLOWED_EXTENSIONS = {
     ".txt", ".md", ".html", ".doc", ".docx",
     ".csv", ".xls", ".xlsx", ".pdf",
     ".jpeg", ".jpg", ".png",
+    ".msg",
 }
 
 CONTENT_TYPES = {
@@ -40,6 +41,7 @@ CONTENT_TYPES = {
     ".jpeg": "image/jpeg",
     ".jpg": "image/jpeg",
     ".png": "image/png",
+    ".msg": "application/vnd.ms-outlook",
 }
 
 

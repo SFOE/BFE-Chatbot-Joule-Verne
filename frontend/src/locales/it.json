@@ -92,7 +92,7 @@
   "kb_upload_select_label": "Base di conoscenza",
   "kb_upload_select_placeholder": "Selezionare una base di conoscenza...",
   "kb_upload_select_files": "Seleziona file",
-  "kb_upload_hint": "Formati supportati: PDF, TXT, MD, HTML, DOC, DOCX, CSV, XLS, XLSX, JPEG, PNG. Massimo 50 MB (immagini: 3.75 MB).",
+  "kb_upload_hint": "Formati supportati: PDF, TXT, MD, HTML, DOC, DOCX, CSV, XLS, XLSX, JPEG, PNG, MSG. Massimo 50 MB (immagini: 3.75 MB).",
   "kb_upload_uploading": "Caricamento ...",
   "kb_upload_done": "caricato",
   "kb_upload_error_generic": "Caricamento non riuscito",

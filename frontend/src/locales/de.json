@@ -92,7 +92,7 @@
   "kb_upload_select_label": "Wissensdatenbank",
   "kb_upload_select_placeholder": "Wissensdatenbank auswählen...",
   "kb_upload_select_files": "Dateien auswählen",
-  "kb_upload_hint": "Unterstützte Formate: PDF, TXT, MD, HTML, DOC, DOCX, CSV, XLS, XLSX, JPEG, PNG. Max. 50 MB (Bilder: 3.75 MB).",
+  "kb_upload_hint": "Unterstützte Formate: PDF, TXT, MD, HTML, DOC, DOCX, CSV, XLS, XLSX, JPEG, PNG, MSG. Max. 50 MB (Bilder: 3.75 MB).",
   "kb_upload_uploading": "Wird hochgeladen ...",
   "kb_upload_done": "hochgeladen",
   "kb_upload_error_generic": "Upload fehlgeschlagen",
