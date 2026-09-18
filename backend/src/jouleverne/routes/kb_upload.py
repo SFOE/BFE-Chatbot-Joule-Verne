@@ -13,7 +13,7 @@ from fastapi import APIRouter, Request, Depends, HTTPException
 from pydantic import BaseModel
 
 from ..services.clients import s3_client
-from ..services.security import limiter, verify_cognito_auth
+from ..services.security import limiter, verify_cognito_auth, verify_kb_write_permission
 from ..config import settings
 from .kbs import get_prefix_for_kb
 
@@ -25,6 +25,7 @@ ALLOWED_EXTENSIONS = {
     ".txt", ".md", ".html", ".doc", ".docx",
     ".csv", ".xls", ".xlsx", ".pdf",
     ".jpeg", ".jpg", ".png",
+    ".msg",
 }
 
 CONTENT_TYPES = {
@@ -40,6 +41,7 @@ CONTENT_TYPES = {
     ".jpeg": "image/jpeg",
     ".jpg": "image/jpeg",
     ".png": "image/png",
+    ".msg": "application/vnd.ms-outlook",
 }
 
 
@@ -62,6 +64,9 @@ async def create_upload_url(
     prefix = get_prefix_for_kb(body.kb_id)
     if prefix is None:
         raise HTTPException(status_code=403, detail="Unknown or not-allowed knowledge base.")
+
+    # Per-KB write allowlist: only permitted e-mails may upload to this KB.
+    verify_kb_write_permission(body.kb_id, request)
 
     filename = body.filename.strip()
     if not filename:
@@ -178,6 +183,9 @@ async def delete_kb_file(
     prefix = get_prefix_for_kb(kb_id)
     if prefix is None:
         raise HTTPException(status_code=403, detail="Unknown or not-allowed knowledge base.")
+
+    # Per-KB write allowlist: only permitted e-mails may delete from this KB.
+    verify_kb_write_permission(kb_id, request)
 
     # Ensure the key belongs to the KB's prefix (prevent deletion of other files)
     if not body.key.startswith(f"{prefix}/"):

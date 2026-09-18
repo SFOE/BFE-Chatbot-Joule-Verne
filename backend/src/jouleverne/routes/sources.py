@@ -60,7 +60,7 @@ def _resolve_specific_original_key(extracted_bucket: str, extracted_key: str) ->
 
     # Text was extracted from some original with the same base name; probe the
     # extensions the processor extracts text from.
-    for ext in (".pdf", ".docx", ".txt", ".md", ".html", ".htm"):
+    for ext in (".pdf", ".docx", ".txt", ".md", ".html", ".htm", ".msg"):
         candidate = f"{base}{ext}"
         if _inbox_object_exists(candidate):
             return candidate

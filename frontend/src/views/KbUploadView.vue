@@ -46,7 +46,7 @@ const selectedKbName = computed(() => {
   return kb ? kbName(kb) : ''
 })
 
-const ACCEPT = '.pdf,.txt,.md,.html,.doc,.docx,.csv,.xls,.xlsx,.jpeg,.jpg,.png'
+const ACCEPT = '.pdf,.txt,.md,.html,.doc,.docx,.csv,.xls,.xlsx,.jpeg,.jpg,.png,.msg'
 const MAX_DOC_SIZE = 50 * 1024 * 1024 // 50 MB for documents
 const MAX_IMAGE_SIZE = 3.75 * 1024 * 1024 // 3.75 MB for images
 const IMAGE_EXTENSIONS = ['.jpeg', '.jpg', '.png']
