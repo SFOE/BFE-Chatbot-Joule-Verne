@@ -24,7 +24,6 @@ const CUSTOM_TOOLS = [
   'kb_website',
   'kb_legislation',
   'aramis',
-  'web_search',
 ] as const
 
 function toolLabel(tool: string): string {
@@ -145,7 +144,7 @@ function cancelWebSearch() {
     </div>
 
     <template v-if="store.customMode">
-      <span class="toggle-label toggle-label--sub">{{ t('search_mode_custom_label') }}</span>
+      <span class="toggle-label toggle-label--sub">{{ t('search_mode_kb') }}</span>
       <div class="tool-options">
         <label
           v-for="tool in CUSTOM_TOOLS"
@@ -163,24 +162,34 @@ function cancelWebSearch() {
       </div>
 
       <!-- Specific knowledge bases (selectable alongside the tools above) -->
-      <template v-if="specificKbs.length">
-        <span class="toggle-label toggle-label--sub">{{ t('search_mode_specific_label') }}</span>
-        <div class="tool-options">
-          <label
-            v-for="kb in specificKbs"
-            :key="kb.id"
-            :class="{ active: store.customKbIds.has(kb.id), disabled: store.searchModeLocked }"
-          >
-            <input
-              type="checkbox"
-              :checked="store.customKbIds.has(kb.id)"
-              :disabled="store.searchModeLocked"
-              @change="toggleKb(kb.id)"
-            />
-            {{ kbName(kb) }}
-          </label>
-        </div>
-      </template>
+      <span class="toggle-label toggle-label--sub">{{ t('search_mode_specific_label') }}</span>
+      <div class="tool-options">
+        <label
+          v-for="kb in specificKbs"
+          :key="kb.id"
+          :class="{ active: store.customKbIds.has(kb.id), disabled: store.searchModeLocked }"
+        >
+          <input
+            type="checkbox"
+            :checked="store.customKbIds.has(kb.id)"
+            :disabled="store.searchModeLocked"
+            @change="toggleKb(kb.id)"
+          />
+          {{ kbName(kb) }}
+        </label>
+        <!-- Web search lives at the very end of the specific KB section -->
+        <label
+          :class="{ active: store.customTools.has('web_search'), disabled: store.searchModeLocked }"
+        >
+          <input
+            type="checkbox"
+            :checked="store.customTools.has('web_search')"
+            :disabled="store.searchModeLocked"
+            @change="toggleTool('web_search')"
+          />
+          {{ toolLabel('web_search') }}
+        </label>
+      </div>
     </template>
 
     <!-- Confirmation dialog -->
