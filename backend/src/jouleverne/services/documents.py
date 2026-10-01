@@ -148,6 +148,11 @@ def check_classification_in_text(file_bytes: bytes, filename: str) -> str | None
     """Check if a document contains classification keywords (e.g. GEHEIM, VERTRAULICH)
     in headers, footers, or the first/last lines of the document text.
 
+    All supported file types are checked. PDF and DOCX use their native
+    header/footer + first/last structure; every other type falls back to
+    inspecting the beginning and end of the extracted text (the logical
+    equivalent of the header/footer areas).
+
     Returns the found keyword or None.
     """
     ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
@@ -156,10 +161,48 @@ def check_classification_in_text(file_bytes: bytes, filename: str) -> str | None
         return _check_classification_text_pdf(file_bytes)
     elif ext == "docx":
         return _check_classification_text_docx(file_bytes)
-    elif ext == "xlsx":
-        return None
     else:
+        # txt, csv, xlsx and any other text-extractable type: inspect the
+        # start and end of the extracted text (same areas as header/footer).
+        return _check_classification_text_generic(file_bytes, filename)
+
+
+def _check_classification_in_edges(text: str) -> str | None:
+    """Check the first and last 500 characters of a text for classification keywords."""
+    upper = text.upper()
+    header_area = upper[:500]
+    footer_area = upper[-500:] if len(upper) > 500 else upper
+    for keyword in RESTRICTED_CLASSIFICATION_KEYWORDS:
+        if keyword in header_area or keyword in footer_area:
+            return keyword
+    return None
+
+
+def _check_classification_text_generic(file_bytes: bytes, filename: str) -> str | None:
+    """Check the start/end of the extracted text for any non-PDF/DOCX file type.
+
+    Uses the raw extractors directly (bypassing the quality gate in
+    ``extract_text``) so that even short or low-quality documents are still
+    screened for classification keywords.
+    """
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+
+    raw_extractors = {
+        "txt": _extract_txt,
+        "xlsx": _extract_xlsx,
+        "csv": _extract_csv,
+    }
+    extractor = raw_extractors.get(ext)
+    if extractor is None:
+        # Unsupported/unknown type — nothing we can read, so nothing to block.
         return None
+
+    try:
+        text, _ = extractor(file_bytes)
+    except Exception as e:
+        logger.debug("Error extracting text for classification check (%s): %s", filename, e)
+        return None
+    return _check_classification_in_edges(text)
 
 
 def _check_classification_text_pdf(file_bytes: bytes) -> str | None:
