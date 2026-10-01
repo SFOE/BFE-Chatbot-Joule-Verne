@@ -12,7 +12,6 @@ import json
 import logging
 import re
 import zipfile
-from typing import Optional
 
 import boto3
 from pypdf import PdfReader

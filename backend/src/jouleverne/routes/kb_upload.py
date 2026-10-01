@@ -19,13 +19,19 @@ from ..services.documents import (
     check_sensitivity_label,
     is_sensitivity_restricted,
     check_classification_in_text,
-    MAX_FILE_SIZE_BYTES,
 )
 from ..config import settings
 from .kbs import get_prefix_for_kb
 
 router = APIRouter(prefix="/v1", tags=["kb_upload"])
 logger = logging.getLogger(__name__)
+
+# Upload size limits for KB documents. Kept in sync with the frontend
+# (KbUploadView.vue): images are capped lower because Bedrock image ingestion
+# has a smaller payload limit than text documents.
+MAX_DOC_SIZE_BYTES = 50 * 1024 * 1024  # 50 MB
+MAX_IMAGE_SIZE_BYTES = int(3.75 * 1024 * 1024)  # 3.75 MB
+IMAGE_EXTENSIONS = {".jpeg", ".jpg", ".png"}
 
 
 def _sanitize_kb_filename(filename: str) -> str:
@@ -167,8 +173,14 @@ async def upload_kb_document(
 
     content = await file.read()
 
-    if len(content) > MAX_FILE_SIZE_BYTES:
-        raise HTTPException(status_code=400, detail="File exceeds 10 MB limit.")
+    is_image = ext in IMAGE_EXTENSIONS
+    max_size = MAX_IMAGE_SIZE_BYTES if is_image else MAX_DOC_SIZE_BYTES
+    if len(content) > max_size:
+        max_label = "3.75 MB" if is_image else "50 MB"
+        raise HTTPException(
+            status_code=400,
+            detail=f"File exceeds the {max_label} limit.",
+        )
 
     # --- Sensitivity / classification screening (same as chat upload) ---
     label_info = await asyncio.to_thread(check_sensitivity_label, content, filename)

@@ -162,29 +162,35 @@ async function uploadFiles(fileList: File[]) {
         continue
       }
 
-      // 1. Get a presigned URL from the backend
-      const { data } = await backendHttp.post<{ upload_url: string; content_type: string }>(
-        'v1/kbs/upload-url',
-        { kb_id: selectedKbId.value, filename: file.name },
-      )
+      // Upload through the backend so the file is screened for
+      // sensitivity/classification markers (GEHEIM, VERTRAULICH, MIP labels)
+      // before it is written to S3.
+      const formData = new FormData()
+      formData.append('kb_id', selectedKbId.value)
+      formData.append('file', file)
 
-      // 2. Upload the file directly to S3
-      const putResponse = await fetch(data.upload_url, {
-        method: 'PUT',
-        headers: { 'Content-Type': data.content_type },
-        body: file,
-      })
-
-      if (!putResponse.ok) {
-        throw new Error(`S3 responded ${putResponse.status}`)
-      }
+      await backendHttp.post('v1/kbs/upload', formData)
 
       results.value.push({ name: file.name, status: 'success' })
     } catch (error: unknown) {
       let message = t('kb_upload_error_generic')
       if (typeof error === 'object' && error !== null && 'response' in error) {
-        const resp = (error as { response?: { data?: { detail?: string } } }).response
-        if (resp?.data?.detail) message = resp.data.detail
+        const resp = (
+          error as {
+            response?: {
+              data?: {
+                detail?: string | { message?: string; sensitivity_blocked?: boolean }
+              }
+            }
+          }
+        ).response
+        const detail = resp?.data?.detail
+        if (typeof detail === 'string') {
+          message = detail
+        } else if (detail && typeof detail === 'object' && detail.message) {
+          // Sensitivity/classification block (HTTP 422) — show the warning.
+          message = detail.message
+        }
       }
       results.value.push({ name: file.name, status: 'error', message })
     }
