@@ -97,3 +97,64 @@ async def verify_cognito_auth(request: Request) -> None:
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied: insufficient group membership",
         )
+
+
+# ---------------------------------------------------------------------------
+# Per-KB write authorization (upload + delete)
+# ---------------------------------------------------------------------------
+
+def _parse_kb_write_allowlist(raw: str) -> dict[str, set[str]]:
+    """Parse UPLOAD_ALLOWED_EMAILS_BY_KB into {kb_id: {email, ...}}.
+
+    Format: "kb_id:email1|email2, kb_id2:email3"
+    E-mails are lowercased. A KB absent from the map has no write restriction;
+    a KB present with an empty set blocks all writes.
+    """
+    mapping: dict[str, set[str]] = {}
+    for entry in raw.split(","):
+        entry = entry.strip()
+        if not entry:
+            continue
+        kb_id, sep, emails_str = entry.partition(":")
+        if not sep:
+            logger.warning("Ignoring malformed KB write-allowlist entry (no ':'): %r", entry)
+            continue
+        kb_id = kb_id.strip()
+        if not kb_id:
+            continue
+        emails = {
+            e.strip().lower()
+            for e in emails_str.split("|")
+            if e.strip()
+        }
+        mapping[kb_id] = emails
+    return mapping
+
+
+# Parse the per-KB write allowlist once at startup.
+_kb_write_allowlist: dict[str, set[str]] = _parse_kb_write_allowlist(
+    settings.UPLOAD_ALLOWED_EMAILS_BY_KB
+)
+
+
+def verify_kb_write_permission(kb_id: str, request: Request) -> None:
+    """Authorize a write (upload/delete) against the per-KB e-mail allowlist.
+
+    - If the KB is not listed in UPLOAD_ALLOWED_EMAILS_BY_KB, writes are open
+      (any authenticated user) — preserving the previous behaviour.
+    - If the KB is listed, only the allowlisted e-mails may write.
+
+    Raises HTTPException(403) when the current user is not permitted.
+    """
+    allowed = _kb_write_allowlist.get(kb_id)
+    if allowed is None:
+        # KB not restricted.
+        return
+
+    email = (extract_user_email(request) or "").strip().lower()
+    if email not in allowed:
+        logger.info("Write denied for %r on KB %s", email or "<unknown>", kb_id)
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: not allowed to modify this knowledge base",
+        )

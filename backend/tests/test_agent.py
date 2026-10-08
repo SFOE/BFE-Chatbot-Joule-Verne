@@ -14,7 +14,7 @@ class MockStreamingBody:
         """Each line becomes a chunk (newline-separated in the stream)."""
         self._data = "\n".join(lines) + "\n" if lines else ""
 
-    def iter_chunks(self):
+    def iter_chunks(self, chunk_size: int | None = None):
         """Yield the full content as a single chunk (simulates streaming)."""
         if self._data:
             yield self._data.encode("utf-8")
@@ -239,7 +239,7 @@ class TestStreamAgentResponse:
         """If iteration over stream raises, we get an error event."""
 
         class FailingStream:
-            def iter_chunks(self):
+            def iter_chunks(self, chunk_size: int | None = None):
                 yield b"start text\n"
                 raise RuntimeError("stream died")
 
@@ -274,7 +274,7 @@ class TestStreamAgentResponse:
         """Content without trailing newline is still processed."""
 
         class NoTrailingNewline:
-            def iter_chunks(self):
+            def iter_chunks(self, chunk_size: int | None = None):
                 yield b"Last line without newline"
 
         mock_client.invoke_agent_runtime.return_value = {"response": NoTrailingNewline()}
@@ -299,3 +299,42 @@ class TestStreamAgentResponse:
 
         # Trace events come first, then text, then citations, then done
         assert event_types == ["trace", "trace", "token", "citation", "done"]
+
+    @patch("jouleverne.services.agent.agentcore_client")
+    def test_heartbeat_is_not_shown_in_chat(self, mock_client):
+        """Heartbeat/keep-alive control events must not leak into the chat."""
+        mock_client.invoke_agent_runtime.return_value = _make_response([
+            json.dumps({"type": "heartbeat"}),
+            "Real answer",
+        ])
+
+        events = list(stream_agent_response("hi", "s1"))
+        token_events = [(t, d) for t, d in events if t == "token"]
+
+        # Only the actual answer becomes a token; the heartbeat is dropped.
+        assert len(token_events) == 1
+        assert "Real answer" in token_events[0][1]
+        assert "heartbeat" not in token_events[0][1]
+
+    @patch("jouleverne.services.agent.agentcore_client")
+    def test_unknown_typed_control_event_is_dropped(self, mock_client):
+        """Any typed event we don't render is ignored, not emitted as text."""
+        mock_client.invoke_agent_runtime.return_value = _make_response([
+            json.dumps({"type": "keepalive", "ts": 123}),
+        ])
+
+        events = list(stream_agent_response("hi", "s1"))
+        token_events = [(t, d) for t, d in events if t == "token"]
+        assert token_events == []
+
+    @patch("jouleverne.services.agent.agentcore_client")
+    def test_unknown_dict_without_type_still_emitted(self, mock_client):
+        """A dict without a 'type' field keeps the safety fallback to token."""
+        mock_client.invoke_agent_runtime.return_value = _make_response([
+            json.dumps({"foo": "bar"}),
+        ])
+
+        events = list(stream_agent_response("hi", "s1"))
+        token_events = [(t, d) for t, d in events if t == "token"]
+        assert len(token_events) == 1
+        assert "foo" in token_events[0][1]

@@ -29,6 +29,13 @@ class Settings(BaseSettings):
     # Auth — comma-separated Cognito group names
     ALLOWED_COGNITO_GROUPS: str = ""
 
+    # Per-KB write (upload + delete) allowlist by e-mail.
+    # Format: "kb_id:email1|email2, kb_id2:email3"
+    # A KB not listed here has NO write restriction (open to any authenticated
+    # user). A KB listed with an empty list blocks all writes. Matching is
+    # case-insensitive on the e-mail. Empty setting = current behaviour (open).
+    UPLOAD_ALLOWED_EMAILS_BY_KB: str = ""
+
     # Knowledge base display names — comma-separated pairs
     # Multi-language: "id:DE_Name|FR_Name|IT_Name|EN_Name"
     # Single name (all locales): "id:Name"

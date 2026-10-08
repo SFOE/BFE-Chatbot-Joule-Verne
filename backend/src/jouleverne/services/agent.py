@@ -659,8 +659,14 @@ def _route_parsed_value(
             # Simple text response wrapped in {"text": "..."}
             evt = TokenEvent(text=value["text"])
             yield "token", evt.model_dump_json()
+        elif msg_type:
+            # Recognised as a typed control event but not one we display
+            # (e.g. "heartbeat"/keep-alive signals). Ignore it silently so
+            # the raw JSON never leaks into the chat as text.
+            logger.debug("Ignoring control event of type %r", msg_type)
+            return
         else:
-            # Unknown dict — yield as token for safety
+            # Unknown dict without a type — yield as token for safety
             evt = TokenEvent(text=json.dumps(value, ensure_ascii=False))
             yield "token", evt.model_dump_json()
 
