@@ -51,8 +51,7 @@ jobs:
       aws-role: ${{ secrets.SFOE_JOULEVERNE_PIPELINE_ROLE_DEV }}
 
   build-scan-push-release-prod:
-    if: github.event_name == 'release'
-    uses: SFOE-prometheon/github-terraform-workflows/.github/workflows/ecr-build-scan-push.yml@v9
+    if: github.event_name == 'release' && github.event.release.prerelease == false
     with:
       dockerfile: Dockerfile
       build-context: .
