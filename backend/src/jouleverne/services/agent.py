@@ -229,6 +229,7 @@ def invoke_agent(
     message: str,
     session_id: str,
     *,
+    user_id: str | None = None,
     web_search: bool = False,
     session_attributes: dict[str, str] | None = None,
     files: list[dict] | None = None,
@@ -238,6 +239,8 @@ def invoke_agent(
     Args:
         message: User message text.
         session_id: Session identifier for conversation continuity.
+        user_id: Pseudonymous user id (Cognito `sub`) scoping the stored
+            transcript to the person. Omitted => legacy un-scoped layout.
         web_search: Whether to enable the web search tool.
         session_attributes: Dict with uploaded_document, document_name, context_mode.
         files: Code Interpreter files to upload to the sandbox before agent invocation.
@@ -250,6 +253,22 @@ def invoke_agent(
         "session_id": session_id,
         "enable_web_search": web_search,
     }
+
+    # Forward the pseudonymous user id so the agent isolates the stored
+    # transcript per person (sessions/<user_id>/). Never includes PII.
+    if user_id:
+        payload["user_id"] = user_id
+
+    # Explicit capabilities ("own choice" mode) take precedence over legacy
+    # routing. The agent composes from exactly this grant.
+    if capabilities is not None:
+        payload["capabilities"] = capabilities
+
+    # Specific KB routing (legacy)
+    if agent_type != "default":
+        payload["agent_type"] = agent_type
+    if specific_kb_id:
+        payload["specific_kb_id"] = specific_kb_id
 
     # Document context (replaces Classic's sessionState.promptSessionAttributes)
     if session_attributes:
@@ -282,6 +301,7 @@ def stream_agent_response(
     message: str,
     session_id: str,
     *,
+    user_id: str | None = None,
     web_search: bool = False,
     locale: str = "de",
     session_attributes: dict[str, str] | None = None,
@@ -299,6 +319,7 @@ def stream_agent_response(
         response = invoke_agent(
             message,
             session_id,
+            user_id=user_id,
             web_search=web_search,
             session_attributes=session_attributes,
             files=files,
