@@ -2,7 +2,13 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { v4 as uuidv4 } from 'uuid'
 import type { ChatMessage, TraceStep, Citation, TextDoc, CodeInterpreterDoc } from '@/types/chat'
-import { getSavePreference, setSavePreference } from '@/services/conversations'
+import {
+  getSavePreference,
+  setSavePreference,
+  saveConversation,
+  loadConversation,
+  type ModeConfig,
+} from '@/services/conversations'
 
 export const useChatStore = defineStore('chat', () => {
   const messages = ref<ChatMessage[]>([])
@@ -184,6 +190,58 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
+  /** Snapshot the current tool/mode selection for persistence. */
+  function currentModeConfig(): ModeConfig {
+    return {
+      customMode: customMode.value,
+      customTools: Array.from(customTools.value),
+      customKbIds: Array.from(customKbIds.value),
+      webSearchEnabled: webSearchEnabled.value,
+      specificKbId: specificKbId.value,
+    }
+  }
+
+  /** Restore a persisted tool/mode selection into the store. */
+  function applyModeConfig(config: ModeConfig | null) {
+    if (!config) return
+    customMode.value = config.customMode
+    customTools.value = new Set(config.customTools)
+    customKbIds.value = new Set(config.customKbIds)
+    webSearchEnabled.value = config.webSearchEnabled
+    specificKbId.value = config.specificKbId
+  }
+
+  /**
+   * Persist the current conversation (best-effort). No-op when the user has
+   * not opted in or there is nothing to save. Called after each answer.
+   */
+  async function persistConversation() {
+    if (!saveChatsEnabled.value || messages.value.length === 0) return
+    try {
+      await saveConversation(sessionId.value, messages.value, currentModeConfig())
+    } catch {
+      // Best-effort — a failed save must never disrupt the chat.
+    }
+  }
+
+  /**
+   * Load a stored conversation into the store so the UI can continue it. Sets
+   * the session id, restores the transcript and the saved mode config, and
+   * locks the search mode (as it is after the first message of any chat).
+   */
+  async function openConversation(id: string) {
+    const detail = await loadConversation(id)
+    sessionId.value = detail.session_id
+    messages.value = detail.messages
+    citations.value = []
+    textDocs.value = []
+    codeInterpreterDocs.value = []
+    applyModeConfig(detail.mode_config)
+    if (messages.value.length > 0) {
+      searchModeLocked.value = true
+    }
+  }
+
   return {
     messages,
     sessionId,
@@ -204,6 +262,8 @@ export const useChatStore = defineStore('chat', () => {
     hasMessages,
     loadSavePreference,
     updateSavePreference,
+    persistConversation,
+    openConversation,
     addMessage,
     updateLastAssistantMessage,
     setTraceSteps,
