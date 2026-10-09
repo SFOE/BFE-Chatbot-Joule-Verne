@@ -5,6 +5,7 @@ import { useChatStore } from '@/stores/chatStore'
 import {
   listConversations,
   renameConversation,
+  deleteConversation,
   type ConversationSummary,
 } from '@/services/conversations'
 
@@ -66,6 +67,23 @@ async function rename(convo: ConversationSummary) {
     // Ignore rename failures.
   }
 }
+
+async function remove(convo: ConversationSummary) {
+  if (store.isStreaming) return
+  if (!window.confirm(t('conversations_delete_confirm'))) return
+  try {
+    await deleteConversation(convo.session_id)
+    conversations.value = conversations.value.filter(
+      (c) => c.session_id !== convo.session_id,
+    )
+    // If the open chat was deleted, start a fresh one.
+    if (convo.session_id === store.sessionId) {
+      store.clearChat()
+    }
+  } catch {
+    // Ignore delete failures — the entry stays and can be retried.
+  }
+}
 </script>
 
 <template>
@@ -91,11 +109,18 @@ async function rename(convo: ConversationSummary) {
           {{ convo.title }}
         </button>
         <button
-          class="conversation-list__rename"
+          class="conversation-list__action"
           :title="t('conversations_rename')"
           @click="rename(convo)"
         >
           ✎
+        </button>
+        <button
+          class="conversation-list__action conversation-list__action--delete"
+          :title="t('conversations_delete')"
+          @click="remove(convo)"
+        >
+          🗑
         </button>
       </li>
     </ul>
@@ -161,15 +186,20 @@ async function rename(convo: ConversationSummary) {
   color: var(--color-text);
 }
 
-.conversation-list__rename {
+.conversation-list__action {
   background: none;
   border: none;
   cursor: pointer;
   opacity: 0.5;
   font-size: 0.8rem;
+  padding: 2px 4px;
 }
 
-.conversation-list__rename:hover {
+.conversation-list__action:hover {
   opacity: 1;
+}
+
+.conversation-list__action--delete:hover {
+  color: #c0392b;
 }
 </style>

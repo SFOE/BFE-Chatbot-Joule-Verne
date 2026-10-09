@@ -11,6 +11,8 @@
   "conversations_empty": "No saved chats yet.",
   "conversations_new": "New chat",
   "conversations_rename": "Rename",
+  "conversations_delete": "Delete",
+  "conversations_delete_confirm": "Permanently delete this chat and all associated data?",
   "sources_title": "Sources",
   "settings_title": "Settings",
   "search_mode_label": "Search mode",
