@@ -151,6 +151,25 @@ async def rename_conversation(
     )
 
 
+@router.delete("/{session_id}/ephemeral", status_code=status.HTTP_204_NO_CONTENT)
+@limiter.limit(settings.RATE_LIMIT)
+async def delete_ephemeral(
+    request: Request,
+    session_id: str,
+    _auth: None = Depends(verify_cognito_auth),
+    sub: str = Depends(require_user_sub),
+):
+    """Delete an opt-out session's short-lived agent transcript immediately.
+
+    Called by the frontend when the user turns saving off or starts a new chat,
+    so nothing lingers until the 1-day lifecycle backstop. Always 204 — a
+    missing transcript is a no-op (idempotent), which also lets a best-effort
+    unload beacon fire safely.
+    """
+    convo.delete_ephemeral_session(sub, session_id)
+    return None
+
+
 @router.delete("/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
 @limiter.limit(settings.RATE_LIMIT)
 async def delete_conversation(
