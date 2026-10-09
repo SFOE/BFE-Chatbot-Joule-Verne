@@ -149,3 +149,26 @@ async def rename_conversation(
         title=(loaded or {}).get("title", "Chat"),
         updated_at=(loaded or {}).get("updated_at", ""),
     )
+
+
+@router.delete("/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
+@limiter.limit(settings.RATE_LIMIT)
+async def delete_conversation(
+    request: Request,
+    session_id: str,
+    _auth: None = Depends(verify_cognito_auth),
+    sub: str = Depends(require_user_sub),
+):
+    """Delete a conversation and all associated data.
+
+    Removes the index entry, the transcript, the agent's stored history, and
+    the session's feedback objects. Available regardless of the save opt-in,
+    so a user can always clean up previously saved chats.
+    """
+    ok = convo.delete_conversation(sub, session_id)
+    if not ok:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Conversation not found",
+        )
+    return None

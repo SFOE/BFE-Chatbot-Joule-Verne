@@ -11,6 +11,8 @@
   "conversations_empty": "Aucun chat enregistré pour l'instant.",
   "conversations_new": "Nouveau chat",
   "conversations_rename": "Renommer",
+  "conversations_delete": "Supprimer",
+  "conversations_delete_confirm": "Supprimer définitivement ce chat et toutes les données associées ?",
   "sources_title": "Sources",
   "settings_title": "Paramètres",
   "search_mode_label": "Mode de recherche",
