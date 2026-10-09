@@ -93,3 +93,14 @@ export async function renameConversation(
 export async function deleteConversation(sessionId: string): Promise<void> {
   await backendHttp.delete(`v1/conversations/${encodeURIComponent(sessionId)}`)
 }
+
+/**
+ * Immediately delete an opt-out session's short-lived agent transcript.
+ * Idempotent and best-effort — used when saving is turned off or a new chat
+ * is started so nothing lingers until the 1-day backstop.
+ */
+export async function deleteEphemeralSession(sessionId: string): Promise<void> {
+  await backendHttp.delete(
+    `v1/conversations/${encodeURIComponent(sessionId)}/ephemeral`,
+  )
+}

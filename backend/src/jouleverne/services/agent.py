@@ -230,6 +230,7 @@ def invoke_agent(
     session_id: str,
     *,
     user_id: str | None = None,
+    save_history: bool = True,
     web_search: bool = False,
     session_attributes: dict[str, str] | None = None,
     files: list[dict] | None = None,
@@ -241,6 +242,9 @@ def invoke_agent(
         session_id: Session identifier for conversation continuity.
         user_id: Pseudonymous user id (Cognito `sub`) scoping the stored
             transcript to the person. Omitted => legacy un-scoped layout.
+        save_history: Whether the user opted in to persisting this chat. When
+            False the agent writes to a short-lived ephemeral prefix (still
+            keeps in-session memory). Defaults True.
         web_search: Whether to enable the web search tool.
         session_attributes: Dict with uploaded_document, document_name, context_mode.
         files: Code Interpreter files to upload to the sandbox before agent invocation.
@@ -258,6 +262,12 @@ def invoke_agent(
     # transcript per person (sessions/<user_id>/). Never includes PII.
     if user_id:
         payload["user_id"] = user_id
+
+    # Opt-out => agent stores the transcript in the short-lived ephemeral
+    # prefix instead of the persistent one. Only sent when False to keep the
+    # payload minimal and the default (persistent) behaviour implicit.
+    if not save_history:
+        payload["save_history"] = False
 
     # Explicit capabilities ("own choice" mode) take precedence over legacy
     # routing. The agent composes from exactly this grant.
@@ -302,6 +312,7 @@ def stream_agent_response(
     session_id: str,
     *,
     user_id: str | None = None,
+    save_history: bool = True,
     web_search: bool = False,
     locale: str = "de",
     session_attributes: dict[str, str] | None = None,
@@ -320,6 +331,7 @@ def stream_agent_response(
             message,
             session_id,
             user_id=user_id,
+            save_history=save_history,
             web_search=web_search,
             session_attributes=session_attributes,
             files=files,

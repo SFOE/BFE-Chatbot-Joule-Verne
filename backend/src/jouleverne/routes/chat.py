@@ -13,6 +13,7 @@ from ..services.security import (
     extract_user_email,
     extract_user_sub,
 )
+from ..services import conversations as convo
 from ..services.usage import log_usage
 from ..config import settings
 
@@ -62,6 +63,11 @@ async def chat(
     # layout, so chat keeps working without an identity.
     user_id = extract_user_sub(request)
 
+    # Honour the save opt-in: when the user has NOT opted in, the agent stores
+    # the transcript in the short-lived ephemeral prefix (full in-session memory
+    # preserved, but cleaned up within a day). Unknown user => treat as opt-out.
+    save_history = bool(user_id) and convo.get_save_enabled(user_id)
+
     agent_files = _build_agent_files(body)
 
     def event_generator():
@@ -69,6 +75,7 @@ async def chat(
             message=body.message,
             session_id=body.session_id,
             user_id=user_id,
+            save_history=save_history,
             web_search=body.web_search,
             locale=body.locale,
             session_attributes=body.session_attributes,
