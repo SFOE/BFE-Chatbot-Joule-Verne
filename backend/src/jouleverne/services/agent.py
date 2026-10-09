@@ -250,6 +250,7 @@ def invoke_agent(
     message: str,
     session_id: str,
     *,
+    user_id: str | None = None,
     web_search: bool = False,
     agent_type: str = "default",
     specific_kb_id: str | None = None,
@@ -262,6 +263,8 @@ def invoke_agent(
     Args:
         message: User message text.
         session_id: Session identifier for conversation continuity.
+        user_id: Pseudonymous user id (Cognito `sub`) scoping the stored
+            transcript to the person. Omitted => legacy un-scoped layout.
         web_search: Whether to enable the web search tool.
         agent_type: Agent routing type ("default" or "specific").
         specific_kb_id: KB ID to use when agent_type is "specific".
@@ -276,6 +279,11 @@ def invoke_agent(
         "session_id": session_id,
         "enable_web_search": web_search,
     }
+
+    # Forward the pseudonymous user id so the agent isolates the stored
+    # transcript per person (sessions/<user_id>/). Never includes PII.
+    if user_id:
+        payload["user_id"] = user_id
 
     # Explicit capabilities ("own choice" mode) take precedence over legacy
     # routing. The agent composes from exactly this grant.
@@ -319,6 +327,7 @@ def stream_agent_response(
     message: str,
     session_id: str,
     *,
+    user_id: str | None = None,
     web_search: bool = False,
     agent_type: str = "default",
     specific_kb_id: str | None = None,
@@ -339,6 +348,7 @@ def stream_agent_response(
         response = invoke_agent(
             message,
             session_id,
+            user_id=user_id,
             web_search=web_search,
             agent_type=agent_type,
             specific_kb_id=specific_kb_id,
