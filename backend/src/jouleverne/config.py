@@ -61,5 +61,20 @@ class Settings(BaseSettings):
     # Presigned upload URL expiration in seconds
     UPLOAD_URL_EXPIRATION: int = 900
 
+    # ------------------------------------------------------------------
+    # Conversation history (persistent per-user chats)
+    # ------------------------------------------------------------------
+    # DynamoDB table holding the conversation index (one item per chat:
+    # person_id/session_id/title/updated_at/mode_config) and per-user
+    # preferences (the save opt-in flag). Empty => persistence disabled, the
+    # app behaves exactly as before (ephemeral chats only).
+    CONVERSATIONS_TABLE: str = ""
+
+    # S3 bucket + prefix holding the full chat transcript JSON per conversation.
+    # Reuses the feedback bucket; the Strands agent transcript lives under the
+    # same sessions/ prefix. Empty bucket => persistence disabled.
+    CONVERSATIONS_BUCKET: str = ""
+    CONVERSATIONS_PREFIX: str = "sessions/"
+
 
 settings = Settings()

@@ -5,6 +5,8 @@
   "input_placeholder": "Inserisca qui la sua domanda...",
   "send": "Inviare",
   "clear_chat": "Cancellare la chat",
+  "save_chats_label": "Salva le chat",
+  "save_chats_hint": "Se attivata, le chat vengono salvate per poterle riprendere in seguito. La disattivazione non elimina le chat esistenti.",
   "sources_title": "Fonti",
   "settings_title": "Impostazioni",
   "search_mode_label": "Modalità di ricerca",

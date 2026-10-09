@@ -5,6 +5,8 @@
   "input_placeholder": "Entrez votre question ici...",
   "send": "Envoyer",
   "clear_chat": "Effacer le chat",
+  "save_chats_label": "Enregistrer les chats",
+  "save_chats_hint": "Lorsque cette option est activée, vos chats sont enregistrés afin que vous puissiez les reprendre plus tard. La désactivation ne supprime pas les chats existants.",
   "sources_title": "Sources",
   "settings_title": "Paramètres",
   "search_mode_label": "Mode de recherche",

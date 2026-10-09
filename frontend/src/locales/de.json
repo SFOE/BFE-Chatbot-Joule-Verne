@@ -5,6 +5,8 @@
   "input_placeholder": "Geben Sie hier Ihre Frage ein...",
   "send": "Senden",
   "clear_chat": "Chat löschen",
+  "save_chats_label": "Chats speichern",
+  "save_chats_hint": "Wenn aktiviert, werden Ihre Chats gespeichert, damit Sie sie später fortsetzen können. Beim Deaktivieren werden bestehende Chats nicht gelöscht.",
   "sources_title": "Quellen",
   "settings_title": "Einstellungen",
   "search_mode_label": "Suchmodus",
