@@ -88,3 +88,8 @@ export async function renameConversation(
   )
   return res.data
 }
+
+/** Delete a conversation and all associated data. */
+export async function deleteConversation(sessionId: string): Promise<void> {
+  await backendHttp.delete(`v1/conversations/${encodeURIComponent(sessionId)}`)
+}

@@ -290,3 +290,100 @@ def rename_conversation(sub: str, session_id: str, title: str) -> bool:
     except _table().meta.client.exceptions.ConditionalCheckFailedException:
         return False
     return True
+
+
+# ---------------------------------------------------------------------------
+# Delete a conversation and everything associated with it
+# ---------------------------------------------------------------------------
+
+def _delete_s3_prefix(bucket: str, prefix: str) -> None:
+    """Delete every object under a bucket/prefix. Best-effort, paginated."""
+    paginator = s3_client.get_paginator("list_objects_v2")
+    for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
+        contents = page.get("Contents")
+        if not contents:
+            continue
+        objects = [{"Key": obj["Key"]} for obj in contents]
+        # delete_objects handles up to 1000 keys per call; a page is <= 1000.
+        s3_client.delete_objects(Bucket=bucket, Delete={"Objects": objects})
+
+
+def _delete_feedback_for_session(session_id: str) -> None:
+    """Best-effort delete of feedback objects belonging to a session.
+
+    Feedback keys are date-partitioned as
+    ``feedback/<y>/<m>/<d>/<session_id>_<index>.json`` with no session index,
+    so we scan the feedback/ prefix and match on the ``<session_id>_`` filename
+    segment. This is a wide scan, but delete is an infrequent per-user action
+    and feedback is best-effort analytics data.
+    """
+    bucket = settings.CONVERSATIONS_BUCKET
+    needle = f"/{session_id}_"
+    paginator = s3_client.get_paginator("list_objects_v2")
+    to_delete: list[dict] = []
+    for page in paginator.paginate(Bucket=bucket, Prefix="feedback/"):
+        for obj in page.get("Contents", []):
+            key = obj["Key"]
+            if needle in key and key.endswith(".json"):
+                to_delete.append({"Key": key})
+                if len(to_delete) == 1000:
+                    s3_client.delete_objects(Bucket=bucket, Delete={"Objects": to_delete})
+                    to_delete = []
+    if to_delete:
+        s3_client.delete_objects(Bucket=bucket, Delete={"Objects": to_delete})
+
+
+def delete_conversation(sub: str, session_id: str) -> bool:
+    """Delete a conversation and everything associated with it.
+
+    Removes, for the caller's own chat only:
+    - the DynamoDB index item,
+    - the transcript JSON in S3 (sessions/<sub>/<session_id>.json),
+    - the agent's Strands transcript under sessions/<sub>/<session_id>/,
+    - best-effort, the session's feedback objects.
+
+    Ownership is enforced structurally: we only ever address items/keys under
+    the caller's own ``sub``. Returns True when the index item existed and was
+    deleted, False otherwise (unknown chat / persistence disabled).
+    """
+    if not is_persistence_configured() or not sub or not session_id:
+        return False
+
+    # Confirm the chat exists and belongs to this user before deleting anything.
+    resp = _table().get_item(
+        Key={"person_id": sub, "sk": f"{_SK_CONV_PREFIX}{session_id}"}
+    )
+    item = resp.get("Item")
+    if not item:
+        return False
+
+    bucket = settings.CONVERSATIONS_BUCKET
+    safe_sub = _sanitize_key_segment(sub)
+    safe_sid = _sanitize_key_segment(session_id)
+
+    # 1) Transcript JSON (use the stored key when present, else the derived one).
+    transcript_key = item.get("s3_key") or _transcript_key(sub, session_id)
+    try:
+        s3_client.delete_object(Bucket=bucket, Key=transcript_key)
+    except Exception:
+        logger.exception("Failed to delete transcript object during delete")
+
+    # 2) Agent (Strands) transcript objects under the per-session prefix.
+    prefix = settings.CONVERSATIONS_PREFIX
+    if not prefix.endswith("/"):
+        prefix += "/"
+    try:
+        _delete_s3_prefix(bucket, f"{prefix}{safe_sub}/{safe_sid}/")
+    except Exception:
+        logger.exception("Failed to delete agent transcript prefix during delete")
+
+    # 3) Feedback objects for this session (best-effort).
+    try:
+        _delete_feedback_for_session(session_id)
+    except Exception:
+        logger.exception("Failed to delete feedback objects during delete")
+
+    # 4) Finally the index item, so a failure above still leaves it listable
+    #    (and thus retryable) rather than orphaning storage silently.
+    _table().delete_item(Key={"person_id": sub, "sk": f"{_SK_CONV_PREFIX}{session_id}"})
+    return True

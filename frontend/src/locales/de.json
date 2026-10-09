@@ -11,6 +11,8 @@
   "conversations_empty": "Noch keine gespeicherten Chats.",
   "conversations_new": "Neuer Chat",
   "conversations_rename": "Umbenennen",
+  "conversations_delete": "Löschen",
+  "conversations_delete_confirm": "Diesen Chat und alle zugehörigen Daten endgültig löschen?",
   "sources_title": "Quellen",
   "settings_title": "Einstellungen",
   "search_mode_label": "Suchmodus",
