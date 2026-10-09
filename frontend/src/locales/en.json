@@ -5,6 +5,8 @@
   "input_placeholder": "Enter your question here...",
   "send": "Send",
   "clear_chat": "Clear chat",
+  "save_chats_label": "Save chats",
+  "save_chats_hint": "When enabled, your chats are saved so you can continue them later. Turning this off does not delete existing chats.",
   "sources_title": "Sources",
   "settings_title": "Settings",
   "search_mode_label": "Search mode",

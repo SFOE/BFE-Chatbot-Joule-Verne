@@ -34,5 +34,43 @@ class Settings(BaseSettings):
     # Single name (all locales): "id:Name"
     KB_DISPLAY_NAMES: str = ""
 
+<<<<<<< HEAD
+=======
+    # Specific (personal/group) knowledge bases selectable as a chat mode.
+    # Format: "id:prefix:DE_Name|FR_Name|IT_Name|EN_Name" or "id:prefix:Name"
+    # The prefix is the S3 folder the KB ingests from (used for uploads).
+    SPECIFIC_KB_DISPLAY_NAMES: str = ""
+
+    # S3 bucket holding the original uploaded documents for specific
+    # (personal/group) KBs. This is the immutable "inbox" and the source of
+    # truth for downloads/citations.
+    SPECIFIC_KBS_BUCKET: str = ""
+
+    # S3 bucket holding the processed/extracted content the specific KBs sync
+    # from (extracted .txt / _partN.txt, passthrough copies, crawled website
+    # text). Citations reference objects here; the backend maps them back to the
+    # original file in SPECIFIC_KBS_BUCKET via each object's ".metadata.json"
+    # sidecar (original_key attribute).
+    SPECIFIC_KBS_EXTRACTED_BUCKET: str = ""
+
+    # Presigned upload URL expiration in seconds
+    UPLOAD_URL_EXPIRATION: int = 900
+
+    # ------------------------------------------------------------------
+    # Conversation history (persistent per-user chats)
+    # ------------------------------------------------------------------
+    # DynamoDB table holding the conversation index (one item per chat:
+    # person_id/session_id/title/updated_at/mode_config) and per-user
+    # preferences (the save opt-in flag). Empty => persistence disabled, the
+    # app behaves exactly as before (ephemeral chats only).
+    CONVERSATIONS_TABLE: str = ""
+
+    # S3 bucket + prefix holding the full chat transcript JSON per conversation.
+    # Reuses the feedback bucket; the Strands agent transcript lives under the
+    # same sessions/ prefix. Empty bucket => persistence disabled.
+    CONVERSATIONS_BUCKET: str = ""
+    CONVERSATIONS_PREFIX: str = "sessions/"
+
+>>>>>>> 8cdf295 (give possibility to choose to store the chats)
 
 settings = Settings()
