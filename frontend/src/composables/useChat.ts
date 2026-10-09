@@ -164,6 +164,9 @@ export function useChat() {
         } catch {
           // Silent fail — auto-save is best-effort
         }
+
+        // Persist the conversation for later continuation (opt-in, best-effort).
+        await store.persistConversation()
       }
     } catch (error) {
       store.updateLastAssistantMessage(i18n.global.t('error_connection'))
