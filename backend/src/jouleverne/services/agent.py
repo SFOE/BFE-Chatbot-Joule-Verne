@@ -251,6 +251,7 @@ def invoke_agent(
     session_id: str,
     *,
     user_id: str | None = None,
+    save_history: bool = True,
     web_search: bool = False,
     agent_type: str = "default",
     specific_kb_id: str | None = None,
@@ -265,6 +266,9 @@ def invoke_agent(
         session_id: Session identifier for conversation continuity.
         user_id: Pseudonymous user id (Cognito `sub`) scoping the stored
             transcript to the person. Omitted => legacy un-scoped layout.
+        save_history: Whether the user opted in to persisting this chat. When
+            False the agent writes to a short-lived ephemeral prefix (still
+            keeps in-session memory). Defaults True.
         web_search: Whether to enable the web search tool.
         agent_type: Agent routing type ("default" or "specific").
         specific_kb_id: KB ID to use when agent_type is "specific".
@@ -284,6 +288,12 @@ def invoke_agent(
     # transcript per person (sessions/<user_id>/). Never includes PII.
     if user_id:
         payload["user_id"] = user_id
+
+    # Opt-out => agent stores the transcript in the short-lived ephemeral
+    # prefix instead of the persistent one. Only sent when False to keep the
+    # payload minimal and the default (persistent) behaviour implicit.
+    if not save_history:
+        payload["save_history"] = False
 
     # Explicit capabilities ("own choice" mode) take precedence over legacy
     # routing. The agent composes from exactly this grant.
@@ -328,6 +338,7 @@ def stream_agent_response(
     session_id: str,
     *,
     user_id: str | None = None,
+    save_history: bool = True,
     web_search: bool = False,
     agent_type: str = "default",
     specific_kb_id: str | None = None,
@@ -349,6 +360,7 @@ def stream_agent_response(
             message,
             session_id,
             user_id=user_id,
+            save_history=save_history,
             web_search=web_search,
             agent_type=agent_type,
             specific_kb_id=specific_kb_id,

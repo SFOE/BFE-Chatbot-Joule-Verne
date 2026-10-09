@@ -333,6 +333,35 @@ def _delete_feedback_for_session(session_id: str) -> None:
         s3_client.delete_objects(Bucket=bucket, Delete={"Objects": to_delete})
 
 
+def _ephemeral_prefix() -> str:
+    """Base prefix for opt-out (short-lived) agent transcripts.
+
+    Mirrors the agent's EPHEMERAL_PREFIX. Kept in sync via the shared default
+    "ephemeral/"; both read the same env var name in their own runtime.
+    """
+    raw = settings.EPHEMERAL_PREFIX or "ephemeral/"
+    return raw if raw.endswith("/") else raw + "/"
+
+
+def delete_ephemeral_session(sub: str, session_id: str) -> None:
+    """Delete a user's short-lived (opt-out) agent transcript immediately.
+
+    Called when the user switches saving off or starts a new chat, so an
+    opt-out session's history is cleared right away rather than only by the
+    1-day lifecycle backstop. Best-effort and scoped to the caller's own
+    ``sub``; a missing object is a no-op.
+    """
+    if not is_persistence_configured() or not sub or not session_id:
+        return
+    safe_sub = _sanitize_key_segment(sub)
+    safe_sid = _sanitize_key_segment(session_id)
+    prefix = f"{_ephemeral_prefix()}{safe_sub}/{safe_sid}/"
+    try:
+        _delete_s3_prefix(settings.CONVERSATIONS_BUCKET, prefix)
+    except Exception:
+        logger.exception("Failed to delete ephemeral session transcript")
+
+
 def delete_conversation(sub: str, session_id: str) -> bool:
     """Delete a conversation and everything associated with it.
 

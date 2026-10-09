@@ -76,5 +76,10 @@ class Settings(BaseSettings):
     CONVERSATIONS_BUCKET: str = ""
     CONVERSATIONS_PREFIX: str = "sessions/"
 
+    # Prefix for opt-out (short-lived) agent transcripts. Must match the agent's
+    # EPHEMERAL_PREFIX. A dedicated 1-day S3 lifecycle rule guarantees cleanup
+    # even if the active delete never fires.
+    EPHEMERAL_PREFIX: str = "ephemeral/"
+
 
 settings = Settings()

@@ -7,6 +7,7 @@ import {
   setSavePreference,
   saveConversation,
   loadConversation,
+  deleteEphemeralSession,
   type ModeConfig,
 } from '@/services/conversations'
 
@@ -83,6 +84,13 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   function clearChat() {
+    // When saving is off, the outgoing session's transcript lives in the
+    // short-lived ephemeral store. Delete it right away rather than waiting for
+    // the 1-day backstop. Best-effort; the lifecycle rule guarantees cleanup.
+    if (!saveChatsEnabled.value && messages.value.length > 0) {
+      const outgoing = sessionId.value
+      void deleteEphemeralSession(outgoing).catch(() => {})
+    }
     messages.value = []
     citations.value = []
     webSearchEnabled.value = false
