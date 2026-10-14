@@ -14,7 +14,7 @@
   "conversations_delete": "Delete",
   "conversations_delete_confirm": "Permanently delete this chat and all associated data?",
   "message_sources_title": "Sources ({count})",
-  "source_group_web": "Web",
+  "source_group_web": "Web link",
   "source_group_website": "SFOE website",
   "source_group_fedlex": "Fedlex legislation",
   "source_group_document": "Documents",

@@ -14,7 +14,7 @@
   "conversations_delete": "Supprimer",
   "conversations_delete_confirm": "Supprimer définitivement ce chat et toutes les données associées ?",
   "message_sources_title": "Sources ({count})",
-  "source_group_web": "Web",
+  "source_group_web": "Lien web",
   "source_group_website": "Site web OFEN",
   "source_group_fedlex": "Législation Fedlex",
   "source_group_document": "Documents",
