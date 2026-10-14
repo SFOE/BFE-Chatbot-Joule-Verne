@@ -1,13 +1,14 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { v4 as uuidv4 } from 'uuid'
-import type { ChatMessage, TraceStep, Citation, TextDoc, CodeInterpreterDoc } from '@/types/chat'
+import type { ChatMessage, TraceStep, Citation, TextDoc, CodeInterpreterDoc, IndexedDoc } from '@/types/chat'
 import {
   getSavePreference,
   setSavePreference,
   saveConversation,
   loadConversation,
   deleteEphemeralSession,
+  listSessionFiles,
   type ModeConfig,
 } from '@/services/conversations'
 
@@ -22,6 +23,13 @@ export const useChatStore = defineStore('chat', () => {
   // Document upload state
   const textDocs = ref<TextDoc[]>([])
   const codeInterpreterDocs = ref<CodeInterpreterDoc[]>([])
+  // Large documents indexed server-side (RAG). Only a reference is held; the
+  // agent searches them on demand. Shown so the user sees what was uploaded.
+  const indexedDocs = ref<IndexedDoc[]>([])
+
+  // True while an upload (incl. server-side indexing) is in progress. Blocks
+  // sending so the user can't ask about a document before its index exists.
+  const isUploading = ref(false)
 
   // Sources from the latest answer
   const citations = ref<Citation[]>([])
@@ -73,6 +81,7 @@ export const useChatStore = defineStore('chat', () => {
     searchModeLocked.value = false
     textDocs.value = []
     codeInterpreterDocs.value = []
+    indexedDocs.value = []
     sessionId.value = uuidv4()
   }
 
@@ -158,9 +167,24 @@ export const useChatStore = defineStore('chat', () => {
     citations.value = []
     textDocs.value = []
     codeInterpreterDocs.value = []
+    indexedDocs.value = []
     applyModeConfig(detail.mode_config)
     if (messages.value.length > 0) {
       searchModeLocked.value = true
+    }
+    // Restore uploaded files so the UI reflects what the agent can still use in
+    // this continued session (best-effort). CI files come back as references
+    // (file_id, no bytes) — the agent loads them from S3 on demand.
+    try {
+      const sessionFiles = await listSessionFiles(detail.session_id)
+      indexedDocs.value = sessionFiles
+        .filter((f) => f.routing === 'index')
+        .map((f) => ({ name: f.name, doc_id: f.doc_id ?? '', chunk_count: 0, file_id: f.file_id }))
+      codeInterpreterDocs.value = sessionFiles
+        .filter((f) => f.routing === 'ci')
+        .map((f) => ({ name: f.name, media_type: f.media_type, file_id: f.file_id }))
+    } catch {
+      indexedDocs.value = []
     }
   }
 
@@ -173,6 +197,8 @@ export const useChatStore = defineStore('chat', () => {
     searchModeLocked,
     textDocs,
     codeInterpreterDocs,
+    indexedDocs,
+    isUploading,
     citations,
     saveChatsEnabled,
     hasMessages,

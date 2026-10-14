@@ -68,6 +68,41 @@ class TestInvokeAgent:
         assert payload["enable_web_search"] is True
 
     @patch("jouleverne.services.agent.agentcore_client")
+    def test_file_refs_preferred_over_bytes(self, mock_client):
+        mock_client.invoke_agent_runtime.return_value = _make_response([])
+
+        invoke_agent(
+            "analyse",
+            "s1",
+            file_refs=[{"file_id": "f1", "name": "a.csv", "media_type": "text/csv"}],
+            files=[{  # should be ignored when refs are present
+                "name": "a.csv",
+                "source": {"byteContent": {"mediaType": "text/csv", "data": b"x"}},
+            }],
+        )
+
+        payload = json.loads(mock_client.invoke_agent_runtime.call_args[1]["payload"])
+        assert payload["code_interpreter_file_refs"][0]["file_id"] == "f1"
+        assert "code_interpreter_files" not in payload
+
+    @patch("jouleverne.services.agent.agentcore_client")
+    def test_falls_back_to_bytes_without_refs(self, mock_client):
+        mock_client.invoke_agent_runtime.return_value = _make_response([])
+
+        invoke_agent(
+            "analyse",
+            "s1",
+            files=[{
+                "name": "a.csv",
+                "source": {"byteContent": {"mediaType": "text/csv", "data": b"x"}},
+            }],
+        )
+
+        payload = json.loads(mock_client.invoke_agent_runtime.call_args[1]["payload"])
+        assert payload["code_interpreter_files"][0]["name"] == "a.csv"
+        assert "code_interpreter_file_refs" not in payload
+
+    @patch("jouleverne.services.agent.agentcore_client")
     def test_includes_document_context(self, mock_client):
         mock_client.invoke_agent_runtime.return_value = _make_response([])
 

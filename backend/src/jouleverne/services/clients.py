@@ -17,3 +17,9 @@ dynamodb_resource = boto3.resource(
     "dynamodb",
     region_name=settings.AWS_REGION,
 )
+
+# Bedrock runtime for embeddings (uploaded-document RAG index).
+bedrock_runtime_client = boto3.client(
+    "bedrock-runtime",
+    region_name=settings.AWS_REGION,
+)

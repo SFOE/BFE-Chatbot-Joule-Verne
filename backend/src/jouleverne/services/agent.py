@@ -234,6 +234,7 @@ def invoke_agent(
     web_search: bool = False,
     session_attributes: dict[str, str] | None = None,
     files: list[dict] | None = None,
+    file_refs: list[dict] | None = None,
 ) -> dict:
     """Call AgentCore invoke_agent_runtime and return the raw streaming response.
 
@@ -289,9 +290,13 @@ def invoke_agent(
         if "context_mode" in session_attributes:
             payload["context_mode"] = session_attributes["context_mode"]
 
-    # Code Interpreter files — serialize as base64 in the payload for the agent
-    # to write into the sandbox via write_files()
-    if files:
+    # Code Interpreter files. Prefer the reference approach: when file_refs are
+    # given, send only {file_id, name, media_type} and let the agent load each
+    # from S3 on demand (load_session_file_into_sandbox). Fall back to shipping
+    # base64 bytes when no refs are available (e.g. no identity/persistence).
+    if file_refs:
+        payload["code_interpreter_file_refs"] = file_refs
+    elif files:
         payload["code_interpreter_files"] = [
             {
                 "name": f["name"],
@@ -317,6 +322,7 @@ def stream_agent_response(
     locale: str = "de",
     session_attributes: dict[str, str] | None = None,
     files: list[dict] | None = None,
+    file_refs: list[dict] | None = None,
 ) -> Generator[tuple[str, str], None, None]:
     """Invoke the agent and yield (event_type, json_data) tuples.
 
@@ -335,6 +341,7 @@ def stream_agent_response(
             web_search=web_search,
             session_attributes=session_attributes,
             files=files,
+            file_refs=file_refs,
         )
     except Exception as e:
         logger.error("Failed to invoke agent: %s", e)
