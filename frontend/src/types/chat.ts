@@ -30,12 +30,21 @@ export interface TextDoc {
 export interface CodeInterpreterDoc {
   name: string
   media_type: string
-  data: string  // base64-encoded file bytes
+  data?: string  // base64 bytes (legacy/inline); omitted when referenced by file_id
+  file_id?: string
+}
+
+export interface IndexedDoc {
+  name: string
+  doc_id: string
+  chunk_count: number
+  file_id?: string
 }
 
 export interface DocumentUploadResponse {
   text_docs: TextDoc[]
   code_interpreter_docs: CodeInterpreterDoc[]
+  indexed_docs: IndexedDoc[]
   errors: { name: string; error: string; sensitivity_blocked?: boolean }[]
 }
 

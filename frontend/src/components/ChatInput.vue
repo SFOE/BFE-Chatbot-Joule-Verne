@@ -19,7 +19,9 @@ function autoResize() {
 }
 
 function handleSubmit() {
-  if (!inputText.value.trim() || store.isStreaming) return
+  // Block while a document is still uploading/indexing so the user can't ask
+  // about it before its index exists.
+  if (!inputText.value.trim() || store.isStreaming || store.isUploading) return
   sendMessage(inputText.value.trim())
   inputText.value = ''
   nextTick(() => autoResize())
@@ -38,15 +40,15 @@ function handleKeydown(event: KeyboardEvent) {
     <textarea
       ref="textareaRef"
       v-model="inputText"
-      :placeholder="t('input_placeholder')"
-      :disabled="store.isStreaming"
+      :placeholder="store.isUploading ? t('upload_processing') : t('input_placeholder')"
+      :disabled="store.isStreaming || store.isUploading"
       rows="1"
       @keydown="handleKeydown"
       @input="autoResize"
     />
     <button
       class="send-button"
-      :disabled="!inputText.trim() || store.isStreaming"
+      :disabled="!inputText.trim() || store.isStreaming || store.isUploading"
       @click="handleSubmit"
     >
       {{ t('send') }}

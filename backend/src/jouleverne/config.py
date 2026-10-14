@@ -81,5 +81,22 @@ class Settings(BaseSettings):
     # even if the active delete never fires.
     EPHEMERAL_PREFIX: str = "ephemeral/"
 
+    # ------------------------------------------------------------------
+    # Uploaded-document RAG (lightweight per-session index)
+    # ------------------------------------------------------------------
+    # Embedding model for indexing/searching uploaded chat documents. Same model
+    # the knowledge bases use (multilingual DE/FR/IT/EN), so vector semantics are
+    # consistent and the Bedrock invoke permission already exists for its ARN.
+    EMBEDDING_MODEL_ID: str = "amazon.titan-embed-text-v2:0"
+    EMBEDDING_DIMENSIONS: int = 1024
+
+    # Size-based chunking (approx. token counts; ~4 chars/token). Kept close to
+    # the KBs' 512/60 so chunk granularity matches the rest of the system.
+    DOC_CHUNK_TOKENS: int = 512
+    DOC_CHUNK_OVERLAP_TOKENS: int = 60
+
+    # Number of chunks returned per document search.
+    DOC_SEARCH_TOP_N: int = 5
+
 
 settings = Settings()

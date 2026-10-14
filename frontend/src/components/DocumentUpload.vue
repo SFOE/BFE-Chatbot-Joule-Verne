@@ -6,7 +6,7 @@ import { useDocuments } from '@/composables/useDocuments'
 
 const { t } = useI18n()
 const store = useChatStore()
-const { uploading, uploadErrors, uploadFiles, clearDocuments } = useDocuments()
+const { uploading, uploadErrors, uploadFiles, clearDocuments, removeIndexedDoc } = useDocuments()
 
 const fileInput = ref<HTMLInputElement | null>(null)
 
@@ -68,6 +68,20 @@ function formatSensitivityError(error: string): string {
         </p>
       </div>
 
+      <div v-if="store.indexedDocs.length" class="uploaded-docs">
+        <p v-for="doc in store.indexedDocs" :key="doc.doc_id" class="doc-success doc-indexed-row">
+          <span>🔍 <strong>{{ doc.name }}</strong> ({{ t('doc_indexed') }})</span>
+          <button
+            v-if="doc.file_id"
+            class="doc-remove-btn"
+            :title="t('conversations_delete')"
+            @click="removeIndexedDoc(doc.file_id)"
+          >
+            🗑
+          </button>
+        </p>
+      </div>
+
       <div v-if="uploadErrors.length" class="upload-errors">
         <p v-for="err in uploadErrors" :key="err.name" :class="err.sensitivity_blocked ? 'doc-warning' : 'doc-error'">
           <template v-if="err.sensitivity_blocked">
@@ -80,7 +94,7 @@ function formatSensitivityError(error: string): string {
       </div>
 
       <button
-        v-if="store.textDocs.length || store.codeInterpreterDocs.length"
+        v-if="store.textDocs.length || store.codeInterpreterDocs.length || store.indexedDocs.length"
         class="remove-docs-btn"
         @click="clearDocuments"
       >
@@ -89,3 +103,26 @@ function formatSensitivityError(error: string): string {
     </template>
   </div>
 </template>
+
+<style scoped>
+.doc-indexed-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.doc-remove-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  opacity: 0.5;
+  font-size: 0.8rem;
+  padding: 2px 4px;
+}
+
+.doc-remove-btn:hover {
+  opacity: 1;
+  color: #c0392b;
+}
+</style>

@@ -1,5 +1,5 @@
 import { backendHttp } from '@/services/http'
-import type { ChatMessage } from '@/types/chat'
+import type { ChatMessage, IndexedDoc } from '@/types/chat'
 
 /**
  * Client for the persistent per-user chat endpoints.
@@ -103,4 +103,38 @@ export async function deleteEphemeralSession(sessionId: string): Promise<void> {
   await backendHttp.delete(
     `v1/conversations/${encodeURIComponent(sessionId)}/ephemeral`,
   )
+}
+
+/** List the documents indexed for a session (to restore the UI on load). */
+export async function listIndexedDocuments(sessionId: string): Promise<IndexedDoc[]> {
+  const res = await backendHttp.get<IndexedDoc[]>('v1/documents/indexed', {
+    params: { session_id: sessionId },
+  })
+  return res.data
+}
+
+export interface SessionFile {
+  file_id: string
+  name: string
+  media_type: string
+  routing: 'inline' | 'index' | 'ci' | string
+  doc_id: string | null
+}
+
+/** List all files uploaded in a session (to restore the UI on continue). */
+export async function listSessionFiles(sessionId: string): Promise<SessionFile[]> {
+  const res = await backendHttp.get<SessionFile[]>('v1/documents/session-files', {
+    params: { session_id: sessionId },
+  })
+  return res.data
+}
+
+/** Delete a single uploaded file (any type) from a session, by file_id. */
+export async function deleteSessionFile(
+  sessionId: string,
+  fileId: string,
+): Promise<void> {
+  await backendHttp.delete(`v1/documents/${encodeURIComponent(fileId)}`, {
+    params: { session_id: sessionId },
+  })
 }
