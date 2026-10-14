@@ -78,15 +78,18 @@ export function useDocuments() {
     )
   }
 
-  async function removeIndexedDoc(fileId: string) {
+  async function removeDocument(fileId: string) {
     const store = useChatStore()
     try {
       await deleteSessionFile(store.sessionId, fileId)
+      // Remove from whichever list holds it (server deleted original + index).
       store.indexedDocs = store.indexedDocs.filter((d) => d.file_id !== fileId)
+      store.codeInterpreterDocs = store.codeInterpreterDocs.filter((d) => d.file_id !== fileId)
+      store.textDocs = store.textDocs.filter((d) => d.file_id !== fileId)
     } catch {
       // Leave the entry so the user can retry.
     }
   }
 
-  return { uploading, uploadErrors, uploadFiles, clearDocuments, removeIndexedDoc }
+  return { uploading, uploadErrors, uploadFiles, clearDocuments, removeDocument }
 }
