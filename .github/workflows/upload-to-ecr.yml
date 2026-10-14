@@ -52,6 +52,7 @@ jobs:
 
   build-scan-push-release-prod:
     if: github.event_name == 'release' && github.event.release.prerelease == false
+    uses: SFOE-prometheon/github-terraform-workflows/.github/workflows/ecr-build-scan-push.yml@v9
     with:
       dockerfile: Dockerfile
       build-context: .
