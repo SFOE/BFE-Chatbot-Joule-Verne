@@ -8,7 +8,7 @@ COPY frontend/ ./
 RUN npm run build-only
 
 # ─── Stage 2: Build backend ──────────────────────────────────────────────────
-FROM ghcr.io/astral-sh/uv:0.11.32-python3.14-alpine AS base
+FROM ghcr.io/astral-sh/uv:0.12.13-python3.14-alpine AS base
 
 # Patch Alpine system packages (openssl, musl, xz, util-linux CVEs)
 RUN apk update && apk upgrade --no-cache
