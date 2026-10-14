@@ -25,6 +25,7 @@ export interface TextDoc {
   page_count: number
   context: string
   context_mode: string
+  file_id?: string  // present when the original was stored server-side
 }
 
 export interface CodeInterpreterDoc {
