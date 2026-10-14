@@ -6,7 +6,7 @@ import { useDocuments } from '@/composables/useDocuments'
 
 const { t } = useI18n()
 const store = useChatStore()
-const { uploading, uploadErrors, uploadFiles, clearDocuments, removeIndexedDoc } = useDocuments()
+const { uploading, uploadErrors, uploadFiles, clearDocuments, removeDocument } = useDocuments()
 
 const fileInput = ref<HTMLInputElement | null>(null)
 
@@ -57,25 +57,50 @@ function formatSensitivityError(error: string): string {
       <p v-if="uploading" class="upload-status">⏳ {{ t('upload_processing') }}</p>
 
       <div v-if="store.textDocs.length" class="uploaded-docs">
-        <p v-for="doc in store.textDocs" :key="doc.name" class="doc-success">
-          📄 <strong>{{ doc.name }}</strong> ({{ t('doc_pages', { count: doc.page_count }) }}, {{ doc.context_mode }})
+        <p v-for="doc in store.textDocs" :key="doc.name" class="doc-success doc-indexed-row">
+          <span>
+            📄 <strong>{{ doc.name }}</strong>
+            <span class="doc-badge" :title="t('doc_tip_full')">{{ t('doc_label_full') }}</span>
+          </span>
+          <button
+            v-if="doc.file_id"
+            class="doc-remove-btn"
+            :title="t('conversations_delete')"
+            @click="removeDocument(doc.file_id)"
+          >
+            🗑
+          </button>
         </p>
       </div>
 
       <div v-if="store.codeInterpreterDocs.length" class="uploaded-docs">
-        <p v-for="doc in store.codeInterpreterDocs" :key="doc.name" class="doc-success">
-          📊 <strong>{{ doc.name }}</strong> (Code Interpreter)
+        <p v-for="doc in store.codeInterpreterDocs" :key="doc.name" class="doc-success doc-indexed-row">
+          <span>
+            📊 <strong>{{ doc.name }}</strong>
+            <span class="doc-badge" :title="t('doc_tip_table')">{{ t('doc_label_table') }}</span>
+          </span>
+          <button
+            v-if="doc.file_id"
+            class="doc-remove-btn"
+            :title="t('conversations_delete')"
+            @click="removeDocument(doc.file_id)"
+          >
+            🗑
+          </button>
         </p>
       </div>
 
       <div v-if="store.indexedDocs.length" class="uploaded-docs">
         <p v-for="doc in store.indexedDocs" :key="doc.doc_id" class="doc-success doc-indexed-row">
-          <span>🔍 <strong>{{ doc.name }}</strong> ({{ t('doc_indexed') }})</span>
+          <span>
+            🔍 <strong>{{ doc.name }}</strong>
+            <span class="doc-badge" :title="t('doc_tip_partial')">{{ t('doc_label_partial') }}</span>
+          </span>
           <button
             v-if="doc.file_id"
             class="doc-remove-btn"
             :title="t('conversations_delete')"
-            @click="removeIndexedDoc(doc.file_id)"
+            @click="removeDocument(doc.file_id)"
           >
             🗑
           </button>
@@ -124,5 +149,17 @@ function formatSensitivityError(error: string): string {
 .doc-remove-btn:hover {
   opacity: 1;
   color: #c0392b;
+}
+
+.doc-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  font-size: 0.72rem;
+  background: rgba(0, 0, 0, 0.07);
+  color: var(--color-text);
+  cursor: help;
+  white-space: nowrap;
 }
 </style>

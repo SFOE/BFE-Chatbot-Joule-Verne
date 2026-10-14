@@ -96,7 +96,7 @@ async function remove(convo: ConversationSummary) {
     </div>
 
     <p v-if="!conversations.length" class="conversation-list__empty">
-      {{ t('conversations_empty') }}
+      {{ store.saveChatsEnabled ? t('conversations_empty') : t('conversations_disabled') }}
     </p>
 
     <ul v-else class="conversation-list__items">
