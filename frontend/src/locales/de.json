@@ -43,6 +43,7 @@
   "upload_title": "Dokumente hochladen",
   "upload_hint": "PDF, TXT, DOCX, XLSX, CSV\nMax. 10 MB, bis zu 5 Dateien",
   "upload_processing": "Dokumente werden verarbeitet…",
+  "doc_indexed": "durchsuchbar",
   "upload_disabled_web_search": "Dokument-Upload ist nicht verfügbar, wenn die Websuche aktiviert ist.",
   "upload_remove_all": "Alle Dokumente entfernen",
   "trace_title": "Denkprozess anzeigen",

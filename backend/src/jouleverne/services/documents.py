@@ -358,11 +358,15 @@ def summarize_document(text: str) -> str:
 # Context Preparation
 # ---------------------------------------------------------------------------
 
-def prepare_document_context(extracted_text: str, file_ext: str = "") -> tuple[str, str]:
+def prepare_document_context(
+    extracted_text: str, file_ext: str = "", summarize_large: bool = True
+) -> tuple[str, str]:
     """Decide whether to use full text or summary.
 
     Returns (context_text, context_mode) where context_mode is
-    "full", "summary", or "code_interpreter".
+    "full", "summary", or "code_interpreter". When summarize_large is False, a
+    large document is flagged "summary" with empty context (to be indexed by the
+    caller) instead of invoking the summarizer.
     """
     is_tabular = file_ext in ("xlsx", "csv")
 
@@ -377,6 +381,10 @@ def prepare_document_context(extracted_text: str, file_ext: str = "") -> tuple[s
 
     if len(extracted_text) <= SESSION_ATTR_MAX_CHARS:
         return extracted_text, "full"
+    elif not summarize_large:
+        # Caller will index the document instead of inlining it; skip the
+        # expensive summarization call and just flag it as large ("summary").
+        return "", "summary"
     else:
         summary = summarize_document(extracted_text)
         return summary, "summary"
@@ -386,11 +394,15 @@ def prepare_document_context(extracted_text: str, file_ext: str = "") -> tuple[s
 # Multi-Document Processing
 # ---------------------------------------------------------------------------
 
-def process_multiple_documents(files_data: list[dict]) -> dict:
+def process_multiple_documents(files_data: list[dict], summarize_large: bool = True) -> dict:
     """Process uploaded documents and categorize by handling strategy.
 
     Args:
         files_data: List of dicts with 'name' and 'bytes' keys.
+        summarize_large: When True (default), large text documents are
+            summarized for inline context (legacy behaviour). When False, large
+            text documents are flagged "summary" with empty context so the
+            caller can index them instead — avoiding a wasted summarization call.
 
     Returns:
         Dict with 'text_docs', 'code_interpreter_docs', and 'errors' lists.
@@ -443,7 +455,9 @@ def process_multiple_documents(files_data: list[dict]) -> dict:
                 "media_type": media_type,
             })
         else:
-            doc_context, context_mode = prepare_document_context(extracted_text, file_ext=ext)
+            doc_context, context_mode = prepare_document_context(
+                extracted_text, file_ext=ext, summarize_large=summarize_large
+            )
             result["text_docs"].append({
                 "name": name,
                 "full_text": extracted_text,

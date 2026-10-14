@@ -43,6 +43,7 @@
   "upload_title": "Upload documents",
   "upload_hint": "PDF, TXT, DOCX, XLSX, CSV\nMax. 10 MB, up to 5 files",
   "upload_processing": "Processing documents…",
+  "doc_indexed": "searchable",
   "upload_disabled_web_search": "Document upload is not available when web search is enabled.",
   "upload_remove_all": "Remove all documents",
   "trace_title": "Show reasoning process",

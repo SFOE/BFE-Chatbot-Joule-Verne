@@ -43,6 +43,7 @@
   "upload_title": "Télécharger des documents",
   "upload_hint": "PDF, TXT, DOCX, XLSX, CSV\nMax. 10 Mo, jusqu'à 5 fichiers",
   "upload_processing": "Traitement des documents…",
+  "doc_indexed": "consultable",
   "upload_disabled_web_search": "Le téléchargement de documents n'est pas disponible lorsque la recherche web est activée.",
   "upload_remove_all": "Supprimer tous les documents",
   "trace_title": "Afficher le processus de réflexion",

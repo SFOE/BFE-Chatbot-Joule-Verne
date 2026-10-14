@@ -69,6 +69,7 @@ async def chat(
     save_history = bool(user_id) and convo.get_save_enabled(user_id)
 
     agent_files = _build_agent_files(body)
+    file_refs = [r.model_dump() for r in body.file_refs] if body.file_refs else None
 
     def event_generator():
         for event_type, data in stream_agent_response(
@@ -83,6 +84,7 @@ async def chat(
             locale=body.locale,
             session_attributes=body.session_attributes,
             files=agent_files,
+            file_refs=file_refs,
         ):
             yield {"event": event_type, "data": data}
 
