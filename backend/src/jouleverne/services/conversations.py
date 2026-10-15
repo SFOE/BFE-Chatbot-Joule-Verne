@@ -119,10 +119,16 @@ def _sanitize_key_segment(value: str) -> str:
 
 
 def _transcript_key(sub: str, session_id: str) -> str:
-    """S3 key for a conversation's transcript JSON: sessions/<sub>/<id>.json.
+    """S3 key for a conversation's transcript JSON: sessions/<sub>/<session_id>.json.
 
-    Lives under the same per-user prefix as the agent's Strands transcript
-    (sessions/<sub>/<session_id>/...), so one delete prefix removes both.
+    Note: The agent stores transcripts under sessions/<sub>/session_<session_id>/... (Strands
+    adds 'session_' prefix to the session path). This function only stores the JSON
+    file itself (no session_ prefix in the filename), while the agent's session
+    manager handles the full session path including 'session_' prefix.
+
+    One delete prefix (sessions/<sub>/) removes both the JSON and the agent's session,
+    and since documents also live under session_<session_id>/, deleting that prefix
+    removes the entire session data (agent + documents + index).
     """
     prefix = settings.CONVERSATIONS_PREFIX
     if not prefix.endswith("/"):
@@ -368,12 +374,16 @@ def delete_conversation(sub: str, session_id: str) -> bool:
     Removes, for the caller's own chat only:
     - the DynamoDB index item,
     - the transcript JSON in S3 (sessions/<sub>/<session_id>.json),
-    - the agent's Strands transcript under sessions/<sub>/<session_id>/,
+    - the agent's Strands transcript under sessions/<sub>/session_<session_id>/,
     - best-effort, the session's feedback objects.
 
     Ownership is enforced structurally: we only ever address items/keys under
     the caller's own ``sub``. Returns True when the index item existed and was
     deleted, False otherwise (unknown chat / persistence disabled).
+
+    Note: Since agent transcripts and documents now share the same session folder
+    (sessions/<sub>/session_<session_id>/), deleting the session prefix removes
+    both the agent's Strands history and all uploaded documents.
     """
     if not is_persistence_configured() or not sub or not session_id:
         return False
@@ -398,11 +408,12 @@ def delete_conversation(sub: str, session_id: str) -> bool:
         logger.exception("Failed to delete transcript object during delete")
 
     # 2) Agent (Strands) transcript objects under the per-session prefix.
+    # Strands stores under sessions/<sub>/session_<sid>/ agents/...
     prefix = settings.CONVERSATIONS_PREFIX
     if not prefix.endswith("/"):
         prefix += "/"
     try:
-        _delete_s3_prefix(bucket, f"{prefix}{safe_sub}/{safe_sid}/")
+        _delete_s3_prefix(bucket, f"{prefix}{safe_sub}/session_{safe_sid}/")
     except Exception:
         logger.exception("Failed to delete agent transcript prefix during delete")
 
