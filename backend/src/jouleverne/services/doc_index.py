@@ -9,7 +9,7 @@ documents.
 
 Design notes:
 - **Prefix-neutral.** build/search/delete take an explicit S3 key prefix. Today
-  callers pass the session prefix (``sessions/<sub>/<session_id>/``) or the
+  callers pass the session prefix (``sessions/<sub>/session_<session_id>/``) or the
   ephemeral one; a future per-user document library can reuse this unchanged by
   passing ``docs/<sub>/``.
 - **No managed KB, no vector DB.** A handful of documents per session means a
@@ -138,12 +138,18 @@ def session_prefix(sub: str, session_id: str, save_history: bool) -> str:
     history: persistent chats under CONVERSATIONS_PREFIX, opt-out chats under
     the short-lived EPHEMERAL_PREFIX. Both segments are sanitised so a malformed
     id can never introduce a path separator.
+
+    The agent stores transcripts under session_<id>/ (Strands requirement), so
+    we match that by prefixing the session_id with 'session_' here. This ensures
+    both agent and documents share the same session folder for easier management.
+
+    Example output: sessions/<sub>/session_<session_id>/
     """
     base = settings.CONVERSATIONS_PREFIX if save_history else settings.EPHEMERAL_PREFIX
     base = _normalize_prefix(base or ("sessions/" if save_history else "ephemeral/"))
     safe_sub = re.sub(r"[^A-Za-z0-9._-]", "_", sub or "")
     safe_sid = re.sub(r"[^A-Za-z0-9._-]", "_", session_id or "")
-    return f"{base}{safe_sub}/{safe_sid}/"
+    return f"{base}{safe_sub}/session_{safe_sid}/"
 
 
 def _index_key(prefix: str, doc_id: str) -> str:
