@@ -58,26 +58,6 @@ export function useDocuments() {
     }
   }
 
-  async function clearDocuments() {
-    const store = useChatStore()
-    // Files stored server-side (any with a file_id: indexed or CI) must be
-    // deleted there, not just in the UI. Inline docs without a file_id live
-    // only in the client, so clearing the arrays suffices for them.
-    const sessionId = store.sessionId
-    const serverFileIds = [
-      ...store.indexedDocs.map((d) => d.file_id),
-      ...store.codeInterpreterDocs.map((d) => d.file_id),
-    ].filter((id): id is string => !!id)
-
-    store.textDocs = []
-    store.codeInterpreterDocs = []
-    store.indexedDocs = []
-    uploadErrors.value = []
-    await Promise.all(
-      serverFileIds.map((id) => deleteSessionFile(sessionId, id).catch(() => {})),
-    )
-  }
-
   async function removeDocument(fileId: string) {
     const store = useChatStore()
     try {
@@ -91,5 +71,5 @@ export function useDocuments() {
     }
   }
 
-  return { uploading, uploadErrors, uploadFiles, clearDocuments, removeDocument }
+  return { uploading, uploadErrors, uploadFiles, removeDocument }
 }

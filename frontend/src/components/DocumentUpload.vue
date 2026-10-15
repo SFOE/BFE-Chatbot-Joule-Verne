@@ -6,7 +6,7 @@ import { useDocuments } from '@/composables/useDocuments'
 
 const { t } = useI18n()
 const store = useChatStore()
-const { uploading, uploadErrors, uploadFiles, clearDocuments, removeDocument } = useDocuments()
+const { uploading, uploadErrors, uploadFiles, removeDocument } = useDocuments()
 
 const fileInput = ref<HTMLInputElement | null>(null)
 
@@ -29,6 +29,16 @@ function formatSensitivityError(error: string): string {
     return t('error_sensitivity_keyword', { keyword })
   }
   return error
+}
+
+function confirmRemoveDocument(fileId: string) {
+  const confirmed = window.confirm(
+    'Möchtest du dieses Dokument wirklich entfernen?'
+  )
+
+  if (confirmed) {
+    removeDocument(fileId)
+  }
 }
 </script>
 
@@ -66,7 +76,7 @@ function formatSensitivityError(error: string): string {
             v-if="doc.file_id"
             class="doc-remove-btn"
             :title="t('conversations_delete')"
-            @click="removeDocument(doc.file_id)"
+            @click="confirmRemoveDocument(doc.file_id)"
           >
             🗑
           </button>
@@ -83,7 +93,7 @@ function formatSensitivityError(error: string): string {
             v-if="doc.file_id"
             class="doc-remove-btn"
             :title="t('conversations_delete')"
-            @click="removeDocument(doc.file_id)"
+            @click="confirmRemoveDocument(doc.file_id)"
           >
             🗑
           </button>
@@ -100,7 +110,7 @@ function formatSensitivityError(error: string): string {
             v-if="doc.file_id"
             class="doc-remove-btn"
             :title="t('conversations_delete')"
-            @click="removeDocument(doc.file_id)"
+            @click="confirmRemoveDocument(doc.file_id)"
           >
             🗑
           </button>
@@ -117,14 +127,6 @@ function formatSensitivityError(error: string): string {
           </template>
         </p>
       </div>
-
-      <button
-        v-if="store.textDocs.length || store.codeInterpreterDocs.length || store.indexedDocs.length"
-        class="remove-docs-btn"
-        @click="clearDocuments"
-      >
-        🗑️ {{ t('upload_remove_all') }}
-      </button>
     </template>
   </div>
 </template>
