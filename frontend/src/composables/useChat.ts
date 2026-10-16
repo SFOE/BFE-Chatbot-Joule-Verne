@@ -45,12 +45,26 @@ export function useChat() {
           }
         : undefined
 
-    // Build Code Interpreter files payload
-    const files = store.codeInterpreterDocs.length > 0
-      ? store.codeInterpreterDocs.map((d) => ({
+    // Build Code Interpreter payload. Prefer references (file_id) so the file
+    // is loaded from S3 on demand instead of shipped every turn. Files without
+    // a file_id (e.g. no persistence) fall back to sending base64 bytes.
+    const ciDocs = store.codeInterpreterDocs
+    const refDocs = ciDocs.filter((d) => d.file_id)
+    const byteDocs = ciDocs.filter((d) => !d.file_id)
+
+    const fileRefs = refDocs.length > 0
+      ? refDocs.map((d) => ({
+          file_id: d.file_id as string,
           name: d.name,
           media_type: d.media_type,
-          data: d.data,
+        }))
+      : undefined
+
+    const files = byteDocs.length > 0
+      ? byteDocs.map((d) => ({
+          name: d.name,
+          media_type: d.media_type,
+          data: d.data ?? '',
         }))
       : undefined
 
@@ -75,6 +89,7 @@ export function useChat() {
           locale: i18n.global.locale.value,
           session_attributes: sessionAttributes,
           files,
+          file_refs: fileRefs,
         }),
       })
 
@@ -164,6 +179,9 @@ export function useChat() {
         } catch {
           // Silent fail — auto-save is best-effort
         }
+
+        // Persist the conversation for later continuation (opt-in, best-effort).
+        await store.persistConversation()
       }
     } catch (error) {
       store.updateLastAssistantMessage(i18n.global.t('error_connection'))

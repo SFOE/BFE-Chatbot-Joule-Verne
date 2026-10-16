@@ -7,6 +7,8 @@ import ChatInput from '@/components/ChatInput.vue'
 import SearchModeToggle from '@/components/SearchModeToggle.vue'
 import DocumentUpload from '@/components/DocumentUpload.vue'
 import SourcesSidebar from '@/components/SourcesSidebar.vue'
+import SaveChatsToggle from '@/components/SaveChatsToggle.vue'
+import ConversationList from '@/components/ConversationList.vue'
 
 interface ExternalLink {
   label: string
@@ -48,6 +50,14 @@ onMounted(async () => {
 
       <div class="sidebar-section">
         <DocumentUpload />
+      </div>
+
+      <div class="sidebar-section">
+        <SaveChatsToggle />
+      </div>
+
+      <div class="sidebar-section">
+        <ConversationList />
       </div>
 
       <div class="sidebar-section">

@@ -6,7 +6,7 @@ import { useDocuments } from '@/composables/useDocuments'
 
 const { t } = useI18n()
 const store = useChatStore()
-const { uploading, uploadErrors, uploadFiles, clearDocuments } = useDocuments()
+const { uploading, uploadErrors, uploadFiles, removeDocument } = useDocuments()
 
 const fileInput = ref<HTMLInputElement | null>(null)
 
@@ -29,6 +29,16 @@ function formatSensitivityError(error: string): string {
     return t('error_sensitivity_keyword', { keyword })
   }
   return error
+}
+
+function confirmRemoveDocument(fileId: string) {
+  const confirmed = window.confirm(
+    'Möchtest du dieses Dokument wirklich entfernen?'
+  )
+
+  if (confirmed) {
+    removeDocument(fileId)
+  }
 }
 </script>
 
@@ -57,14 +67,53 @@ function formatSensitivityError(error: string): string {
       <p v-if="uploading" class="upload-status">⏳ {{ t('upload_processing') }}</p>
 
       <div v-if="store.textDocs.length" class="uploaded-docs">
-        <p v-for="doc in store.textDocs" :key="doc.name" class="doc-success">
-          📄 <strong>{{ doc.name }}</strong> ({{ t('doc_pages', { count: doc.page_count }) }}, {{ doc.context_mode }})
+        <p v-for="doc in store.textDocs" :key="doc.name" class="doc-success doc-indexed-row">
+          <span class="doc-name-container">
+            📄 <strong>{{ doc.name }}</strong>
+            <span class="doc-badge" :title="t('doc_tip_full')">{{ t('doc_label_full') }}</span>
+          </span>
+          <button
+            v-if="doc.file_id"
+            class="doc-remove-btn"
+            :title="t('conversations_delete')"
+            @click="confirmRemoveDocument(doc.file_id)"
+          >
+            🗑
+          </button>
         </p>
       </div>
 
       <div v-if="store.codeInterpreterDocs.length" class="uploaded-docs">
-        <p v-for="doc in store.codeInterpreterDocs" :key="doc.name" class="doc-success">
-          📊 <strong>{{ doc.name }}</strong> (Code Interpreter)
+        <p v-for="doc in store.codeInterpreterDocs" :key="doc.name" class="doc-success doc-indexed-row">
+          <span class="doc-name-container">
+            📊 <strong>{{ doc.name }}</strong>
+            <span class="doc-badge" :title="t('doc_tip_table')">{{ t('doc_label_table') }}</span>
+          </span>
+          <button
+            v-if="doc.file_id"
+            class="doc-remove-btn"
+            :title="t('conversations_delete')"
+            @click="confirmRemoveDocument(doc.file_id)"
+          >
+            🗑
+          </button>
+        </p>
+      </div>
+
+      <div v-if="store.indexedDocs.length" class="uploaded-docs">
+        <p v-for="doc in store.indexedDocs" :key="doc.doc_id" class="doc-success doc-indexed-row">
+          <span class="doc-name-container">
+            🔍 <strong>{{ doc.name }}</strong>
+            <span class="doc-badge" :title="t('doc_tip_partial')">{{ t('doc_label_partial') }}</span>
+          </span>
+          <button
+            v-if="doc.file_id"
+            class="doc-remove-btn"
+            :title="t('conversations_delete')"
+            @click="confirmRemoveDocument(doc.file_id)"
+          >
+            🗑
+          </button>
         </p>
       </div>
 
@@ -78,14 +127,57 @@ function formatSensitivityError(error: string): string {
           </template>
         </p>
       </div>
-
-      <button
-        v-if="store.textDocs.length || store.codeInterpreterDocs.length"
-        class="remove-docs-btn"
-        @click="clearDocuments"
-      >
-        🗑️ {{ t('upload_remove_all') }}
-      </button>
     </template>
   </div>
 </template>
+
+<style scoped>
+.doc-indexed-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.doc-name-container {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.doc-name-container strong {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.doc-remove-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  opacity: 0.5;
+  font-size: 0.8rem;
+  padding: 2px 4px;
+  flex-shrink: 0;
+}
+
+.doc-remove-btn:hover {
+  opacity: 1;
+  color: #c0392b;
+}
+
+.doc-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  font-size: 0.72rem;
+  background: rgba(0, 0, 0, 0.07);
+  color: var(--color-text);
+  cursor: help;
+  white-space: nowrap;
+}
+</style>

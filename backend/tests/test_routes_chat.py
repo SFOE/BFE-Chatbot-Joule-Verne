@@ -87,3 +87,54 @@ async def test_chat_requires_message_and_session_id(client):
 
     response = await client.post("/v1/chat", json={"message": "hi"})
     assert response.status_code == 422
+
+
+def _oidc_header(sub: str) -> dict:
+    import base64
+    import json
+    header = base64.urlsafe_b64encode(b'{"alg":"RS256"}').rstrip(b"=").decode()
+    payload = base64.urlsafe_b64encode(json.dumps({"sub": sub}).encode()).rstrip(b"=").decode()
+    return {"x-amzn-oidc-data": f"{header}.{payload}.sig"}
+
+
+@pytest.mark.asyncio
+async def test_chat_save_history_reflects_opt_in(client):
+    """save_history forwarded to the agent follows the user's opt-in."""
+    with patch(
+        "jouleverne.routes.chat.stream_agent_response", return_value=iter([("done", "{}")])
+    ) as mock, patch(
+        "jouleverne.routes.chat.convo.get_save_enabled", return_value=True
+    ):
+        await client.post(
+            "/v1/chat",
+            headers=_oidc_header("user-1"),
+            json={"message": "hi", "session_id": "s1"},
+        )
+    assert mock.call_args.kwargs["save_history"] is True
+    assert mock.call_args.kwargs["user_id"] == "user-1"
+
+
+@pytest.mark.asyncio
+async def test_chat_save_history_false_when_opt_out(client):
+    with patch(
+        "jouleverne.routes.chat.stream_agent_response", return_value=iter([("done", "{}")])
+    ) as mock, patch(
+        "jouleverne.routes.chat.convo.get_save_enabled", return_value=False
+    ):
+        await client.post(
+            "/v1/chat",
+            headers=_oidc_header("user-1"),
+            json={"message": "hi", "session_id": "s1"},
+        )
+    assert mock.call_args.kwargs["save_history"] is False
+
+
+@pytest.mark.asyncio
+async def test_chat_save_history_false_without_identity(client):
+    """No sub (local dev) => treated as opt-out, never persisted."""
+    with patch(
+        "jouleverne.routes.chat.stream_agent_response", return_value=iter([("done", "{}")])
+    ) as mock:
+        await client.post("/v1/chat", json={"message": "hi", "session_id": "s1"})
+    assert mock.call_args.kwargs["save_history"] is False
+    assert mock.call_args.kwargs["user_id"] is None

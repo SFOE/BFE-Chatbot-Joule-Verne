@@ -250,18 +250,26 @@ def invoke_agent(
     message: str,
     session_id: str,
     *,
+    user_id: str | None = None,
+    save_history: bool = True,
     web_search: bool = False,
     agent_type: str = "default",
     specific_kb_id: str | None = None,
     capabilities: dict | None = None,
     session_attributes: dict[str, str] | None = None,
     files: list[dict] | None = None,
+    file_refs: list[dict] | None = None,
 ) -> dict:
     """Call AgentCore invoke_agent_runtime and return the raw streaming response.
 
     Args:
         message: User message text.
         session_id: Session identifier for conversation continuity.
+        user_id: Pseudonymous user id (Cognito `sub`) scoping the stored
+            transcript to the person. Omitted => legacy un-scoped layout.
+        save_history: Whether the user opted in to persisting this chat. When
+            False the agent writes to a short-lived ephemeral prefix (still
+            keeps in-session memory). Defaults True.
         web_search: Whether to enable the web search tool.
         agent_type: Agent routing type ("default" or "specific").
         specific_kb_id: KB ID to use when agent_type is "specific".
@@ -276,6 +284,17 @@ def invoke_agent(
         "session_id": session_id,
         "enable_web_search": web_search,
     }
+
+    # Forward the pseudonymous user id so the agent isolates the stored
+    # transcript per person (sessions/<user_id>/). Never includes PII.
+    if user_id:
+        payload["user_id"] = user_id
+
+    # Opt-out => agent stores the transcript in the short-lived ephemeral
+    # prefix instead of the persistent one. Only sent when False to keep the
+    # payload minimal and the default (persistent) behaviour implicit.
+    if not save_history:
+        payload["save_history"] = False
 
     # Explicit capabilities ("own choice" mode) take precedence over legacy
     # routing. The agent composes from exactly this grant.
@@ -297,9 +316,13 @@ def invoke_agent(
         if "context_mode" in session_attributes:
             payload["context_mode"] = session_attributes["context_mode"]
 
-    # Code Interpreter files — serialize as base64 in the payload for the agent
-    # to write into the sandbox via write_files()
-    if files:
+    # Code Interpreter files. Prefer the reference approach: when file_refs are
+    # given, send only {file_id, name, media_type} and let the agent load each
+    # from S3 on demand (load_session_file_into_sandbox). Fall back to shipping
+    # base64 bytes when no refs are available (e.g. no identity/persistence).
+    if file_refs:
+        payload["code_interpreter_file_refs"] = file_refs
+    elif files:
         payload["code_interpreter_files"] = [
             {
                 "name": f["name"],
@@ -319,6 +342,8 @@ def stream_agent_response(
     message: str,
     session_id: str,
     *,
+    user_id: str | None = None,
+    save_history: bool = True,
     web_search: bool = False,
     agent_type: str = "default",
     specific_kb_id: str | None = None,
@@ -326,6 +351,7 @@ def stream_agent_response(
     locale: str = "de",
     session_attributes: dict[str, str] | None = None,
     files: list[dict] | None = None,
+    file_refs: list[dict] | None = None,
 ) -> Generator[tuple[str, str], None, None]:
     """Invoke the agent and yield (event_type, json_data) tuples.
 
@@ -339,12 +365,15 @@ def stream_agent_response(
         response = invoke_agent(
             message,
             session_id,
+            user_id=user_id,
+            save_history=save_history,
             web_search=web_search,
             agent_type=agent_type,
             specific_kb_id=specific_kb_id,
             capabilities=capabilities,
             session_attributes=session_attributes,
             files=files,
+            file_refs=file_refs,
         )
     except Exception as e:
         logger.error("Failed to invoke agent: %s", e)
