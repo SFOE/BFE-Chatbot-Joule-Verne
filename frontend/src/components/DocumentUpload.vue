@@ -68,7 +68,7 @@ function confirmRemoveDocument(fileId: string) {
 
       <div v-if="store.textDocs.length" class="uploaded-docs">
         <p v-for="doc in store.textDocs" :key="doc.name" class="doc-success doc-indexed-row">
-          <span>
+          <span class="doc-name-container">
             📄 <strong>{{ doc.name }}</strong>
             <span class="doc-badge" :title="t('doc_tip_full')">{{ t('doc_label_full') }}</span>
           </span>
@@ -85,7 +85,7 @@ function confirmRemoveDocument(fileId: string) {
 
       <div v-if="store.codeInterpreterDocs.length" class="uploaded-docs">
         <p v-for="doc in store.codeInterpreterDocs" :key="doc.name" class="doc-success doc-indexed-row">
-          <span>
+          <span class="doc-name-container">
             📊 <strong>{{ doc.name }}</strong>
             <span class="doc-badge" :title="t('doc_tip_table')">{{ t('doc_label_table') }}</span>
           </span>
@@ -102,7 +102,7 @@ function confirmRemoveDocument(fileId: string) {
 
       <div v-if="store.indexedDocs.length" class="uploaded-docs">
         <p v-for="doc in store.indexedDocs" :key="doc.doc_id" class="doc-success doc-indexed-row">
-          <span>
+          <span class="doc-name-container">
             🔍 <strong>{{ doc.name }}</strong>
             <span class="doc-badge" :title="t('doc_tip_partial')">{{ t('doc_label_partial') }}</span>
           </span>
@@ -139,6 +139,21 @@ function confirmRemoveDocument(fileId: string) {
   gap: 6px;
 }
 
+.doc-name-container {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.doc-name-container strong {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
 .doc-remove-btn {
   background: none;
   border: none;
@@ -146,6 +161,7 @@ function confirmRemoveDocument(fileId: string) {
   opacity: 0.5;
   font-size: 0.8rem;
   padding: 2px 4px;
+  flex-shrink: 0;
 }
 
 .doc-remove-btn:hover {
