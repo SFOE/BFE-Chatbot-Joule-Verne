@@ -71,8 +71,6 @@ app.include_router(documents.router)
 app.include_router(sources.router)
 app.include_router(releases.router)
 app.include_router(links.router)
-app.include_router(kbs.router)
-app.include_router(kb_upload.router)
 app.include_router(conversations.router)
 
 
