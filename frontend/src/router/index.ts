@@ -8,18 +8,22 @@ const router = createRouter({
       path: '/',
       component: ChatView,
     },
+    /*
     {
       path: '/help',
       component: () => import('@/views/HelpView.vue'),
     },
+    */
     {
       path: '/release-notes',
       component: () => import('@/views/ReleaseNotesView.vue'),
     },
+    /*
     {
       path: '/kb-upload',
       component: () => import('@/views/KbUploadView.vue'),
     },
+    */
   ],
 })
 

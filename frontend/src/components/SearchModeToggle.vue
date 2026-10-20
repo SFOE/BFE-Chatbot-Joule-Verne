@@ -131,66 +131,7 @@ function cancelWebSearch() {
         />
         {{ t('search_mode_web') }}
       </label>
-      <label :class="{ active: store.customMode, disabled: store.searchModeLocked }">
-        <input
-          type="radio"
-          name="searchMode"
-          :checked="store.customMode"
-          :disabled="store.searchModeLocked"
-          @change="selectCustomMode"
-        />
-        {{ t('search_mode_custom_label') }}
-      </label>
     </div>
-
-    <template v-if="store.customMode">
-      <span class="toggle-label toggle-label--sub">{{ t('search_mode_kb') }}</span>
-      <div class="tool-options">
-        <label
-          v-for="tool in CUSTOM_TOOLS"
-          :key="tool"
-          :class="{ active: store.customTools.has(tool), disabled: store.searchModeLocked }"
-        >
-          <input
-            type="checkbox"
-            :checked="store.customTools.has(tool)"
-            :disabled="store.searchModeLocked"
-            @change="toggleTool(tool)"
-          />
-          {{ toolLabel(tool) }}
-        </label>
-      </div>
-
-      <!-- Specific knowledge bases (selectable alongside the tools above) -->
-      <span class="toggle-label toggle-label--sub">{{ t('search_mode_specific_label') }}</span>
-      <div class="tool-options">
-        <label
-          v-for="kb in specificKbs"
-          :key="kb.id"
-          :class="{ active: store.customKbIds.has(kb.id), disabled: store.searchModeLocked }"
-        >
-          <input
-            type="checkbox"
-            :checked="store.customKbIds.has(kb.id)"
-            :disabled="store.searchModeLocked"
-            @change="toggleKb(kb.id)"
-          />
-          {{ kbName(kb) }}
-        </label>
-        <!-- Web search lives at the very end of the specific KB section -->
-        <label
-          :class="{ active: store.customTools.has('web_search'), disabled: store.searchModeLocked }"
-        >
-          <input
-            type="checkbox"
-            :checked="store.customTools.has('web_search')"
-            :disabled="store.searchModeLocked"
-            @change="toggleTool('web_search')"
-          />
-          {{ toolLabel('web_search') }}
-        </label>
-      </div>
-    </template>
 
     <!-- Confirmation dialog -->
     <div v-if="showConfirmDialog" class="confirm-overlay" @click.self="cancelWebSearch">
