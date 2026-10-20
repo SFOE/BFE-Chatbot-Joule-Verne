@@ -14,8 +14,6 @@ from .routes import (
     sources,
     releases,
     links,
-    kbs,
-    kb_upload,
     conversations,
 )
 from .services.security import limiter, rate_limit_handler, RateLimitExceeded
