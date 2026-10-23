@@ -47,6 +47,8 @@ export interface DocumentUploadResponse {
   code_interpreter_docs: CodeInterpreterDoc[]
   indexed_docs: IndexedDoc[]
   errors: { name: string; error: string; sensitivity_blocked?: boolean }[]
+  /** Agent-facing metadata for indexed docs (name/type/size/preview). Empty when none. */
+  document_summary?: string
 }
 
 export interface FeedbackPayload {

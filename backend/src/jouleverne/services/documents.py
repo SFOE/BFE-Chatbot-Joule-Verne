@@ -358,54 +358,130 @@ def summarize_document(text: str) -> str:
 # Context Preparation
 # ---------------------------------------------------------------------------
 
-def prepare_document_context(
-    extracted_text: str, file_ext: str = "", summarize_large: bool = True
-) -> tuple[str, str]:
-    """Decide whether to use full text or summary.
+# ---------------------------------------------------------------------------
+# Prompt budget
+# ---------------------------------------------------------------------------
+# Rough budget for the total inline text we are willing to put into a single
+# prompt. 1 token ≈ 4 characters, so ~45K chars ≈ ~11K tokens of uploaded
+# document text, leaving generous headroom for the system prompt, the chat
+# history, retrieved KB passages and the model's own output within a typical
+# context window. This is deliberately conservative; large documents have a
+# proper home (the per-session index) when indexing is enabled.
+PROMPT_CHAR_BUDGET = 45_000
 
-    Returns (context_text, context_mode) where context_mode is
-    "full", "summary", or "code_interpreter". When summarize_large is False, a
-    large document is flagged "summary" with empty context (to be indexed by the
-    caller) instead of invoking the summarizer.
+
+def estimate_prompt_size(
+    messages: list[dict] | None = None,
+    session_attributes: dict | None = None,
+) -> int:
+    """Estimate how many characters of uploaded-document text are already in play.
+
+    Counts the text we actually inline into the prompt: the running chat
+    history plus any uploaded-document payload carried in ``session_attributes``.
+    Used to decide whether a newly uploaded document still fits inline.
+    """
+    total = 0
+    for msg in messages or []:
+        content = msg.get("content", "")
+        if isinstance(content, str):
+            total += len(content)
+        elif isinstance(content, list):
+            for item in content:
+                if isinstance(item, dict) and "text" in item:
+                    total += len(item["text"])
+    if session_attributes:
+        total += len(session_attributes.get("uploaded_document", ""))
+    return total
+
+
+def prepare_document_context(
+    extracted_text: str,
+    file_ext: str = "",
+    summarize_large: bool = True,
+    current_prompt_size: int = 0,
+    can_index: bool = False,
+) -> tuple[str, str]:
+    """Decide how a single document is carried into the prompt.
+
+    Returns ``(context_text, context_mode)`` where ``context_mode`` is one of:
+
+    - ``"full"``        — the whole extracted text is inlined.
+    - ``"code_interpreter"`` — a large tabular file handled by Code Interpreter.
+    - ``"summary"``     — the document is NOT inlined. Its content lives in the
+      per-session index (when ``can_index`` is True) or, as a fallback when no
+      index is available, in a generated summary.
+
+    A document is pushed to ``"summary"`` when it is individually larger than
+    ``SESSION_ATTR_MAX_CHARS`` OR when inlining it would push the running prompt
+    past ``PROMPT_CHAR_BUDGET``.
+
+    The critical invariant: an empty ``context`` is only ever returned when the
+    caller can actually index the document (``can_index``). When no index is
+    available we never drop content — we either keep it inline or fall back to a
+    generated summary — so the agent always has something to work with.
     """
     is_tabular = file_ext in ("xlsx", "csv")
 
     if is_tabular:
         if len(extracted_text) <= SESSION_ATTR_MAX_CHARS:
             return extracted_text, "full"
-        else:
-            return (
-                f"[Large tabular document — {len(extracted_text):,} characters. "
-                f"File will be sent to Code Interpreter for analysis.]"
-            ), "code_interpreter"
+        return (
+            f"[Large tabular document — {len(extracted_text):,} characters. "
+            f"File will be sent to Code Interpreter for analysis.]"
+        ), "code_interpreter"
 
-    if len(extracted_text) <= SESSION_ATTR_MAX_CHARS:
+    fits_inline_size = len(extracted_text) <= SESSION_ATTR_MAX_CHARS
+    fits_budget = current_prompt_size + len(extracted_text) <= PROMPT_CHAR_BUDGET
+
+    if fits_inline_size and fits_budget:
         return extracted_text, "full"
-    elif not summarize_large:
-        # Caller will index the document instead of inlining it; skip the
-        # expensive summarization call and just flag it as large ("summary").
+
+    # The document will not be inlined. Decide where its content actually lives.
+    if can_index:
+        # The caller indexes "summary" docs with empty context; content is safe
+        # in the per-session index.
         return "", "summary"
-    else:
-        summary = summarize_document(extracted_text)
-        return summary, "summary"
+    if summarize_large:
+        # No index available — never drop the content. Summarize so the agent
+        # still gets a condensed version inline.
+        return summarize_document(extracted_text), "summary"
+    # No index and summarization disabled: inlining the full text is the only
+    # way to preserve the content, so keep it inline despite the budget.
+    return extracted_text, "full"
 
 
 # ---------------------------------------------------------------------------
 # Multi-Document Processing
 # ---------------------------------------------------------------------------
 
-def process_multiple_documents(files_data: list[dict], summarize_large: bool = True) -> dict:
+def process_multiple_documents(
+    files_data: list[dict],
+    summarize_large: bool = True,
+    messages: list[dict] | None = None,
+    session_attributes: dict | None = None,
+    can_index: bool = False,
+) -> dict:
     """Process uploaded documents and categorize by handling strategy.
 
     Args:
         files_data: List of dicts with 'name' and 'bytes' keys.
-        summarize_large: When True (default), large text documents are
-            summarized for inline context (legacy behaviour). When False, large
-            text documents are flagged "summary" with empty context so the
-            caller can index them instead — avoiding a wasted summarization call.
+        summarize_large: When True, a large text document that is NOT going to
+            be indexed is summarized for inline context (legacy fallback). When
+            False, such a document is kept inline as a last resort so its
+            content is never dropped.
+        messages: Optional chat history, counted towards the inline prompt
+            budget so uploads on top of a long chat still fit.
+        session_attributes: Optional existing session attributes (e.g. a prior
+            ``uploaded_document``) counted towards the inline prompt budget.
+        can_index: Whether the caller will index "summary" documents
+            server-side. Only when True may a document be emitted with an empty
+            ``context`` (its content then lives in the per-session index); when
+            False the content is always preserved inline or as a summary.
 
     Returns:
         Dict with 'text_docs', 'code_interpreter_docs', and 'errors' lists.
+        Documents are processed largest-first so a few big files cannot starve
+        several small ones out of the inline budget.
     """
     result = {
         "text_docs": [],
@@ -413,7 +489,16 @@ def process_multiple_documents(files_data: list[dict], summarize_large: bool = T
         "errors": [],
     }
 
-    for file_info in files_data:
+    # Running total of inline text already committed to the prompt: the existing
+    # chat history / session attributes, plus each document we inline below.
+    current_prompt_size = estimate_prompt_size(messages, session_attributes)
+
+    # Process largest files first so a couple of big documents can't consume the
+    # whole inline budget and push several small ones into the index/summary
+    # path. Ordering is by raw upload size (a cheap proxy for text length).
+    ordered_files = sorted(files_data, key=lambda f: len(f.get("bytes", b"")), reverse=True)
+
+    for file_info in ordered_files:
         name = file_info["name"]
         file_bytes = file_info["bytes"]
         ext = name.rsplit(".", 1)[-1].lower() if "." in name else ""
@@ -456,8 +541,15 @@ def process_multiple_documents(files_data: list[dict], summarize_large: bool = T
             })
         else:
             doc_context, context_mode = prepare_document_context(
-                extracted_text, file_ext=ext, summarize_large=summarize_large
+                extracted_text,
+                file_ext=ext,
+                summarize_large=summarize_large,
+                current_prompt_size=current_prompt_size,
+                can_index=can_index,
             )
+            # Only inlined text (full/summarized) counts against the budget;
+            # indexed docs carry an empty context and cost nothing here.
+            current_prompt_size += len(doc_context)
             result["text_docs"].append({
                 "name": name,
                 "full_text": extracted_text,
@@ -467,3 +559,63 @@ def process_multiple_documents(files_data: list[dict], summarize_large: bool = T
             })
 
     return result
+
+
+# ---------------------------------------------------------------------------
+# Indexed-document summary (agent awareness)
+# ---------------------------------------------------------------------------
+# Number of leading characters of a document's text used as a preview in the
+# agent-facing summary. Enough to identify the document's subject without
+# bloating the prompt.
+INDEXED_SUMMARY_PREVIEW_CHARS = 200
+
+
+def _document_preview(text: str, limit: int = INDEXED_SUMMARY_PREVIEW_CHARS) -> str:
+    """Collapse whitespace and take the first ``limit`` characters of ``text``.
+
+    Produces a single-line preview safe to embed in the prompt. Appends an
+    ellipsis when the text was longer than the limit.
+    """
+    collapsed = " ".join((text or "").split())
+    if len(collapsed) <= limit:
+        return collapsed
+    return collapsed[:limit].rstrip() + "…"
+
+
+def build_indexed_documents_summary(docs: list[dict]) -> str:
+    """Build an agent-facing summary of documents that are indexed, not inlined.
+
+    These are the "teilweise" (partial) documents: their full text is NOT in the
+    prompt, it lives in the per-session index and is reached via the
+    ``search_uploaded_documents`` tool. The agent otherwise has no visibility
+    into their name, size or subject, so we surface a compact metadata block.
+
+    ``docs`` are dicts carrying at least ``name`` and the full extracted text
+    under ``full_text`` (or ``_raw_text``). One line per document:
+
+        - <name> (<TYPE>, ~<n> chars): "<first 200 chars>"
+
+    Returns an empty string when there are no indexed documents, so the caller
+    can omit the attribute entirely.
+    """
+    lines: list[str] = []
+    for d in docs:
+        name = d.get("name", "document")
+        ext = name.rsplit(".", 1)[-1].upper() if "." in name else "FILE"
+        full_text = d.get("full_text") or d.get("_raw_text") or ""
+        size = len(full_text)
+        preview = _document_preview(full_text)
+        if preview:
+            lines.append(f'- {name} ({ext}, ~{size:,} chars): "{preview}"')
+        else:
+            lines.append(f"- {name} ({ext}, ~{size:,} chars)")
+
+    if not lines:
+        return ""
+
+    header = (
+        "The following uploaded documents are NOT included in full below; "
+        "their content is indexed and searchable via the "
+        "search_uploaded_documents tool. Use that tool to read them:"
+    )
+    return header + "\n" + "\n".join(lines)

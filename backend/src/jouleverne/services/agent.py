@@ -315,6 +315,10 @@ def invoke_agent(
             payload["document_name"] = session_attributes["document_name"]
         if "context_mode" in session_attributes:
             payload["context_mode"] = session_attributes["context_mode"]
+        # Metadata block describing indexed ("teilweise") documents whose text
+        # is not inlined, so the agent knows they exist and to search them.
+        if session_attributes.get("document_summary"):
+            payload["document_summary"] = session_attributes["document_summary"]
 
     # Code Interpreter files. Prefer the reference approach: when file_refs are
     # given, send only {file_id, name, media_type} and let the agent load each

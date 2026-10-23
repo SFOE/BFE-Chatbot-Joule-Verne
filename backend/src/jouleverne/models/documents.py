@@ -68,3 +68,8 @@ class DocumentUploadResponse(BaseModel):
     code_interpreter_docs: list[CodeInterpreterDocResult]
     indexed_docs: list[IndexedDocResult] = []
     errors: list[DocumentError]
+    # Agent-facing metadata block describing the indexed ("teilweise") documents
+    # whose text is not inlined. Echoed back by the frontend in the chat
+    # request's session_attributes so the agent knows they exist. Empty when no
+    # document was indexed.
+    document_summary: str = ""
