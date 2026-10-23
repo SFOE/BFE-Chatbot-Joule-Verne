@@ -200,6 +200,79 @@ async def test_upload_large_text_doc_is_indexed(client):
 
 
 @pytest.mark.asyncio
+async def test_upload_returns_document_summary_for_indexed(client):
+    """An indexed doc yields an agent-facing document_summary in the response."""
+    import base64
+    import json as _json
+
+    processed = {
+        "text_docs": [
+            {
+                "name": "big.pdf",
+                "full_text": "Executive summary of the big report.",
+                "page_count": 50,
+                "context": "",
+                "context_mode": "summary",  # flagged for indexing
+            }
+        ],
+        "code_interpreter_docs": [],
+        "errors": [],
+    }
+
+    def _oidc_header(sub: str) -> dict:
+        header = base64.urlsafe_b64encode(b'{"alg":"RS256"}').rstrip(b"=").decode()
+        payload = base64.urlsafe_b64encode(_json.dumps({"sub": sub}).encode()).rstrip(b"=").decode()
+        return {"x-amzn-oidc-data": f"{header}.{payload}.sig"}
+
+    def _fake_store(**kwargs):
+        return {"file_id": "f-" + kwargs["filename"], "name": kwargs["filename"]}
+
+    with patch("jouleverne.routes.documents.process_multiple_documents", return_value=processed), \
+         patch("jouleverne.routes.documents.convo.is_persistence_configured", return_value=True), \
+         patch("jouleverne.routes.documents.convo.get_save_enabled", return_value=True), \
+         patch("jouleverne.routes.documents.doc_index.session_prefix", return_value="sessions/u1/s1/"), \
+         patch("jouleverne.routes.documents.session_files.count_files", return_value=0), \
+         patch("jouleverne.routes.documents.session_files.store_file", side_effect=_fake_store), \
+         patch(
+             "jouleverne.routes.documents.doc_index.build_index",
+             return_value={"doc_id": "d1", "name": "big.pdf", "chunk_count": 7},
+         ):
+        response = await client.post(
+            "/v1/documents/upload",
+            files=[("files", ("big.pdf", b"fake large pdf", "application/pdf"))],
+            data={"session_id": "s1"},
+            headers=_oidc_header("u1"),
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+    summary = data["document_summary"]
+    assert "big.pdf" in summary
+    assert "(PDF," in summary
+    assert "Executive summary of the big report." in summary
+
+
+@pytest.mark.asyncio
+async def test_upload_no_summary_when_nothing_indexed(client):
+    """A fully inlined doc produces an empty document_summary."""
+    processed = {
+        "text_docs": [
+            {"name": "a.txt", "full_text": "A", "page_count": 1, "context": "A", "context_mode": "full"},
+        ],
+        "code_interpreter_docs": [],
+        "errors": [],
+    }
+    with patch("jouleverne.routes.documents.process_multiple_documents", return_value=processed):
+        response = await client.post(
+            "/v1/documents/upload",
+            files=[("files", ("a.txt", b"content A", "text/plain"))],
+            data={"session_id": "s1"},
+        )
+    assert response.status_code == 200
+    assert response.json()["document_summary"] == ""
+
+
+@pytest.mark.asyncio
 async def test_list_indexed_documents(client):
     import base64
     import json as _json

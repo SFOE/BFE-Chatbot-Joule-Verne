@@ -28,22 +28,35 @@ export function useChat() {
     const citations: Citation[] = []
     let fullText = ''
 
-    // Build session attributes from uploaded docs
-    const sessionAttributes: Record<string, string> | undefined =
-      store.textDocs.length > 0 || store.codeInterpreterDocs.length > 0
-        ? {
-            uploaded_document: store.textDocs.length > 0
-              ? store.textDocs.map((d) => d.context).join('\n\n---\n\n')
-              : '[Documents sent to Code Interpreter for analysis]',
-            document_name: [
-              ...store.textDocs.map((d) => d.name),
-              ...store.codeInterpreterDocs.map((d) => d.name),
-            ].join(', '),
-            context_mode: store.codeInterpreterDocs.length > 0 && store.textDocs.length === 0
-              ? 'code_interpreter'
-              : store.textDocs.length > 1 ? 'multi' : store.textDocs[0]?.context_mode ?? 'full',
-          }
-        : undefined
+    // Build session attributes from uploaded docs. Set when there is anything
+    // the agent needs to know about: inline text, Code Interpreter files, or
+    // indexed ("teilweise") documents surfaced only via the summary.
+    const hasInlineOrCi = store.textDocs.length > 0 || store.codeInterpreterDocs.length > 0
+    const hasIndexed = store.indexedDocs.length > 0 || !!store.documentSummary
+
+    let sessionAttributes: Record<string, string> | undefined
+    if (hasInlineOrCi || hasIndexed) {
+      sessionAttributes = {}
+      if (hasInlineOrCi) {
+        sessionAttributes.uploaded_document = store.textDocs.length > 0
+          ? store.textDocs.map((d) => d.context).join('\n\n---\n\n')
+          : '[Documents sent to Code Interpreter for analysis]'
+        sessionAttributes.document_name = [
+          ...store.textDocs.map((d) => d.name),
+          ...store.codeInterpreterDocs.map((d) => d.name),
+        ].join(', ')
+        sessionAttributes.context_mode =
+          store.codeInterpreterDocs.length > 0 && store.textDocs.length === 0
+            ? 'code_interpreter'
+            : store.textDocs.length > 1
+              ? 'multi'
+              : store.textDocs[0]?.context_mode ?? 'full'
+      }
+      // Agent-facing metadata for indexed documents whose text is not inlined.
+      if (store.documentSummary) {
+        sessionAttributes.document_summary = store.documentSummary
+      }
+    }
 
     // Build Code Interpreter payload. Prefer references (file_id) so the file
     // is loaded from S3 on demand instead of shipped every turn. Files without
