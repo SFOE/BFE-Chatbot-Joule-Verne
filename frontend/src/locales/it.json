@@ -42,7 +42,7 @@
   "web_search_confirm_yes": "Sì, attivare",
   "web_search_confirm_no": "Annullare",
   "upload_title": "Caricare documenti",
-  "upload_hint": "PDF, TXT, DOCX, XLSX, CSV\nMax. 10 MB, fino a 5 file",
+  "upload_hint": "PDF, TXT, DOCX, XLSX, CSV\nMax. 10 MB, fino a 50 file",
   "upload_processing": "Elaborazione dei documenti…",
   "doc_indexed": "ricercabile",
   "doc_label_full": "completo",
