@@ -45,6 +45,12 @@ export function useDocuments() {
       store.textDocs = [...store.textDocs, ...response.data.text_docs]
       store.codeInterpreterDocs = [...store.codeInterpreterDocs, ...response.data.code_interpreter_docs]
       store.indexedDocs = [...store.indexedDocs, ...response.data.indexed_docs]
+      // Accumulate the agent-facing summary of indexed docs across batches.
+      if (response.data.document_summary) {
+        store.documentSummary = store.documentSummary
+          ? store.documentSummary + '\n' + response.data.document_summary
+          : response.data.document_summary
+      }
       uploadErrors.value = response.data.errors
     } catch (error: unknown) {
       let errorMsg = i18n.global.t('error_upload')

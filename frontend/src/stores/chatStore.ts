@@ -40,6 +40,12 @@ export const useChatStore = defineStore('chat', () => {
   // agent searches them on demand. Shown so the user sees what was uploaded.
   const indexedDocs = ref<IndexedDoc[]>([])
 
+  // Agent-facing metadata block for indexed ("teilweise") documents: name,
+  // type, size and a short preview of each. Not shown in the UI; sent with the
+  // chat request so the agent knows these documents exist and to search them.
+  // Accumulated across upload batches (one block per upload that indexed docs).
+  const documentSummary = ref('')
+
   // True while an upload (incl. server-side indexing) is in progress. Blocks
   // sending so the user can't ask about a document before its index exists.
   const isUploading = ref(false)
@@ -110,6 +116,7 @@ export const useChatStore = defineStore('chat', () => {
     textDocs.value = []
     codeInterpreterDocs.value = []
     indexedDocs.value = []
+    documentSummary.value = ''
     sessionId.value = uuidv4()
   }
 
@@ -254,6 +261,9 @@ export const useChatStore = defineStore('chat', () => {
     textDocs.value = []
     codeInterpreterDocs.value = []
     indexedDocs.value = []
+    // Previews are not persisted; a continued chat relies on the agent's
+    // search tool knowing the indexed docs exist via the restored file list.
+    documentSummary.value = ''
     applyModeConfig(detail.mode_config)
     if (messages.value.length > 0) {
       searchModeLocked.value = true
@@ -290,6 +300,7 @@ export const useChatStore = defineStore('chat', () => {
     textDocs,
     codeInterpreterDocs,
     indexedDocs,
+    documentSummary,
     isUploading,
     citations,
     saveChatsEnabled,
