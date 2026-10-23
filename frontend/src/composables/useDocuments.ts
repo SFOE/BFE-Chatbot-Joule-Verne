@@ -18,7 +18,7 @@ export function useDocuments() {
     const totalDocs =
       store.textDocs.length + store.codeInterpreterDocs.length + store.indexedDocs.length
 
-    if (totalDocs + files.length > 5) {
+    if (totalDocs + files.length > 50) {
       uploadErrors.value = [{ name: 'upload', error: i18n.global.t('error_max_files') }]
       return
     }
