@@ -69,6 +69,8 @@ def get_save_enabled(sub: str) -> bool:
 
     Defaults to False (opt-in) when unset or when persistence is unconfigured.
     """
+    # for now: don't give choice to save or not, save always
+    return True
     if not is_persistence_configured():
         return False
 
