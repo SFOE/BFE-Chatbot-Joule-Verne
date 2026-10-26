@@ -69,8 +69,7 @@ function confirmRemoveDocument(fileId: string) {
       <div v-if="store.textDocs.length" class="uploaded-docs">
         <p v-for="doc in store.textDocs" :key="doc.name" class="doc-success doc-indexed-row">
           <span class="doc-name-container">
-            📄 <strong>{{ doc.name }}</strong>
-            <span class="doc-badge" :title="t('doc_tip_full')">{{ t('doc_label_full') }}</span>
+            <strong>{{ doc.name }}</strong>
           </span>
           <button
             v-if="doc.file_id"
@@ -86,8 +85,7 @@ function confirmRemoveDocument(fileId: string) {
       <div v-if="store.codeInterpreterDocs.length" class="uploaded-docs">
         <p v-for="doc in store.codeInterpreterDocs" :key="doc.name" class="doc-success doc-indexed-row">
           <span class="doc-name-container">
-            📊 <strong>{{ doc.name }}</strong>
-            <span class="doc-badge" :title="t('doc_tip_table')">{{ t('doc_label_table') }}</span>
+            <strong>{{ doc.name }}</strong>
           </span>
           <button
             v-if="doc.file_id"
@@ -103,8 +101,7 @@ function confirmRemoveDocument(fileId: string) {
       <div v-if="store.indexedDocs.length" class="uploaded-docs">
         <p v-for="doc in store.indexedDocs" :key="doc.doc_id" class="doc-success doc-indexed-row">
           <span class="doc-name-container">
-            🔍 <strong>{{ doc.name }}</strong>
-            <span class="doc-badge" :title="t('doc_tip_partial')">{{ t('doc_label_partial') }}</span>
+            <strong>{{ doc.name }}</strong>
           </span>
           <button
             v-if="doc.file_id"
@@ -120,10 +117,10 @@ function confirmRemoveDocument(fileId: string) {
       <div v-if="uploadErrors.length" class="upload-errors">
         <p v-for="err in uploadErrors" :key="err.name" :class="err.sensitivity_blocked ? 'doc-warning' : 'doc-error'">
           <template v-if="err.sensitivity_blocked">
-            🔒 <strong>{{ err.name }}</strong>: {{ formatSensitivityError(err.error) }}
+            <strong>{{ err.name }}</strong>: {{ formatSensitivityError(err.error) }}
           </template>
           <template v-else>
-            ❌ <strong>{{ err.name }}</strong>: {{ err.error }}
+            <strong>{{ err.name }}</strong>: {{ err.error }}
           </template>
         </p>
       </div>
@@ -167,17 +164,5 @@ function confirmRemoveDocument(fileId: string) {
 .doc-remove-btn:hover {
   opacity: 1;
   color: #c0392b;
-}
-
-.doc-badge {
-  display: inline-block;
-  margin-left: 6px;
-  padding: 1px 6px;
-  border-radius: 10px;
-  font-size: 0.72rem;
-  background: rgba(0, 0, 0, 0.07);
-  color: var(--color-text);
-  cursor: help;
-  white-space: nowrap;
 }
 </style>
