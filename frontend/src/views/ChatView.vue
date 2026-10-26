@@ -53,20 +53,9 @@ onMounted(async () => {
       </div>
 
       <div class="sidebar-section">
-        <SaveChatsToggle />
-      </div>
-
-      <div class="sidebar-section">
         <ConversationList />
       </div>
-
-      <div class="sidebar-section">
-        <button class="clear-chat-btn" @click="store.clearChat()">
-          {{ t('clear_chat') }}
-        </button>
-      </div>
-
-      <SourcesSidebar />
+      
     </aside>
 
     <section class="chat-main">
