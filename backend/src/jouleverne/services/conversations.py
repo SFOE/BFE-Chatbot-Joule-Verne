@@ -70,20 +70,7 @@ def get_save_enabled(sub: str) -> bool:
     Defaults to False (opt-in) when unset or when persistence is unconfigured.
     """
     # for now: don't give choice to save or not, save always
-    return True
-    if not is_persistence_configured():
-        return False
-
-    try:
-        resp = _table().get_item(Key={"person_id": sub, "sk": _SK_PREF})
-    except Exception:
-        logger.exception("Failed to read save preference")
-        return _DEFAULT_SAVE_ENABLED
-
-    item = resp.get("Item")
-    if not item:
-        return _DEFAULT_SAVE_ENABLED
-    return bool(item.get("save_enabled", _DEFAULT_SAVE_ENABLED))
+    return is_persistence_configured()
 
 
 def set_save_enabled(sub: str, enabled: bool) -> bool:
