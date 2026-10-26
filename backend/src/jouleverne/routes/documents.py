@@ -16,6 +16,7 @@ from ..models.documents import (
 )
 from ..services.documents import (
     process_multiple_documents,
+    build_indexed_documents_summary,
     MAX_UPLOAD_FILES,
     MAX_FILE_SIZE_BYTES,
     ALLOWED_EXTENSIONS,
@@ -147,11 +148,18 @@ async def upload_documents(
     indexing_enabled = bool(sub and session_id and convo.is_persistence_configured())
 
     # Process valid files (offload to thread to avoid blocking the event loop).
-    # When indexing is enabled we skip the expensive inline summarization for
-    # large docs, since they will be indexed instead.
+    # ``can_index`` lets the processor safely drop a document's inline context
+    # ONLY when we will index it below; otherwise content is preserved inline or
+    # summarized so it is never lost. ``summarize_large`` is the no-index
+    # fallback: summarize a too-large doc rather than inline the whole thing.
     try:
         processed = await asyncio.to_thread(
-            process_multiple_documents, files_data, not indexing_enabled
+            process_multiple_documents,
+            files_data,
+            not indexing_enabled,  # summarize_large (no-index fallback)
+            None,  # messages (fresh upload; no running history to count)
+            None,  # session_attributes
+            indexing_enabled,  # can_index
         )
     except Exception as e:
         logger.exception("Unexpected error processing documents: %s", e)
@@ -159,6 +167,10 @@ async def upload_documents(
 
     inline_docs = processed["text_docs"]
     indexed_docs: list[dict] = []
+    # Processed text docs that were indexed (kept so we can build the agent
+    # summary from their full text, which the index dicts do not carry).
+    indexed_source_docs: list[dict] = []
+
     # name -> file_id, for the originals stored this request.
     file_ids: dict[str, str | None] = {}
 
@@ -181,9 +193,21 @@ async def upload_documents(
         for d in processed["text_docs"]:
             d["_raw_bytes"] = bytes_by_name.get(d["name"], b"")
 
+        # Docs flagged "summary" are the ones _index_large_text_docs will try to
+        # index. Capture them (with full_text) before the call so a successful
+        # index can be summarized for the agent.
+        summary_candidates = [
+            d for d in processed["text_docs"] if d.get("context_mode") == "summary"
+        ]
+
         inline_docs, indexed_docs = await asyncio.to_thread(
             _index_large_text_docs, processed["text_docs"], prefix
         )
+
+        # Keep only candidates that were actually indexed (indexing can fall
+        # back to inline on failure, in which case they reappear in inline_docs).
+        indexed_names = {d["name"] for d in indexed_docs}
+        indexed_source_docs = [d for d in summary_candidates if d["name"] in indexed_names]
 
         # Store the original of every uploaded file (A), tagged with its routing
         # so a continued chat can list/restore them and the agent can load CI
@@ -192,6 +216,10 @@ async def upload_documents(
             _store_originals, prefix, bytes_by_name, inline_docs, indexed_docs,
             processed["code_interpreter_docs"],
         )
+
+    # Agent-facing summary of the indexed ("teilweise") documents so the agent
+    # knows they exist and what they are, even though their text is not inlined.
+    document_summary = build_indexed_documents_summary(indexed_source_docs)
 
     all_errors = errors + processed["errors"]
 
@@ -225,6 +253,7 @@ async def upload_documents(
             for d in indexed_docs
         ],
         errors=[DocumentError(name=e["name"], error=e["error"], sensitivity_blocked=e.get("sensitivity_blocked", False)) for e in all_errors],
+        document_summary=document_summary,
     )
 
 

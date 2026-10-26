@@ -45,7 +45,17 @@ export function useDocuments() {
       store.textDocs = [...store.textDocs, ...response.data.text_docs]
       store.codeInterpreterDocs = [...store.codeInterpreterDocs, ...response.data.code_interpreter_docs]
       store.indexedDocs = [...store.indexedDocs, ...response.data.indexed_docs]
+      // Accumulate the agent-facing summary of indexed docs across batches.
+      if (response.data.document_summary) {
+        store.documentSummary = store.documentSummary
+          ? store.documentSummary + '\n' + response.data.document_summary
+          : response.data.document_summary
+      }
       uploadErrors.value = response.data.errors
+
+      // Persist the chat now so an uploads-only session (no question asked yet)
+      // is saved and listed. No-op unless the user opted in; best-effort.
+      void store.persistConversation()
     } catch (error: unknown) {
       let errorMsg = i18n.global.t('error_upload')
       if (axios.isAxiosError(error) && error.response?.data?.detail) {

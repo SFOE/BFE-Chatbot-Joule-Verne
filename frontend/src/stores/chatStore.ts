@@ -3,8 +3,6 @@ import { ref, computed } from 'vue'
 import { v4 as uuidv4 } from 'uuid'
 import type { ChatMessage, TraceStep, Citation, TextDoc, CodeInterpreterDoc, IndexedDoc } from '@/types/chat'
 import {
-  getSavePreference,
-  setSavePreference,
   saveConversation,
   loadConversation,
   deleteEphemeralSession,
@@ -40,6 +38,12 @@ export const useChatStore = defineStore('chat', () => {
   // agent searches them on demand. Shown so the user sees what was uploaded.
   const indexedDocs = ref<IndexedDoc[]>([])
 
+  // Agent-facing metadata block for indexed ("teilweise") documents: name,
+  // type, size and a short preview of each. Not shown in the UI; sent with the
+  // chat request so the agent knows these documents exist and to search them.
+  // Accumulated across upload batches (one block per upload that indexed docs).
+  const documentSummary = ref('')
+
   // True while an upload (incl. server-side indexing) is in progress. Blocks
   // sending so the user can't ask about a document before its index exists.
   const isUploading = ref(false)
@@ -47,10 +51,11 @@ export const useChatStore = defineStore('chat', () => {
   // Sources from the latest answer
   const citations = ref<Citation[]>([])
 
-  // Whether the user has opted in to persisting their chats. Opt-in: defaults
-  // to false until loaded from / set via the backend. Drives whether finished
-  // conversations are saved for later continuation.
-  const saveChatsEnabled = ref(false)
+  // Whether chats are persisted. The per-user opt-in was removed: saving is
+  // always on (the backend persists whenever storage is configured), so this
+  // defaults to true and drives whether finished conversations are saved for
+  // later continuation and listed in the sidebar.
+  const saveChatsEnabled = ref(true)
 
   const hasMessages = computed(() => messages.value.length > 0)
 
@@ -110,6 +115,7 @@ export const useChatStore = defineStore('chat', () => {
     textDocs.value = []
     codeInterpreterDocs.value = []
     indexedDocs.value = []
+    documentSummary.value = ''
     sessionId.value = uuidv4()
   }
 
@@ -183,30 +189,6 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
-  /** Load the save opt-in flag from the backend (best-effort). */
-  async function loadSavePreference() {
-    try {
-      saveChatsEnabled.value = await getSavePreference()
-    } catch {
-      // Default to off if the preference can't be read.
-      saveChatsEnabled.value = false
-    }
-  }
-
-  /**
-   * Persist the save opt-in flag. Updates local state optimistically and
-   * reconciles with the stored value the backend returns.
-   */
-  async function updateSavePreference(enabled: boolean) {
-    saveChatsEnabled.value = enabled
-    try {
-      saveChatsEnabled.value = await setSavePreference(enabled)
-    } catch {
-      // Revert on failure.
-      saveChatsEnabled.value = !enabled
-    }
-  }
-
   /** Snapshot the current tool/mode selection for persistence. */
   function currentModeConfig(): ModeConfig {
     return {
@@ -233,7 +215,12 @@ export const useChatStore = defineStore('chat', () => {
    * not opted in or there is nothing to save. Called after each answer.
    */
   async function persistConversation() {
-    if (!saveChatsEnabled.value || messages.value.length === 0) return
+    const hasContent =
+      messages.value.length > 0 ||
+      textDocs.value.length > 0 ||
+      codeInterpreterDocs.value.length > 0 ||
+      indexedDocs.value.length > 0
+    if (!saveChatsEnabled.value || !hasContent) return
     try {
       await saveConversation(sessionId.value, messages.value, currentModeConfig())
     } catch {
@@ -254,6 +241,9 @@ export const useChatStore = defineStore('chat', () => {
     textDocs.value = []
     codeInterpreterDocs.value = []
     indexedDocs.value = []
+    // Previews are not persisted; a continued chat relies on the agent's
+    // search tool knowing the indexed docs exist via the restored file list.
+    documentSummary.value = ''
     applyModeConfig(detail.mode_config)
     if (messages.value.length > 0) {
       searchModeLocked.value = true
@@ -290,12 +280,11 @@ export const useChatStore = defineStore('chat', () => {
     textDocs,
     codeInterpreterDocs,
     indexedDocs,
+    documentSummary,
     isUploading,
     citations,
     saveChatsEnabled,
     hasMessages,
-    loadSavePreference,
-    updateSavePreference,
     persistConversation,
     openConversation,
     addMessage,

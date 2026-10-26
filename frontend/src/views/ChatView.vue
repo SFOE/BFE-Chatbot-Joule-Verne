@@ -7,7 +7,6 @@ import ChatInput from '@/components/ChatInput.vue'
 import SearchModeToggle from '@/components/SearchModeToggle.vue'
 import DocumentUpload from '@/components/DocumentUpload.vue'
 import SourcesSidebar from '@/components/SourcesSidebar.vue'
-import SaveChatsToggle from '@/components/SaveChatsToggle.vue'
 import ConversationList from '@/components/ConversationList.vue'
 
 interface ExternalLink {
@@ -53,20 +52,9 @@ onMounted(async () => {
       </div>
 
       <div class="sidebar-section">
-        <SaveChatsToggle />
-      </div>
-
-      <div class="sidebar-section">
         <ConversationList />
       </div>
-
-      <div class="sidebar-section">
-        <button class="clear-chat-btn" @click="store.clearChat()">
-          {{ t('clear_chat') }}
-        </button>
-      </div>
-
-      <SourcesSidebar />
+      
     </aside>
 
     <section class="chat-main">

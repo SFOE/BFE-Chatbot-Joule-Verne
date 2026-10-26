@@ -44,7 +44,7 @@ _ONE_YEAR_SECONDS = 365 * 24 * 60 * 60
 
 # Default when a user has never toggled the setting. Opt-in: we do NOT persist
 # chats until the user explicitly turns it on.
-_DEFAULT_SAVE_ENABLED = False
+_DEFAULT_SAVE_ENABLED = True
 
 
 def is_persistence_configured() -> bool:
@@ -69,19 +69,8 @@ def get_save_enabled(sub: str) -> bool:
 
     Defaults to False (opt-in) when unset or when persistence is unconfigured.
     """
-    if not is_persistence_configured():
-        return False
-
-    try:
-        resp = _table().get_item(Key={"person_id": sub, "sk": _SK_PREF})
-    except Exception:
-        logger.exception("Failed to read save preference")
-        return _DEFAULT_SAVE_ENABLED
-
-    item = resp.get("Item")
-    if not item:
-        return _DEFAULT_SAVE_ENABLED
-    return bool(item.get("save_enabled", _DEFAULT_SAVE_ENABLED))
+    # for now: don't give choice to save or not, save always
+    return is_persistence_configured()
 
 
 def set_save_enabled(sub: str, enabled: bool) -> bool:
@@ -136,20 +125,39 @@ def _transcript_key(sub: str, session_id: str) -> str:
     return f"{prefix}{_sanitize_key_segment(sub)}/{_sanitize_key_segment(session_id)}.json"
 
 
-def _derive_title(messages: list[dict]) -> str:
-    """Build a title from the first user message, truncated.
+def _truncate_title(text: str) -> str:
+    """Collapse whitespace and truncate a title to the max length."""
+    collapsed = " ".join(text.split())
+    if len(collapsed) <= _TITLE_MAX_LEN:
+        return collapsed
+    return collapsed[:_TITLE_MAX_LEN].rstrip() + "…"
 
-    Falls back to a generic label when no user text is present.
+
+def _derive_title(
+    messages: list[dict],
+    document_names: list[str] | None = None,
+) -> tuple[str, bool]:
+    """Build a title and report whether it is a placeholder.
+
+    Returns ``(title, is_placeholder)``. A title taken from the first user
+    message is final (``is_placeholder=False``). When there is no user text
+    yet — e.g. a chat that so far only has uploaded documents — the title is a
+    placeholder (``is_placeholder=True``) derived from the first document name,
+    or the generic label as a last resort. Placeholder titles are written with
+    ``if_not_exists`` so a later real first message can upgrade them.
     """
     for msg in messages:
         if msg.get("role") == "user":
             text = (msg.get("content") or "").strip()
             if text:
-                collapsed = " ".join(text.split())
-                if len(collapsed) <= _TITLE_MAX_LEN:
-                    return collapsed
-                return collapsed[:_TITLE_MAX_LEN].rstrip() + "…"
-    return "Chat"
+                return _truncate_title(text), False
+
+    for name in document_names or []:
+        name = (name or "").strip()
+        if name:
+            return _truncate_title(name), True
+
+    return "Chat", True
 
 
 def save_conversation(
@@ -158,20 +166,27 @@ def save_conversation(
     session_id: str,
     messages: list[dict],
     mode_config: dict | None = None,
+    document_names: list[str] | None = None,
 ) -> bool:
     """Persist a conversation's transcript (S3) and index entry (DynamoDB).
 
-    Called after each answer when the user has opted in. Upserts the index
-    item (preserving the existing title if one was set) and overwrites the
-    transcript. ``mode_config`` captures the chat's tool/mode selection so the
-    same configuration can be restored on continuation. Returns True when
-    stored, False when persistence is disabled.
+    Called after each answer — and after an upload into a brand-new chat — when
+    the user has opted in. Upserts the index item and overwrites the transcript.
+    ``mode_config`` captures the chat's tool/mode selection so the same
+    configuration can be restored on continuation. ``document_names`` supplies a
+    fallback title for a chat that so far only has uploaded documents (no user
+    message yet). Returns True when stored, False when persistence is disabled.
+
+    A chat is saved as long as it has *something* to show — either a transcript
+    or at least one uploaded document name. A truly empty save is a no-op.
 
     Caller MUST pass the authenticated `sub`; the stored data is owned by it.
     """
     if not is_persistence_configured():
         return False
-    if not sub or not session_id or not messages:
+    if not sub or not session_id:
+        return False
+    if not messages and not (document_names or []):
         return False
 
     key = _transcript_key(sub, session_id)
@@ -183,26 +198,35 @@ def save_conversation(
     )
 
     now = datetime.now(timezone.utc).isoformat()
+    item_key = {"person_id": sub, "sk": f"{_SK_CONV_PREFIX}{session_id}"}
 
-    # Keep a user-set title if one already exists; otherwise derive from the
-    # first message. A single UpdateItem does the upsert and the conditional
-    # title default via if_not_exists.
-    update_expr = (
-        "SET title = if_not_exists(title, :t), "
-        "updated_at = :u, s3_key = :k, #ttl = :ttl"
-    )
+    title, is_placeholder = _derive_title(messages, document_names)
+
+    # Decide whether to (re)write the title. Read the current index item first:
+    #   - no title yet        -> write the derived title
+    #   - stored placeholder  -> upgrade it (e.g. an uploads-only chat gets its
+    #                            first real message, or a better document name)
+    #   - real / user-set     -> keep it; never clobber a pinned title
+    existing = _table().get_item(Key=item_key).get("Item", {})
+    stored_is_placeholder = existing.get("title_placeholder", True)
+    write_title = ("title" not in existing) or stored_is_placeholder
+
+    update_expr = "SET updated_at = :u, s3_key = :k, #ttl = :ttl"
     values = {
-        ":t": _derive_title(messages),
         ":u": now,
         ":k": key,
         ":ttl": _ttl_from_now(),
     }
+    if write_title:
+        update_expr += ", title = :t, title_placeholder = :tp"
+        values[":t"] = title
+        values[":tp"] = is_placeholder
     if mode_config is not None:
         update_expr += ", mode_config = :m"
         values[":m"] = mode_config
 
     _table().update_item(
-        Key={"person_id": sub, "sk": f"{_SK_CONV_PREFIX}{session_id}"},
+        Key=item_key,
         UpdateExpression=update_expr,
         ExpressionAttributeNames={"#ttl": "ttl"},
         ExpressionAttributeValues=values,
@@ -289,9 +313,9 @@ def rename_conversation(sub: str, session_id: str, title: str) -> bool:
     try:
         _table().update_item(
             Key={"person_id": sub, "sk": f"{_SK_CONV_PREFIX}{session_id}"},
-            UpdateExpression="SET title = :t",
+            UpdateExpression="SET title = :t, title_placeholder = :tp",
             ConditionExpression="attribute_exists(sk)",
-            ExpressionAttributeValues={":t": clean},
+            ExpressionAttributeValues={":t": clean, ":tp": False},
         )
     except _table().meta.client.exceptions.ConditionalCheckFailedException:
         return False
