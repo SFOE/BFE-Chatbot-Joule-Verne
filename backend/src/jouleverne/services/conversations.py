@@ -44,7 +44,7 @@ _ONE_YEAR_SECONDS = 365 * 24 * 60 * 60
 
 # Default when a user has never toggled the setting. Opt-in: we do NOT persist
 # chats until the user explicitly turns it on.
-_DEFAULT_SAVE_ENABLED = False
+_DEFAULT_SAVE_ENABLED = True
 
 
 def is_persistence_configured() -> bool:
