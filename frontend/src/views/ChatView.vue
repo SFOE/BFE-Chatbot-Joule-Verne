@@ -7,7 +7,6 @@ import ChatInput from '@/components/ChatInput.vue'
 import SearchModeToggle from '@/components/SearchModeToggle.vue'
 import DocumentUpload from '@/components/DocumentUpload.vue'
 import SourcesSidebar from '@/components/SourcesSidebar.vue'
-import SaveChatsToggle from '@/components/SaveChatsToggle.vue'
 import ConversationList from '@/components/ConversationList.vue'
 
 interface ExternalLink {

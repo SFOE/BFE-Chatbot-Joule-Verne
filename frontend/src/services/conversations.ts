@@ -8,10 +8,6 @@ import type { ChatMessage, IndexedDoc } from '@/types/chat'
  * conversations. Delete is added with Baustein 5.
  */
 
-export interface SavePreference {
-  save_enabled: boolean
-}
-
 export interface ConversationSummary {
   session_id: string
   title: string
@@ -33,20 +29,6 @@ export interface ConversationDetail {
   updated_at: string
   mode_config: ModeConfig | null
   messages: ChatMessage[]
-}
-
-/** Read whether the current user has opted in to saving chats. */
-export async function getSavePreference(): Promise<boolean> {
-  const res = await backendHttp.get<SavePreference>('v1/conversations/preference')
-  return res.data.save_enabled
-}
-
-/** Set the save opt-in flag. Returns the stored value. */
-export async function setSavePreference(enabled: boolean): Promise<boolean> {
-  const res = await backendHttp.put<SavePreference>('v1/conversations/preference', {
-    save_enabled: enabled,
-  })
-  return res.data.save_enabled
 }
 
 /** List the user's conversations, most recently updated first. */
