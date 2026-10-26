@@ -240,7 +240,12 @@ export const useChatStore = defineStore('chat', () => {
    * not opted in or there is nothing to save. Called after each answer.
    */
   async function persistConversation() {
-    if (!saveChatsEnabled.value || messages.value.length === 0) return
+    const hasContent =
+      messages.value.length > 0 ||
+      textDocs.value.length > 0 ||
+      codeInterpreterDocs.value.length > 0 ||
+      indexedDocs.value.length > 0
+    if (!saveChatsEnabled.value || !hasContent) return
     try {
       await saveConversation(sessionId.value, messages.value, currentModeConfig())
     } catch {

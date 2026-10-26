@@ -9,6 +9,8 @@ Covered here:
 Delete follows in Baustein 5.
 """
 
+import asyncio
+
 from fastapi import APIRouter, Request, Depends, HTTPException, status
 
 from ..models.conversations import (
@@ -20,9 +22,25 @@ from ..models.conversations import (
 )
 from ..services.security import limiter, verify_cognito_auth, require_user_sub
 from ..services import conversations as convo
+from ..services import doc_index, session_files
 from ..config import settings
 
 router = APIRouter(prefix="/v1/conversations", tags=["conversations"])
+
+
+def _session_document_names(sub: str, session_id: str) -> list[str]:
+    """Names of files uploaded in a session, for a fallback chat title.
+
+    Used when a chat has no user message yet (uploads only). A saved chat's
+    files live under the persistent prefix (save opt-in was on at upload).
+    Best-effort — returns an empty list on any error.
+    """
+    try:
+        prefix = doc_index.session_prefix(sub, session_id, save_history=True)
+        metas = session_files.list_files(prefix)
+        return [m["name"] for m in metas if m.get("name")]
+    except Exception:
+        return []
 
 
 # ---------------------------------------------------------------------------
@@ -90,11 +108,20 @@ async def save_conversation(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Saving chats is disabled for this user",
         )
+    # A chat with no messages yet (only uploaded documents) still gets saved,
+    # titled after its first document. Only look files up in that case to avoid
+    # an S3 listing on every ordinary save.
+    document_names = (
+        await asyncio.to_thread(_session_document_names, sub, body.session_id)
+        if not body.messages
+        else None
+    )
     stored = convo.save_conversation(
         sub=sub,
         session_id=body.session_id,
         messages=body.messages,
         mode_config=body.mode_config,
+        document_names=document_names,
     )
     if not stored:
         raise HTTPException(
