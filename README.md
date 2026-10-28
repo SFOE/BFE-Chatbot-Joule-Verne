@@ -16,6 +16,7 @@
    - [Request Flow](#request-flow)
    - [Security Groups](#security-groups)
    - [CI/CD Pipeline](#cicd-pipeline)
+   - [Release Protocol (Blocked Pipeline)](#release-protocol-if-merge-main--production-is-blocked)
 4. [How to Install & Run Project](#how-to-install--run-project)
    - [Folder Structure](#folder-structure)
    - [Environment & Local Run](#environment--local-run)
@@ -168,6 +169,73 @@ The repository uses GitHub Actions (`.github/workflows/upload-to-ecr.yml`) with 
 The Docker build uses a multi-stage Dockerfile:
 1. **Frontend build** — Node 22 Alpine builds the Vue app with Vite
 2. **Backend + runtime** — Python 3.14 Alpine (via `uv`) installs dependencies, copies backend source, frontend static files, and fetches release notes at build time
+
+### Release Protocol if merge main → production is blocked
+
+#### Cherry-Picking from main
+
+Use this strategy when the feature branch was already created from `main` and needs to reach `production` before the blocked pipeline is unblocked.
+
+Instead of merging the whole branch into `production` — which would pull in unrelated `main` commits — only the commits that belong to the feature are cherry-picked onto `production`.
+
+**Step 1 — Identify the merge commit on `main`**
+
+After the feature is merged into `main`, find the merge commit hash.
+
+```bash
+git log --oneline --graph --decorate -30
+```
+
+Example output:
+
+```
+*   a1b2c3d (HEAD -> main) Merge feature/PROJ-123-payment into main
+|\
+| * 9f8e7d6 feat(PROJ-123): validate card expiry
+| * 3c4d5e6 feat(PROJ-123): implement new payment flow
+|/
+* 0a1b2c3 Previous commit on main
+```
+
+**Step 2 — List the commits belonging to the merge**
+
+Once you have the merge commit hash (e.g. `a1b2c3d`):
+
+```bash
+# List commits introduced by the merge (second-parent range)
+git log <MERGE_COMMIT>^..<MERGE_COMMIT>^2 --oneline
+
+# Concrete example
+git log --oneline a1b2c3d^..a1b2c3d^2
+
+# Output:
+#   9f8e7d6 feat(PROJ-123): validate card expiry
+#   3c4d5e6 feat(PROJ-123): implement new payment flow
+```
+
+> [!NOTE]
+> This second-parent trick only works when the feature was merged with a real **merge commit** (two parents). If `main` uses **squash merge** or **fast-forward/rebase**, there is no second parent and `^2` will fail — in that case cherry-pick the single resulting commit instead.
+
+**Step 3 — Cherry-pick the commits onto a `release/cherry-pick` branch**
+
+Cherry-pick in **chronological order** (oldest commit first):
+
+```bash
+git checkout production
+git pull origin production
+git checkout -b release/cherry-pick-branch
+
+# Cherry-pick each commit individually (oldest first)
+git cherry-pick 3c4d5e6
+git cherry-pick 9f8e7d6
+
+# — OR — cherry-pick the whole range in one command.
+# Note the trailing ^ on the first hash: it includes 3c4d5e6 itself,
+# since the range A..B excludes A.
+git cherry-pick 3c4d5e6^..9f8e7d6
+
+git push origin release/cherry-pick-branch
+```
 
 ## How to Install & Run Project
 ### Folder structure
