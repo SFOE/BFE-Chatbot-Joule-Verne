@@ -17,6 +17,9 @@ class FeedbackRequest(BaseModel):
     tools_used: list[str] | None = None
     s3_key_override: str | None = None
     original_timestamp: str | None = None
+    # When True the chat is marked "Sensible Dokumente": feedback must not be
+    # persisted. Enforced server-side so a tampered client cannot log anyway.
+    sensitive: bool = False
 
 
 class FeedbackResponse(BaseModel):

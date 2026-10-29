@@ -17,7 +17,15 @@ async def submit_feedback(
     body: FeedbackRequest,
     _auth: None = Depends(verify_cognito_auth),
 ):
-    """Save user feedback (thumbs up/down + optional comment) to S3."""
+    """Save user feedback (thumbs up/down + optional comment) to S3.
+
+    When the chat is marked "Sensible Dokumente" (``sensitive``), feedback is
+    never persisted — the write is skipped here so a tampered client cannot log
+    against the user's choice. Returns an empty record in that case.
+    """
+    if body.sensitive:
+        return FeedbackResponse(s3_key=None, timestamp=None)
+
     s3_key, timestamp = save_feedback(
         session_id=body.session_id,
         message_index=body.message_index,

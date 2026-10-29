@@ -21,6 +21,7 @@ export interface ModeConfig {
   customKbIds: string[]
   webSearchEnabled: boolean
   specificKbId: string | null
+  sensitiveDocs?: boolean
 }
 
 export interface ConversationDetail {
