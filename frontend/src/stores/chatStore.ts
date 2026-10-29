@@ -259,6 +259,12 @@ export const useChatStore = defineStore('chat', () => {
       codeInterpreterDocs.value = sessionFiles
         .filter((f) => f.routing === 'ci')
         .map((f) => ({ name: f.name, media_type: f.media_type, file_id: f.file_id }))
+      // Inline text docs: shown so the user sees what was uploaded (and can
+      // remove it). The stored metadata carries no text, so `context` is empty
+      // here — the agent relies on the original bytes in S3, not this preview.
+      textDocs.value = sessionFiles
+        .filter((f) => f.routing === 'inline')
+        .map((f) => ({ name: f.name, page_count: 0, context: '', context_mode: 'full', file_id: f.file_id }))
     } catch {
       indexedDocs.value = []
     }
