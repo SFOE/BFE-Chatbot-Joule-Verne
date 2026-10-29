@@ -40,6 +40,7 @@ async function submitFeedback(newRating: 'positive' | 'negative') {
     retrieved_chunks: (msg.citations || []).map((c) => ({ text: c.text, source: c.source })),
     s3_key_override: msg.feedbackS3Key,
     original_timestamp: msg.feedbackTimestamp,
+    sensitive: store.sensitiveDocs,
   }
 
   try {
@@ -64,6 +65,7 @@ async function submitComment() {
     retrieved_chunks: (msg.citations || []).map((c) => ({ text: c.text, source: c.source })),
     s3_key_override: msg.feedbackS3Key,
     original_timestamp: msg.feedbackTimestamp,
+    sensitive: store.sensitiveDocs,
   }
 
   try {
@@ -77,7 +79,8 @@ async function submitComment() {
 </script>
 
 <template>
-  <div class="feedback-widget">
+  <!-- "Sensible Dokumente": no feedback controls are shown for this chat. -->
+  <div v-if="!store.sensitiveDocs" class="feedback-widget">
     <div class="feedback-buttons">
       <button
         class="feedback-btn"

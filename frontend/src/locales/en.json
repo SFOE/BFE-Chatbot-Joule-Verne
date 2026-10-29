@@ -35,6 +35,8 @@
   "tool_kb_legislation": "Legislation (Fedlex & Curia Vista)",
   "tool_aramis": "ARAMIS research projects",
   "tool_web_search": "Web search",
+  "sensitive_docs_label": "Sensible Dokumente",
+  "sensitive_docs_tip": "No feedback (good/bad or comment) is stored for this chat.",
   "tool_code_interpreter": "Code Interpreter",
   "tool_mcp_i14y": "MCP I14Y",
   "web_search_confirm_title": "Enable web search?",
