@@ -189,6 +189,20 @@ function cancelWebSearch() {
           />
           {{ toolLabel('web_search') }}
         </label>
+        <!-- Sensible Dokumente: per-chat privacy choice. When on, no feedback
+             (thumbs up/down or comment) is logged for this chat. -->
+        <label
+          :class="{ active: store.sensitiveDocs, disabled: store.searchModeLocked }"
+          :title="t('sensitive_docs_tip')"
+        >
+          <input
+            type="checkbox"
+            :checked="store.sensitiveDocs"
+            :disabled="store.searchModeLocked"
+            @change="store.setSensitiveDocs(!store.sensitiveDocs)"
+          />
+          {{ t('sensitive_docs_label') }}
+        </label>
       </div>
     </template>
 

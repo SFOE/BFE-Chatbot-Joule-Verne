@@ -605,7 +605,7 @@ def _process_buffer(
                 elif line.startswith("data:"):
                     line = line[5:]
                 if line:
-                    logger.warning("FALLBACK TEXT LINE: %r", line[:200])
+                    logger.warning("Fallback: unparseable stream line (%d chars)", len(line))
                     evt = TokenEvent(text=line)
                     yield "token", evt.model_dump_json()
                 buffer = stripped[newline_idx + 1:]
@@ -619,7 +619,7 @@ def _process_buffer(
                 elif text.startswith("data:"):
                     text = text[5:]
                 if text:
-                    logger.warning("FALLBACK FINAL TEXT: %r", text[:200])
+                    logger.warning("Fallback: unparseable final stream text (%d chars)", len(text))
                     evt = TokenEvent(text=text)
                     yield "token", evt.model_dump_json()
                 return ""

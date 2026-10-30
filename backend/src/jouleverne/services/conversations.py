@@ -338,31 +338,6 @@ def _delete_s3_prefix(bucket: str, prefix: str) -> None:
         s3_client.delete_objects(Bucket=bucket, Delete={"Objects": objects})
 
 
-def _delete_feedback_for_session(session_id: str) -> None:
-    """Best-effort delete of feedback objects belonging to a session.
-
-    Feedback keys are date-partitioned as
-    ``feedback/<y>/<m>/<d>/<session_id>_<index>.json`` with no session index,
-    so we scan the feedback/ prefix and match on the ``<session_id>_`` filename
-    segment. This is a wide scan, but delete is an infrequent per-user action
-    and feedback is best-effort analytics data.
-    """
-    bucket = settings.CONVERSATIONS_BUCKET
-    needle = f"/{session_id}_"
-    paginator = s3_client.get_paginator("list_objects_v2")
-    to_delete: list[dict] = []
-    for page in paginator.paginate(Bucket=bucket, Prefix="feedback/"):
-        for obj in page.get("Contents", []):
-            key = obj["Key"]
-            if needle in key and key.endswith(".json"):
-                to_delete.append({"Key": key})
-                if len(to_delete) == 1000:
-                    s3_client.delete_objects(Bucket=bucket, Delete={"Objects": to_delete})
-                    to_delete = []
-    if to_delete:
-        s3_client.delete_objects(Bucket=bucket, Delete={"Objects": to_delete})
-
-
 def _ephemeral_prefix() -> str:
     """Base prefix for opt-out (short-lived) agent transcripts.
 
@@ -398,8 +373,14 @@ def delete_conversation(sub: str, session_id: str) -> bool:
     Removes, for the caller's own chat only:
     - the DynamoDB index item,
     - the transcript JSON in S3 (sessions/<sub>/<session_id>.json),
-    - the agent's Strands transcript under sessions/<sub>/session_<session_id>/,
-    - best-effort, the session's feedback objects.
+    - the agent's Strands transcript under sessions/<sub>/session_<session_id>/
+      (this also removes uploaded originals and their embeddings/doc index,
+      which share the same per-session prefix).
+
+    Feedback (thumbs up/down + comments) is intentionally NOT deleted here: it
+    is retained analytics the user explicitly submitted, kept independent of the
+    chat's lifetime (and aged out only by the feedback/ lifecycle rule). RAGAS
+    evaluation reports under evaluations/ are likewise untouched.
 
     Ownership is enforced structurally: we only ever address items/keys under
     the caller's own ``sub``. Returns True when the index item existed and was
@@ -441,13 +422,7 @@ def delete_conversation(sub: str, session_id: str) -> bool:
     except Exception:
         logger.exception("Failed to delete agent transcript prefix during delete")
 
-    # 3) Feedback objects for this session (best-effort).
-    try:
-        _delete_feedback_for_session(session_id)
-    except Exception:
-        logger.exception("Failed to delete feedback objects during delete")
-
-    # 4) Finally the index item, so a failure above still leaves it listable
+    # 3) Finally the index item, so a failure above still leaves it listable
     #    (and thus retryable) rather than orphaning storage silently.
     _table().delete_item(Key={"person_id": sub, "sk": f"{_SK_CONV_PREFIX}{session_id}"})
     return True
