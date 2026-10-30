@@ -32,8 +32,10 @@ Joule Verne is a chatbot that was designed with the aim of answering requests re
 
 ### Features
 
-- **Document upload** — Upload up to 5 documents (PDF, TXT, DOCX, XLSX, CSV, max 10 MB each) to ask questions about them during the session. Large text documents are automatically summarized; large tabular files (XLSX, CSV) are routed to Code Interpreter for analysis.
+- **Document upload** — Upload up to 5 documents (PDF, TXT, DOCX, XLSX, CSV, max 10 MB each) to ask questions about them during the session. Uploaded documents are indexed into a lightweight per-session RAG index for retrieval. Large text documents are automatically summarized; large tabular files (XLSX, CSV) are routed to Code Interpreter for analysis.
 - **Web search mode** — Switch between the internal BFE knowledge base and an external web search agent. The mode is locked once a conversation starts.
+- **Conversation history** — Chats can be saved per user (opt-in) and resumed later. The conversation index is stored in DynamoDB and full transcripts in S3. When persistence is disabled, chats remain ephemeral.
+- **Personal/group knowledge bases** — Additional knowledge bases can be exposed as selectable chat modes, with per-KB upload/delete allowlists by email.
 - **Source display** — The sidebar shows all cited sources: PDF downloads, website links, and Fedlex law references.
 - **Feedback system** — Rate answers with thumbs up/down and leave optional text comments. Feedback is stored in S3 for evaluation.
 - **Reasoning trace** — Expand the "Denkprozess" section to see the agent's reasoning steps, knowledge base lookups, and tool calls.
@@ -253,8 +255,8 @@ git push origin release/cherry-pick-branch
     │   │       ├── app.py              # FastAPI app: middleware, routers, static files
     │   │       ├── config.py           # Pydantic Settings (env vars)
     │   │       ├── models/             # Pydantic request/response models
-    │   │       ├── routes/             # API route handlers (chat, documents, feedback, sources, releases, links)
-    │   │       └── services/           # Business logic (agent, clients, documents, feedback, security)
+    │   │       ├── routes/             # API route handlers (chat, documents, feedback, sources, releases, links, kbs, kb_upload, conversations)
+    │   │       └── services/           # Business logic (agent, clients, conversations, doc_index, documents, error_handler, feedback, security, session_files, usage)
     │   ├── tests/                      # pytest test suite
     │   ├── pyproject.toml              # Python project config (dependencies via uv)
     │   ├── uv.lock                     # Locked dependencies
@@ -315,18 +317,67 @@ docker run -p 8000:8000 --env-file backend/.env jouleverne
 
 The following environment variables are required (set in `.env` locally, or in the ECS task definition for deployment):
 
+**App**
+
 | Variable | Description |
 |----------|-------------|
+| `ENVIRONMENT` | Deployment environment (`DEV` enables debug logging; default `production`) |
+| `RATE_LIMIT` | Request rate limit (default `100/minute`) |
+| `ALLOWED_ORIGINS` | JSON list of allowed CORS origins (default `["http://localhost:5173"]`) |
 | `AWS_REGION` | AWS region (e.g. `eu-central-1`) |
-| `AGENTCORE_RUNTIME_ARN` | ARN of the Bedrock AgentCore runtime |
+
+**AgentCore**
+
+| Variable | Description |
+|----------|-------------|
+| `AGENTCORE_RUNTIME_ARN` | ARN of the Bedrock AgentCore runtime (required) |
 | `AGENTCORE_ENDPOINT_ARN` | ARN of the AgentCore endpoint (optional) |
+
+**S3 buckets (knowledge bases + feedback)**
+
+| Variable | Description |
+|----------|-------------|
 | `PDF_BUCKET` | S3 bucket containing the PDF documents |
 | `EXTRACTED_BUCKET` | S3 bucket with extracted text files |
 | `WEBSITE_BUCKET` | S3 bucket with scraped BFE website content |
 | `FEDLEX_BUCKET` | S3 bucket with Fedlex law texts |
 | `FEEDBACK_BUCKET` | S3 bucket for storing user feedback |
+
+**Auth & knowledge base display**
+
+| Variable | Description |
+|----------|-------------|
 | `ALLOWED_COGNITO_GROUPS` | Comma-separated Cognito group names allowed to access the app (empty = open) |
-| `KB_DISPLAY_NAMES` | Knowledge base display names for the UI (format: `id:DE\|FR\|IT\|EN`) |
+| `KB_DISPLAY_NAMES` | Knowledge base display names for the UI (format: `id:DE\|FR\|IT\|EN`, or `id:Name` for all locales) |
+| `UPLOAD_ALLOWED_EMAILS_BY_KB` | Per-KB upload/delete allowlist by email (format: `kb_id:email1\|email2, kb_id2:email3`; empty = open) |
+
+**Personal/group knowledge bases**
+
+| Variable | Description |
+|----------|-------------|
+| `SPECIFIC_KB_DISPLAY_NAMES` | Specific KBs selectable as a chat mode (format: `id:prefix:DE\|FR\|IT\|EN` or `id:prefix:Name`) |
+| `SPECIFIC_KBS_BUCKET` | S3 bucket holding the original uploaded documents for specific KBs |
+| `SPECIFIC_KBS_EXTRACTED_BUCKET` | S3 bucket holding the processed/extracted content the specific KBs sync from |
+| `UPLOAD_URL_EXPIRATION` | Presigned upload URL expiration in seconds (default `900`) |
+
+**Conversation history (persistent per-user chats)**
+
+| Variable | Description |
+|----------|-------------|
+| `CONVERSATIONS_TABLE` | DynamoDB table for the conversation index + user preferences (empty = persistence disabled) |
+| `CONVERSATIONS_BUCKET` | S3 bucket holding full chat transcript JSON (empty = persistence disabled) |
+| `CONVERSATIONS_PREFIX` | S3 prefix for saved conversation transcripts (default `sessions/`) |
+| `EPHEMERAL_PREFIX` | S3 prefix for opt-out short-lived transcripts (default `ephemeral/`; must match the agent) |
+
+**Uploaded-document RAG (per-session index)**
+
+| Variable | Description |
+|----------|-------------|
+| `EMBEDDING_MODEL_ID` | Bedrock embedding model for indexing uploaded docs (default `amazon.titan-embed-text-v2:0`) |
+| `EMBEDDING_DIMENSIONS` | Embedding vector dimensions (default `1024`) |
+| `DOC_CHUNK_TOKENS` | Approx. chunk size in tokens (default `512`) |
+| `DOC_CHUNK_OVERLAP_TOKENS` | Chunk overlap in tokens (default `60`) |
+| `DOC_SEARCH_TOP_N` | Number of chunks returned per document search (default `5`) |
 
 ## References
 - Gao, Yunfan, et al. "Retrieval-augmented generation for large language models: A survey." arXiv preprint arXiv:2312.10997 2.1 (2023).
