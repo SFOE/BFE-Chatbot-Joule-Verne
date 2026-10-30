@@ -101,7 +101,7 @@
   "help_tool_kb_legislation_desc": "Durchsucht die Gesetzgebung {fedlex} sowie {parlament}. Geeignet für Fragen zu Gesetzen, Verordnungen, Pflichten, Zuständigkeiten, Förderbedingungen und parlamentarischen Geschäften.",
   "help_tool_aramis_desc": "Findet BFE-Forschungsprojekte über {aramis} und liefert Projektdaten wie Beteiligte, Kosten, Dauer, Status und Publikationslinks.",
   "help_tool_web_search_desc": "Durchsucht das Internet. Geeignet für aktuelle oder externe Informationen ausserhalb der BFE-Quellen. Anfragen können an externe Dienste gesendet werden.",
-  "help_tool_sensitive_docs": "Sensitive Dokumente",
+  "help_tool_sensitive_docs": "Sensible Dokumente",
   "help_tool_sensitive_docs_desc": "Mit dieser Funktion wird kein Feedback gespeichert und die Daten nicht zu Verbesserung des Chatbots verwendet.",
   "help_tool_code_interpreter_desc": "Führt Code aus und rechnet. Geeignet für Berechnungen, Datenanalysen und die Auswertung hochgeladener Dateien.",
   "help_tool_mcp_i14y_desc": "Greift auf die Interoperabilitätsplattform I14Y des Bundes zu. Geeignet für Fragen zu Datenkatalogen und standardisierten Datenbeschreibungen.",
