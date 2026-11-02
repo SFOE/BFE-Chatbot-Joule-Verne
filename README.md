@@ -16,6 +16,7 @@
    - [Request Flow](#request-flow)
    - [Security Groups](#security-groups)
    - [CI/CD Pipeline](#cicd-pipeline)
+   - [Release Protocol (Blocked Pipeline)](#release-protocol-if-merge-main--production-is-blocked)
 4. [How to Install & Run Project](#how-to-install--run-project)
    - [Folder Structure](#folder-structure)
    - [Environment & Local Run](#environment--local-run)
@@ -31,8 +32,10 @@ Joule Verne is a chatbot that was designed with the aim of answering requests re
 
 ### Features
 
-- **Document upload** — Upload up to 5 documents (PDF, TXT, DOCX, XLSX, CSV, max 10 MB each) to ask questions about them during the session. Large text documents are automatically summarized; large tabular files (XLSX, CSV) are routed to Code Interpreter for analysis.
+- **Document upload** — Upload up to 5 documents (PDF, TXT, DOCX, XLSX, CSV, max 10 MB each) to ask questions about them during the session. Uploaded documents are indexed into a lightweight per-session RAG index for retrieval. Large text documents are automatically summarized; large tabular files (XLSX, CSV) are routed to Code Interpreter for analysis.
 - **Web search mode** — Switch between the internal BFE knowledge base and an external web search agent. The mode is locked once a conversation starts.
+- **Conversation history** — Chats can be saved per user (opt-in) and resumed later. The conversation index is stored in DynamoDB and full transcripts in S3. When persistence is disabled, chats remain ephemeral.
+- **Personal/group knowledge bases** — Additional knowledge bases can be exposed as selectable chat modes, with per-KB upload/delete allowlists by email.
 - **Source display** — The sidebar shows all cited sources: PDF downloads, website links, and Fedlex law references.
 - **Feedback system** — Rate answers with thumbs up/down and leave optional text comments. Feedback is stored in S3 for evaluation.
 - **Reasoning trace** — Expand the "Denkprozess" section to see the agent's reasoning steps, knowledge base lookups, and tool calls.
@@ -169,6 +172,73 @@ The Docker build uses a multi-stage Dockerfile:
 1. **Frontend build** — Node 22 Alpine builds the Vue app with Vite
 2. **Backend + runtime** — Python 3.14 Alpine (via `uv`) installs dependencies, copies backend source, frontend static files, and fetches release notes at build time
 
+### Release Protocol if merge main → production is blocked
+
+#### Cherry-Picking from main
+
+Use this strategy when the feature branch was already created from `main` and needs to reach `production` before the blocked pipeline is unblocked.
+
+Instead of merging the whole branch into `production` — which would pull in unrelated `main` commits — only the commits that belong to the feature are cherry-picked onto `production`.
+
+**Step 1 — Identify the merge commit on `main`**
+
+After the feature is merged into `main`, find the merge commit hash.
+
+```bash
+git log --oneline --graph --decorate -30
+```
+
+Example output:
+
+```
+*   a1b2c3d (HEAD -> main) Merge feature/PROJ-123-payment into main
+|\
+| * 9f8e7d6 feat(PROJ-123): validate card expiry
+| * 3c4d5e6 feat(PROJ-123): implement new payment flow
+|/
+* 0a1b2c3 Previous commit on main
+```
+
+**Step 2 — List the commits belonging to the merge**
+
+Once you have the merge commit hash (e.g. `a1b2c3d`):
+
+```bash
+# List commits introduced by the merge (second-parent range)
+git log <MERGE_COMMIT>^..<MERGE_COMMIT>^2 --oneline
+
+# Concrete example
+git log --oneline a1b2c3d^..a1b2c3d^2
+
+# Output:
+#   9f8e7d6 feat(PROJ-123): validate card expiry
+#   3c4d5e6 feat(PROJ-123): implement new payment flow
+```
+
+> [!NOTE]
+> This second-parent trick only works when the feature was merged with a real **merge commit** (two parents). If `main` uses **squash merge** or **fast-forward/rebase**, there is no second parent and `^2` will fail — in that case cherry-pick the single resulting commit instead.
+
+**Step 3 — Cherry-pick the commits onto a `release/cherry-pick` branch**
+
+Cherry-pick in **chronological order** (oldest commit first):
+
+```bash
+git checkout production
+git pull origin production
+git checkout -b release/cherry-pick-branch
+
+# Cherry-pick each commit individually (oldest first)
+git cherry-pick 3c4d5e6
+git cherry-pick 9f8e7d6
+
+# — OR — cherry-pick the whole range in one command.
+# Note the trailing ^ on the first hash: it includes 3c4d5e6 itself,
+# since the range A..B excludes A.
+git cherry-pick 3c4d5e6^..9f8e7d6
+
+git push origin release/cherry-pick-branch
+```
+
 ## How to Install & Run Project
 ### Folder structure
 ```
@@ -185,8 +255,8 @@ The Docker build uses a multi-stage Dockerfile:
     │   │       ├── app.py              # FastAPI app: middleware, routers, static files
     │   │       ├── config.py           # Pydantic Settings (env vars)
     │   │       ├── models/             # Pydantic request/response models
-    │   │       ├── routes/             # API route handlers (chat, documents, feedback, sources, releases, links)
-    │   │       └── services/           # Business logic (agent, clients, documents, feedback, security)
+    │   │       ├── routes/             # API route handlers (chat, documents, feedback, sources, releases, links, kbs, kb_upload, conversations)
+    │   │       └── services/           # Business logic (agent, clients, conversations, doc_index, documents, error_handler, feedback, security, session_files, usage)
     │   ├── tests/                      # pytest test suite
     │   ├── pyproject.toml              # Python project config (dependencies via uv)
     │   ├── uv.lock                     # Locked dependencies
@@ -247,18 +317,67 @@ docker run -p 8000:8000 --env-file backend/.env jouleverne
 
 The following environment variables are required (set in `.env` locally, or in the ECS task definition for deployment):
 
+**App**
+
 | Variable | Description |
 |----------|-------------|
+| `ENVIRONMENT` | Deployment environment (`DEV` enables debug logging; default `production`) |
+| `RATE_LIMIT` | Request rate limit (default `100/minute`) |
+| `ALLOWED_ORIGINS` | JSON list of allowed CORS origins (default `["http://localhost:5173"]`) |
 | `AWS_REGION` | AWS region (e.g. `eu-central-1`) |
-| `AGENTCORE_RUNTIME_ARN` | ARN of the Bedrock AgentCore runtime |
+
+**AgentCore**
+
+| Variable | Description |
+|----------|-------------|
+| `AGENTCORE_RUNTIME_ARN` | ARN of the Bedrock AgentCore runtime (required) |
 | `AGENTCORE_ENDPOINT_ARN` | ARN of the AgentCore endpoint (optional) |
+
+**S3 buckets (knowledge bases + feedback)**
+
+| Variable | Description |
+|----------|-------------|
 | `PDF_BUCKET` | S3 bucket containing the PDF documents |
 | `EXTRACTED_BUCKET` | S3 bucket with extracted text files |
 | `WEBSITE_BUCKET` | S3 bucket with scraped BFE website content |
 | `FEDLEX_BUCKET` | S3 bucket with Fedlex law texts |
 | `FEEDBACK_BUCKET` | S3 bucket for storing user feedback |
+
+**Auth & knowledge base display**
+
+| Variable | Description |
+|----------|-------------|
 | `ALLOWED_COGNITO_GROUPS` | Comma-separated Cognito group names allowed to access the app (empty = open) |
-| `KB_DISPLAY_NAMES` | Knowledge base display names for the UI (format: `id:DE\|FR\|IT\|EN`) |
+| `KB_DISPLAY_NAMES` | Knowledge base display names for the UI (format: `id:DE\|FR\|IT\|EN`, or `id:Name` for all locales) |
+| `UPLOAD_ALLOWED_EMAILS_BY_KB` | Per-KB upload/delete allowlist by email (format: `kb_id:email1\|email2, kb_id2:email3`; empty = open) |
+
+**Personal/group knowledge bases**
+
+| Variable | Description |
+|----------|-------------|
+| `SPECIFIC_KB_DISPLAY_NAMES` | Specific KBs selectable as a chat mode (format: `id:prefix:DE\|FR\|IT\|EN` or `id:prefix:Name`) |
+| `SPECIFIC_KBS_BUCKET` | S3 bucket holding the original uploaded documents for specific KBs |
+| `SPECIFIC_KBS_EXTRACTED_BUCKET` | S3 bucket holding the processed/extracted content the specific KBs sync from |
+| `UPLOAD_URL_EXPIRATION` | Presigned upload URL expiration in seconds (default `900`) |
+
+**Conversation history (persistent per-user chats)**
+
+| Variable | Description |
+|----------|-------------|
+| `CONVERSATIONS_TABLE` | DynamoDB table for the conversation index + user preferences (empty = persistence disabled) |
+| `CONVERSATIONS_BUCKET` | S3 bucket holding full chat transcript JSON (empty = persistence disabled) |
+| `CONVERSATIONS_PREFIX` | S3 prefix for saved conversation transcripts (default `sessions/`) |
+| `EPHEMERAL_PREFIX` | S3 prefix for opt-out short-lived transcripts (default `ephemeral/`; must match the agent) |
+
+**Uploaded-document RAG (per-session index)**
+
+| Variable | Description |
+|----------|-------------|
+| `EMBEDDING_MODEL_ID` | Bedrock embedding model for indexing uploaded docs (default `amazon.titan-embed-text-v2:0`) |
+| `EMBEDDING_DIMENSIONS` | Embedding vector dimensions (default `1024`) |
+| `DOC_CHUNK_TOKENS` | Approx. chunk size in tokens (default `512`) |
+| `DOC_CHUNK_OVERLAP_TOKENS` | Chunk overlap in tokens (default `60`) |
+| `DOC_SEARCH_TOP_N` | Number of chunks returned per document search (default `5`) |
 
 ## References
 - Gao, Yunfan, et al. "Retrieval-augmented generation for large language models: A survey." arXiv preprint arXiv:2312.10997 2.1 (2023).
