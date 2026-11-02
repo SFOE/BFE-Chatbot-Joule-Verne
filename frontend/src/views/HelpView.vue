@@ -5,8 +5,9 @@ const { t } = useI18n()
 
 // Search modes shown in the "How the assistant searches" section.
 const searchModes = [
-  { key: 'help_mode_kb_title', body: 'help_mode_kb_body' },
-  { key: 'help_mode_custom_title', body: 'help_mode_custom_body' },
+  { key: 'search_mode_kb', body: 'help_mode_kb_body' },
+  { key: 'search_mode_web', body: 'help_mode_web_body' },
+  { key: 'search_mode_specific_label', body: 'help_mode_custom_body' },
 ] as const
 
 // URLs for the external sources referenced in the tool descriptions. The
