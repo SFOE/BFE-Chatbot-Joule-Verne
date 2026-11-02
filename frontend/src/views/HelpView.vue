@@ -79,12 +79,6 @@ const sourceUrls = {
             </template>
           </i18n-t>
         </li>
-        <li>
-          <strong>{{ t('tool_web_search') }}</strong>{{ ': ' }}{{ t('help_tool_web_search_desc') }}
-        </li>
-        <li>
-          <strong>{{ t('help_tool_sensitive_docs') }}</strong>{{ ': ' }}{{ t('help_tool_sensitive_docs_desc') }}
-        </li>
       </ul>
       <p class="help-tools-intro">{{ t('help_specific_kbs_intro') }}</p>
       <ul class="help-tools">
@@ -115,6 +109,15 @@ const sourceUrls = {
         </li>
         <li>
           <strong>{{ t('help_kb_service_point') }}</strong>{{ ': ' }}{{ t('help_kb_service_point_desc') }}
+        </li>
+      </ul>
+            <p class="help-tools-intro">{{ t('help_other_intro') }}</p>
+      <ul class="help-tools">
+        <li>
+          <strong>{{ t('tool_web_search') }}</strong>{{ ': ' }}{{ t('help_tool_web_search_desc') }}
+        </li>
+        <li>
+          <strong>{{ t('help_tool_sensitive_docs') }}</strong>{{ ': ' }}{{ t('help_tool_sensitive_docs_desc') }}
         </li>
       </ul>
     </section>
