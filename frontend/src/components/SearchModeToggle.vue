@@ -30,6 +30,38 @@ function toolLabel(tool: string): string {
   return t(`tool_${tool}`)
 }
 
+// Plain-text link labels used to fill placeholders in tool/KB descriptions
+// (e.g. {bfe}, {fedlex}, {gebaeudeprogramm}), so tooltips read cleanly.
+const DESC_PLACEHOLDERS: Record<string, string> = {
+  bfe: 'help_source_bfe',
+  energieschweiz: 'help_source_energieschweiz',
+  medienmitteilungen: 'help_source_medienmitteilungen',
+  fedlex: 'help_source_fedlex',
+  parlament: 'help_source_parlament',
+  aramis: 'help_source_aramis',
+  gebaeudeprogramm: 'help_source_gebaeudeprogramm',
+  i14y: 'help_source_i14y',
+}
+
+function resolvePlaceholders(): Record<string, string> {
+  const named: Record<string, string> = {}
+  for (const [name, key] of Object.entries(DESC_PLACEHOLDERS)) {
+    named[name] = t(key)
+  }
+  return named
+}
+
+// vue-i18n returns the key itself when a translation is missing.
+function describe(key: string): string {
+  const text = t(key, resolvePlaceholders())
+  return text === key ? '' : text
+}
+
+// Tooltip description for a general tool, keyed on help_tool_<tool>_desc.
+function toolDescription(tool: string): string {
+  return describe(`help_tool_${tool}_desc`)
+}
+
 onMounted(async () => {
   try {
     const response = await fetch('/v1/kbs/specific')
@@ -44,6 +76,12 @@ onMounted(async () => {
 function kbName(kb: SpecificKb): string {
   const loc = locale.value as keyof SpecificKb['names']
   return kb.names[loc] || kb.names.de || kb.id
+}
+
+// Tooltip description for a specific KB, keyed on help_kb_<id>_desc.
+// Returns an empty string when no description exists for the KB id.
+function kbDescription(kb: SpecificKb): string {
+  return describe(`help_kb_${kb.id}_desc`)
 }
 
 const isKbMode = computed(
@@ -125,7 +163,10 @@ function cancelWebSearch() {
 <template>
   <div class="search-mode-toggle">
     <div class="toggle-options">
-      <label :class="{ active: isKbMode, disabled: store.searchModeLocked }">
+      <label
+        :title="t('help_mode_kb_body')"
+        :class="{ active: isKbMode, disabled: store.searchModeLocked }"
+      >
         <input
           type="radio"
           name="searchMode"
@@ -135,7 +176,10 @@ function cancelWebSearch() {
         />
         {{ t('search_mode_kb') }}
       </label>
-      <label :class="{ active: isWebMode, disabled: store.searchModeLocked }">
+      <label
+        :title="t('help_mode_web_body')"
+        :class="{ active: isWebMode, disabled: store.searchModeLocked }"
+      >
         <input
           type="radio"
           name="searchMode"
@@ -145,7 +189,10 @@ function cancelWebSearch() {
         />
         {{ t('search_mode_web') }}
       </label>
-      <label :class="{ active: store.customMode, disabled: store.searchModeLocked }">
+      <label
+        :title="t('help_mode_custom_body')"
+        :class="{ active: store.customMode, disabled: store.searchModeLocked }"
+      >
         <input
           type="radio"
           name="searchMode"
@@ -163,6 +210,7 @@ function cancelWebSearch() {
         <label
           v-for="tool in CUSTOM_TOOLS"
           :key="tool"
+          :title="toolDescription(tool)"
           :class="{ active: store.customTools.has(tool), disabled: store.searchModeLocked }"
         >
           <input
@@ -181,6 +229,7 @@ function cancelWebSearch() {
         <label
           v-for="kb in specificKbs"
           :key="kb.id"
+          :title="kbDescription(kb)"
           :class="{ active: store.customKbIds.has(kb.id), disabled: store.searchModeLocked }"
         >
           <input
@@ -195,6 +244,7 @@ function cancelWebSearch() {
 
         <!-- Web search lives at the very end of the specific KB section -->
         <label
+          :title="toolDescription('web_search')"
           :class="{ active: store.customTools.has('web_search'), disabled: store.searchModeLocked }"
         >
           <input
