@@ -70,7 +70,22 @@ function selectWebMode() {
 
 function selectCustomMode() {
   if (store.searchModeLocked) return
+
   store.enableCustomMode()
+
+  // Standardmässig vorausgewählte Wissensmöglichkeiten
+  const defaultTools = [
+    'kb_documents',
+    'kb_website',
+    'kb_legislation',
+    'aramis',
+  ]
+
+  defaultTools.forEach((tool) => {
+    if (!store.customTools.has(tool)) {
+      store.toggleCustomTool(tool)
+    }
+  })
 }
 
 function toggleTool(tool: string) {
@@ -109,7 +124,6 @@ function cancelWebSearch() {
 
 <template>
   <div class="search-mode-toggle">
-    <span class="toggle-label">{{ t('search_mode_label') }}</span>
     <div class="toggle-options">
       <label :class="{ active: isKbMode, disabled: store.searchModeLocked }">
         <input
@@ -177,6 +191,8 @@ function cancelWebSearch() {
           />
           {{ kbName(kb) }}
         </label>
+      <span class="toggle-label toggle-label--sub">{{ t('search_mode_other') }}</span>
+
         <!-- Web search lives at the very end of the specific KB section -->
         <label
           :class="{ active: store.customTools.has('web_search'), disabled: store.searchModeLocked }"
