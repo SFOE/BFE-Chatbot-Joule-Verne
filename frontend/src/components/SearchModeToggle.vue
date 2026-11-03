@@ -5,6 +5,9 @@ import { useChatStore } from '@/stores/chatStore'
 
 interface SpecificKb {
   id: string
+  // Stable config slug (e.g. "gebaeudeprogramm", "interne-weisungen"); used to
+  // resolve per-KB help texts. The id is the dynamic Bedrock KB id.
+  slug?: string
   names: { de: string; fr: string; it: string; en: string }
 }
 
@@ -78,10 +81,18 @@ function kbName(kb: SpecificKb): string {
   return kb.names[loc] || kb.names.de || kb.id
 }
 
-// Tooltip description for a specific KB, keyed on help_kb_<id>_desc.
-// Returns an empty string when no description exists for the KB id.
+// Tooltip description for a specific KB, keyed on help_kb_<slug>_desc. The
+// backend sends a stable `slug` (the configured prefix, e.g. "interne-weisungen");
+// the `id` is a dynamic Bedrock KB id and must not be used for the lookup.
+// Separators are normalised to underscores to match the locale key style.
+// Returns an empty string when no description exists for the KB.
 function kbDescription(kb: SpecificKb): string {
-  return describe(`help_kb_${kb.id}_desc`)
+  if (!kb.slug) return ''
+  const slug = kb.slug
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+  return describe(`help_kb_${slug}_desc`)
 }
 
 const isKbMode = computed(
