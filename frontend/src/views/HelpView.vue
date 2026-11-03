@@ -106,7 +106,7 @@ const sourceUrls = {
           </i18n-t>
         </li>
         <li>
-          <strong>{{ t('help_kb_energieeffizienter_verkehr') }}</strong>{{ ': ' }}{{ t('help_kb_energieeffizienter_verkehr_desc') }}
+          <strong>{{ t('help_kb_ee_verkehr') }}</strong>{{ ': ' }}{{ t('help_kb_ee_verkehr_desc') }}
         </li>
         <li>
           <strong>{{ t('help_kb_service_point') }}</strong>{{ ': ' }}{{ t('help_kb_service_point_desc') }}
