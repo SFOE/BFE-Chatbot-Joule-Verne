@@ -159,9 +159,14 @@ export function useChat() {
         }
       }
 
-      // Auto-save interaction to S3 (with rating=null) so all interactions are logged
+      // Auto-save interaction to S3 (with rating=null) so all interactions are
+      // logged — unless the chat is marked "Sensible Dokumente", in which case
+      // nothing is logged for this interaction.
       const msgIndex = store.messages.length - 1
-      if (fullText) {
+      // Auto-save the interaction (rating=null) so all interactions are logged.
+      // Skipped entirely when the chat is "Sensible Dokumente" — nothing is sent
+      // or stored for this interaction.
+      if (fullText && !store.sensitiveDocs) {
         try {
           const payload: FeedbackPayload = {
             session_id: store.sessionId,
@@ -192,8 +197,11 @@ export function useChat() {
         } catch {
           // Silent fail — auto-save is best-effort
         }
+      }
 
-        // Persist the conversation for later continuation (opt-in, best-effort).
+      // Persist the conversation for later continuation (opt-in, best-effort).
+      // Independent of the feedback auto-save above.
+      if (fullText) {
         await store.persistConversation()
       }
     } catch (error) {

@@ -31,6 +31,12 @@ export const useChatStore = defineStore('chat', () => {
   // Specific Knowledge Base IDs selected in custom mode (validated agent-side).
   const customKbIds = ref<Set<string>>(new Set())
 
+  // "Sensible Dokumente": a per-chat privacy choice. When on, no feedback
+  // (thumbs up/down or comment) is logged for this chat — the UI hides the
+  // feedback controls and the backend refuses any feedback write. Persisted
+  // with the chat's mode config so it is restored on continuation.
+  const sensitiveDocs = ref(false)
+
   // Document upload state
   const textDocs = ref<TextDoc[]>([])
   const codeInterpreterDocs = ref<CodeInterpreterDoc[]>([])
@@ -111,6 +117,7 @@ export const useChatStore = defineStore('chat', () => {
     customMode.value = false
     customTools.value = new Set()
     customKbIds.value = new Set()
+    sensitiveDocs.value = false
     searchModeLocked.value = false
     textDocs.value = []
     codeInterpreterDocs.value = []
@@ -189,6 +196,12 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
+  /** Toggle the per-chat "Sensible Dokumente" (no-feedback) choice. */
+  function setSensitiveDocs(enabled: boolean) {
+    if (searchModeLocked.value) return
+    sensitiveDocs.value = enabled
+  }
+
   /** Snapshot the current tool/mode selection for persistence. */
   function currentModeConfig(): ModeConfig {
     return {
@@ -197,6 +210,7 @@ export const useChatStore = defineStore('chat', () => {
       customKbIds: Array.from(customKbIds.value),
       webSearchEnabled: webSearchEnabled.value,
       specificKbId: specificKbId.value,
+      sensitiveDocs: sensitiveDocs.value,
     }
   }
 
@@ -208,6 +222,7 @@ export const useChatStore = defineStore('chat', () => {
     customKbIds.value = new Set(config.customKbIds)
     webSearchEnabled.value = config.webSearchEnabled
     specificKbId.value = config.specificKbId
+    sensitiveDocs.value = config.sensitiveDocs ?? false
   }
 
   /**
@@ -259,6 +274,12 @@ export const useChatStore = defineStore('chat', () => {
       codeInterpreterDocs.value = sessionFiles
         .filter((f) => f.routing === 'ci')
         .map((f) => ({ name: f.name, media_type: f.media_type, file_id: f.file_id }))
+      // Inline text docs: shown so the user sees what was uploaded (and can
+      // remove it). The stored metadata carries no text, so `context` is empty
+      // here — the agent relies on the original bytes in S3, not this preview.
+      textDocs.value = sessionFiles
+        .filter((f) => f.routing === 'inline')
+        .map((f) => ({ name: f.name, page_count: 0, context: '', context_mode: 'full', file_id: f.file_id }))
     } catch {
       indexedDocs.value = []
     }
@@ -274,6 +295,7 @@ export const useChatStore = defineStore('chat', () => {
     customMode,
     customTools,
     customKbIds,
+    sensitiveDocs,
     webSearchActive,
     uploadAllowed,
     searchModeLocked,
@@ -299,5 +321,6 @@ export const useChatStore = defineStore('chat', () => {
     disableCustomMode,
     toggleCustomTool,
     toggleCustomKb,
+    setSensitiveDocs,
   }
 })

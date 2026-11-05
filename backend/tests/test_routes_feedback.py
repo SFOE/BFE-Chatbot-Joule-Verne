@@ -82,3 +82,28 @@ async def test_feedback_with_override_key(client):
     _, kwargs = mock_save.call_args
     assert kwargs["s3_key_override"] == "override/key.json"
     assert kwargs["original_timestamp"] == "2026-07-16T09:00:00+00:00"
+
+
+@pytest.mark.asyncio
+async def test_feedback_sensitive_is_not_persisted(client):
+    """A chat marked "Sensible Dokumente" must not persist feedback."""
+    with patch("jouleverne.routes.feedback.save_feedback") as mock_save:
+        response = await client.post(
+            "/v1/feedback",
+            json={
+                "session_id": "s1",
+                "message_index": 0,
+                "rating": "positive",
+                "user_query": "Q",
+                "agent_response": "A",
+                "agent_variant": "default",
+                "sensitive": True,
+            },
+        )
+
+    # Write skipped server-side, regardless of what the client sent.
+    mock_save.assert_not_called()
+    assert response.status_code == 200
+    data = response.json()
+    assert data["s3_key"] is None
+    assert data["timestamp"] is None

@@ -63,6 +63,7 @@ export interface FeedbackPayload {
   tools_used?: string[]
   s3_key_override?: string | null
   original_timestamp?: string | null
+  sensitive?: boolean
 }
 
 export interface SourceMetadata {

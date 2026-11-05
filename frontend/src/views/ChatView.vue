@@ -58,7 +58,7 @@ onMounted(async () => {
     </aside>
 
     <section class="chat-main">
-      <p class="disclaimer">{{ t('disclaimer') }}</p>
+      <p v-if="!store.sensitiveDocs" class="disclaimer">{{ t('disclaimer') }}</p>
       <ChatWindow />
       <ChatInput />
     </section>
