@@ -401,3 +401,94 @@ async def test_delete_session_file_tries_ephemeral_then_404(client):
 async def test_delete_session_file_without_identity(client):
     response = await client.delete("/v1/documents/f1", params={"session_id": "s1"})
     assert response.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Hard-fail behavior: a large text document that cannot be indexed is reported
+# as a per-document error, never silently summarized or truncated.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_upload_large_doc_without_indexing_is_rejected(client):
+    """No identity/persistence => a large text doc is a per-document error.
+
+    The real process_multiple_documents runs (not mocked) with can_index False,
+    so a document over the inline threshold raises
+    DocumentIndexingUnavailableError, which must surface as an error instead of
+    a summarized/truncated inline doc.
+    """
+    # Over SESSION_ATTR_MAX_CHARS (24_000) of clean prose so extraction passes
+    # the text-quality check and the doc is classified as too large to inline.
+    big_text = ("Energie und Nachhaltigkeit. " * 2000).encode("utf-8")
+
+    # No OIDC header and persistence not configured => indexing disabled.
+    with patch("jouleverne.routes.documents.convo.is_persistence_configured", return_value=False):
+        response = await client.post(
+            "/v1/documents/upload",
+            files=[("files", ("big.txt", big_text, "text/plain"))],
+            data={"session_id": "s1"},
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+    # Rejected: not inlined, not indexed, surfaced as an error.
+    assert data["text_docs"] == []
+    assert data["indexed_docs"] == []
+    assert len(data["errors"]) == 1
+    assert data["errors"][0]["name"] == "big.txt"
+    assert "indexing" in data["errors"][0]["error"].lower()
+
+
+@pytest.mark.asyncio
+async def test_upload_index_build_failure_is_rejected(client):
+    """When build_index raises, the doc is a per-document error (no fallback)."""
+    import base64
+    import json as _json
+
+    processed = {
+        "text_docs": [
+            {
+                "name": "big.pdf",
+                "full_text": "irrelevant; indexing path is exercised",
+                "page_count": 50,
+                "context": "",
+                "context_mode": "summary",  # flagged for indexing
+            }
+        ],
+        "code_interpreter_docs": [],
+        "errors": [],
+    }
+
+    def _oidc_header(sub: str) -> dict:
+        header = base64.urlsafe_b64encode(b'{"alg":"RS256"}').rstrip(b"=").decode()
+        payload = base64.urlsafe_b64encode(_json.dumps({"sub": sub}).encode()).rstrip(b"=").decode()
+        return {"x-amzn-oidc-data": f"{header}.{payload}.sig"}
+
+    def _fake_store(**kwargs):
+        return {"file_id": "f-" + kwargs["filename"], "name": kwargs["filename"]}
+
+    with patch("jouleverne.routes.documents.process_multiple_documents", return_value=processed), \
+         patch("jouleverne.routes.documents.convo.is_persistence_configured", return_value=True), \
+         patch("jouleverne.routes.documents.convo.get_save_enabled", return_value=True), \
+         patch("jouleverne.routes.documents.doc_index.session_prefix", return_value="sessions/u1/s1/"), \
+         patch("jouleverne.routes.documents.session_files.count_files", return_value=0), \
+         patch("jouleverne.routes.documents.session_files.store_file", side_effect=_fake_store), \
+         patch(
+             "jouleverne.routes.documents.doc_index.build_index",
+             side_effect=RuntimeError("bedrock throttled"),
+         ):
+        response = await client.post(
+            "/v1/documents/upload",
+            files=[("files", ("big.pdf", b"fake large pdf", "application/pdf"))],
+            data={"session_id": "s1"},
+            headers=_oidc_header("u1"),
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+    # Index build failed => not inlined, not indexed, reported as an error.
+    assert data["text_docs"] == []
+    assert data["indexed_docs"] == []
+    assert len(data["errors"]) == 1
+    assert data["errors"][0]["name"] == "big.pdf"

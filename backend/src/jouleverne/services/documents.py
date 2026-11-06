@@ -1,27 +1,39 @@
-"""Document processing — text extraction, summarization, and chunking.
+"""Document processing — text extraction and chunking.
 
 Ported from the Streamlit app's src/document_processing.py.
 Supports multiple documents with a hybrid strategy:
 - Large tabular files (XLSX, CSV) → flagged for Code Interpreter
-- Text documents (PDF, TXT, DOCX) → full text or summary via session attributes
+- Small text documents (PDF, TXT, DOCX) → full text inlined into the prompt
+- Large text documents (PDF, TXT, DOCX) → indexed server-side (RAG)
+
+A large text document that cannot be indexed is a hard error (see
+``DocumentIndexingUnavailableError``): we never silently summarize or truncate
+it, because that drops content the user expects the assistant to have.
 """
 
 import csv
 import io
-import json
 import logging
 import re
 import zipfile
-from typing import Optional
 
-import boto3
 from pypdf import PdfReader
 from docx import Document as DocxDocument
 from openpyxl import load_workbook
 
-from ..config import settings
-
 logger = logging.getLogger(__name__)
+
+
+class DocumentIndexingUnavailableError(Exception):
+    """Raised when a large text document cannot be indexed server-side.
+
+    A large document only has a proper home in the per-session vector index. If
+    indexing is unavailable — because the request has no user/session/persistence
+    (indexing mode off) or because building the index failed at runtime — we do
+    NOT fall back to summarizing or truncating the text, since that silently
+    loses content. Instead we raise this so the upload surfaces a clear,
+    user-facing error for that document.
+    """
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -314,47 +326,6 @@ def _text_quality_ok(text: str, min_alpha_ratio: float = 0.3, min_length: int = 
 
 
 # ---------------------------------------------------------------------------
-# Summarization
-# ---------------------------------------------------------------------------
-
-def summarize_document(text: str) -> str:
-    """Summarize a large document using Bedrock Claude Haiku."""
-    bedrock_runtime = boto3.client("bedrock-runtime", region_name=settings.AWS_REGION)
-
-    max_input_chars = 200_000
-    truncated = text[:max_input_chars]
-    if len(text) > max_input_chars:
-        truncated += "\n\n[... document truncated for summarization ...]"
-
-    prompt = (
-        "Summarize the following document comprehensively, preserving key facts, "
-        "figures, dates, names, and structural sections. The summary should be "
-        "detailed enough to answer most questions about the document's content.\n\n"
-        f"DOCUMENT:\n{truncated}"
-    )
-
-    body = json.dumps({
-        "anthropic_version": "bedrock-2023-05-31",
-        "max_tokens": 4096,
-        "messages": [{"role": "user", "content": prompt}],
-    })
-
-    try:
-        response = bedrock_runtime.invoke_model(
-            modelId="anthropic.claude-3-haiku-20240307-v1:0",
-            contentType="application/json",
-            accept="application/json",
-            body=body,
-        )
-        result = json.loads(response["body"].read())
-        return result["content"][0]["text"]
-    except Exception as e:
-        logger.error("Summarization failed: %s", e)
-        fallback_len = SESSION_ATTR_MAX_CHARS - 500
-        return text[:fallback_len] + "\n\n[... truncated, summarization unavailable ...]"
-
-
-# ---------------------------------------------------------------------------
 # Context Preparation
 # ---------------------------------------------------------------------------
 
@@ -397,7 +368,6 @@ def estimate_prompt_size(
 def prepare_document_context(
     extracted_text: str,
     file_ext: str = "",
-    summarize_large: bool = True,
     current_prompt_size: int = 0,
     can_index: bool = False,
 ) -> tuple[str, str]:
@@ -407,18 +377,19 @@ def prepare_document_context(
 
     - ``"full"``        — the whole extracted text is inlined.
     - ``"code_interpreter"`` — a large tabular file handled by Code Interpreter.
-    - ``"summary"``     — the document is NOT inlined. Its content lives in the
-      per-session index (when ``can_index`` is True) or, as a fallback when no
-      index is available, in a generated summary.
+    - ``"summary"``     — the document is NOT inlined; its content lives in the
+      per-session index. Only ever returned when ``can_index`` is True.
 
-    A document is pushed to ``"summary"`` when it is individually larger than
-    ``SESSION_ATTR_MAX_CHARS`` OR when inlining it would push the running prompt
-    past ``PROMPT_CHAR_BUDGET``.
+    A document is pushed to ``"summary"`` (indexed) when it is individually
+    larger than ``SESSION_ATTR_MAX_CHARS`` OR when inlining it would push the
+    running prompt past ``PROMPT_CHAR_BUDGET``.
 
-    The critical invariant: an empty ``context`` is only ever returned when the
-    caller can actually index the document (``can_index``). When no index is
-    available we never drop content — we either keep it inline or fall back to a
-    generated summary — so the agent always has something to work with.
+    Hard-fail invariant: a large text document is ONLY ever handled by indexing.
+    If it cannot be inlined and ``can_index`` is False, this raises
+    ``DocumentIndexingUnavailableError`` rather than summarizing or truncating —
+    both of which would silently drop content the user expects available. This
+    covers both sub-cases: the document is large on its own, or it only
+    overflows because the running prompt is already near budget.
     """
     is_tabular = file_ext in ("xlsx", "csv")
 
@@ -436,18 +407,16 @@ def prepare_document_context(
     if fits_inline_size and fits_budget:
         return extracted_text, "full"
 
-    # The document will not be inlined. Decide where its content actually lives.
-    if can_index:
-        # The caller indexes "summary" docs with empty context; content is safe
-        # in the per-session index.
-        return "", "summary"
-    if summarize_large:
-        # No index available — never drop the content. Summarize so the agent
-        # still gets a condensed version inline.
-        return summarize_document(extracted_text), "summary"
-    # No index and summarization disabled: inlining the full text is the only
-    # way to preserve the content, so keep it inline despite the budget.
-    return extracted_text, "full"
+    # The document is too large to inline and must be indexed. When indexing is
+    # unavailable we refuse it instead of silently degrading to a summary or a
+    # truncation.
+    if not can_index:
+        raise DocumentIndexingUnavailableError(
+            "Document is too large to process without server-side indexing."
+        )
+    # Indexed "summary" docs carry an empty context; content is safe in the
+    # per-session index.
+    return "", "summary"
 
 
 # ---------------------------------------------------------------------------
@@ -456,7 +425,6 @@ def prepare_document_context(
 
 def process_multiple_documents(
     files_data: list[dict],
-    summarize_large: bool = True,
     messages: list[dict] | None = None,
     session_attributes: dict | None = None,
     can_index: bool = False,
@@ -465,23 +433,22 @@ def process_multiple_documents(
 
     Args:
         files_data: List of dicts with 'name' and 'bytes' keys.
-        summarize_large: When True, a large text document that is NOT going to
-            be indexed is summarized for inline context (legacy fallback). When
-            False, such a document is kept inline as a last resort so its
-            content is never dropped.
         messages: Optional chat history, counted towards the inline prompt
             budget so uploads on top of a long chat still fit.
         session_attributes: Optional existing session attributes (e.g. a prior
             ``uploaded_document``) counted towards the inline prompt budget.
         can_index: Whether the caller will index "summary" documents
             server-side. Only when True may a document be emitted with an empty
-            ``context`` (its content then lives in the per-session index); when
-            False the content is always preserved inline or as a summary.
+            ``context`` (its content then lives in the per-session index). When
+            False, a document too large to inline is reported as a per-document
+            error rather than summarized or truncated.
 
     Returns:
         Dict with 'text_docs', 'code_interpreter_docs', and 'errors' lists.
         Documents are processed largest-first so a few big files cannot starve
-        several small ones out of the inline budget.
+        several small ones out of the inline budget. A large text document that
+        cannot be indexed (``can_index`` False) is appended to 'errors' with a
+        warning logged — it is never silently degraded.
     """
     result = {
         "text_docs": [],
@@ -540,15 +507,25 @@ def process_multiple_documents(
                 "media_type": media_type,
             })
         else:
-            doc_context, context_mode = prepare_document_context(
-                extracted_text,
-                file_ext=ext,
-                summarize_large=summarize_large,
-                current_prompt_size=current_prompt_size,
-                can_index=can_index,
-            )
-            # Only inlined text (full/summarized) counts against the budget;
-            # indexed docs carry an empty context and cost nothing here.
+            try:
+                doc_context, context_mode = prepare_document_context(
+                    extracted_text,
+                    file_ext=ext,
+                    current_prompt_size=current_prompt_size,
+                    can_index=can_index,
+                )
+            except DocumentIndexingUnavailableError as e:
+                # A large text document with no index available. Do not degrade
+                # silently — warn and surface a per-document error to the user.
+                logger.warning(
+                    "Document %r cannot be indexed (indexing unavailable); "
+                    "rejecting instead of summarizing/truncating: %s",
+                    name, e,
+                )
+                result["errors"].append({"name": name, "error": str(e)})
+                continue
+            # Only inlined text counts against the budget; indexed docs carry an
+            # empty context and cost nothing here.
             current_prompt_size += len(doc_context)
             result["text_docs"].append({
                 "name": name,

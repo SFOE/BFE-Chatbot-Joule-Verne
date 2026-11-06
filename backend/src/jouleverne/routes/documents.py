@@ -65,37 +65,62 @@ def _store_originals(
     return name_to_id
 
 
-def _index_large_text_docs(text_docs: list[dict], prefix: str) -> tuple[list[dict], list[dict]]:
-    """Split processed text docs into small (inline) and large (indexed).
+def _index_large_text_docs(
+    text_docs: list[dict], prefix: str
+) -> tuple[list[dict], list[dict], list[dict]]:
+    """Split processed text docs into small (inline), large (indexed), failed.
 
     Large text documents (``context_mode == "summary"``, i.e. over the inline
     size threshold) are indexed server-side instead of returning their text, so
-    the agent searches them on demand. Small ones keep the current inline-context
-    behaviour. Returns (inline_text_docs, indexed_docs).
+    the agent searches them on demand. Small ones keep the inline-context
+    behaviour.
+
+    A large document whose index build fails (or produces nothing) is a hard
+    error: we do NOT fall back to inlining/summarizing it, since that silently
+    loses content. It is logged as a warning and returned in ``failed`` so the
+    upload surfaces a per-document error to the user.
+
+    Returns ``(inline_text_docs, indexed_docs, failed_docs)`` where each failed
+    entry is ``{"name": ..., "error": ...}``.
 
     Runs the (blocking) extraction + embedding; call from a worker thread.
     """
     inline: list[dict] = []
     indexed: list[dict] = []
+    failed: list[dict] = []
     for d in text_docs:
-        if d.get("context_mode") == "summary":
-            try:
-                summary = doc_index.build_index(
-                    prefix=prefix,
-                    file_bytes=d["_raw_bytes"],
-                    filename=d["name"],
-                )
-            except Exception:
-                logger.exception("Indexing failed for %s; falling back to inline summary.", d["name"])
-                summary = None
-            if summary:
-                indexed.append(summary)
-                continue
-            # Fall back to inline context if indexing produced nothing.
+        if d.get("context_mode") != "summary":
             inline.append(d)
-        else:
-            inline.append(d)
-    return inline, indexed
+            continue
+        try:
+            summary = doc_index.build_index(
+                prefix=prefix,
+                file_bytes=d["_raw_bytes"],
+                filename=d["name"],
+            )
+        except Exception as e:
+            logger.warning(
+                "Indexing failed for %r; rejecting (no inline/summary fallback): %s",
+                d["name"], e,
+            )
+            failed.append({
+                "name": d["name"],
+                "error": "Document indexing failed; the document could not be processed.",
+            })
+            continue
+        if summary:
+            indexed.append(summary)
+            continue
+        # Index build produced nothing — treat as a failure, do not degrade.
+        logger.warning(
+            "Indexing produced no result for %r; rejecting (no inline/summary fallback).",
+            d["name"],
+        )
+        failed.append({
+            "name": d["name"],
+            "error": "Document indexing failed; the document could not be processed.",
+        })
+    return inline, indexed, failed
 
 
 @router.post("/documents/upload", response_model=DocumentUploadResponse)
@@ -140,23 +165,22 @@ async def upload_documents(
 
         files_data.append({"name": filename, "bytes": content})
 
-    # Identity + persistence mode decide whether large text docs are indexed and
-    # where (persistent session prefix vs. short-lived ephemeral). Unknown user
-    # => treat as opt-out, and index only when storage can be scoped and is
-    # configured; otherwise fall back to the legacy inline-summary behaviour.
+    # Identity + persistence mode decide whether large text docs can be indexed
+    # and where (persistent session prefix vs. short-lived ephemeral). Unknown
+    # user => treat as opt-out; index only when storage can be scoped and is
+    # configured. When indexing is unavailable, a too-large document is rejected
+    # (per-document error) rather than silently summarized or truncated.
     sub = extract_user_sub(request)
     indexing_enabled = bool(sub and session_id and convo.is_persistence_configured())
 
     # Process valid files (offload to thread to avoid blocking the event loop).
-    # ``can_index`` lets the processor safely drop a document's inline context
-    # ONLY when we will index it below; otherwise content is preserved inline or
-    # summarized so it is never lost. ``summarize_large`` is the no-index
-    # fallback: summarize a too-large doc rather than inline the whole thing.
+    # ``can_index`` tells the processor it may emit a large document with empty
+    # inline context (its content then lives in the per-session index). When
+    # False, a document too large to inline is returned as a per-document error.
     try:
         processed = await asyncio.to_thread(
             process_multiple_documents,
             files_data,
-            not indexing_enabled,  # summarize_large (no-index fallback)
             None,  # messages (fresh upload; no running history to count)
             None,  # session_attributes
             indexing_enabled,  # can_index
@@ -170,6 +194,9 @@ async def upload_documents(
     # Processed text docs that were indexed (kept so we can build the agent
     # summary from their full text, which the index dicts do not carry).
     indexed_source_docs: list[dict] = []
+    # Documents whose server-side index build failed — surfaced as per-document
+    # errors (never silently degraded to inline/summary).
+    index_errors: list[dict] = []
 
     # name -> file_id, for the originals stored this request.
     file_ids: dict[str, str | None] = {}
@@ -200,12 +227,12 @@ async def upload_documents(
             d for d in processed["text_docs"] if d.get("context_mode") == "summary"
         ]
 
-        inline_docs, indexed_docs = await asyncio.to_thread(
+        inline_docs, indexed_docs, index_errors = await asyncio.to_thread(
             _index_large_text_docs, processed["text_docs"], prefix
         )
 
-        # Keep only candidates that were actually indexed (indexing can fall
-        # back to inline on failure, in which case they reappear in inline_docs).
+        # Keep only candidates that were actually indexed. A failed index build
+        # is reported via index_errors (hard error) — not reinlined.
         indexed_names = {d["name"] for d in indexed_docs}
         indexed_source_docs = [d for d in summary_candidates if d["name"] in indexed_names]
 
@@ -221,7 +248,7 @@ async def upload_documents(
     # knows they exist and what they are, even though their text is not inlined.
     document_summary = build_indexed_documents_summary(indexed_source_docs)
 
-    all_errors = errors + processed["errors"]
+    all_errors = errors + processed["errors"] + index_errors
 
     return DocumentUploadResponse(
         text_docs=[
