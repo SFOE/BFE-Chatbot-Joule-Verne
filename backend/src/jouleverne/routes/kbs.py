@@ -47,5 +47,11 @@ def get_prefix_for_kb(kb_id: str) -> str | None:
 @router.get("/kbs/specific")
 async def get_specific_kbs():
     """Return the list of specific knowledge bases selectable as a chat mode."""
-    # Do not expose the S3 prefix to the frontend — only id + display names.
-    return [{"id": kb["id"], "names": kb["names"]} for kb in parse_specific_kbs()]
+    # Expose id + display names + the stable slug (the configured prefix). The
+    # slug lets the frontend resolve per-KB help texts (help_kb_<slug>_desc);
+    # it is just an S3 folder name, not a secret, and write access is still
+    # enforced server-side via get_prefix_for_kb + verify_kb_write_permission.
+    return [
+        {"id": kb["id"], "slug": kb["prefix"], "names": kb["names"]}
+        for kb in parse_specific_kbs()
+    ]
