@@ -54,7 +54,7 @@
   "doc_tip_table": "L'assistant peut charger le tableau pour effectuer des calculs.",
   "upload_disabled_web_search": "Le téléchargement de documents n'est pas disponible lorsque la recherche web est activée.",
   "upload_remove_all": "Supprimer tous les documents",
-  "trace_title": "Afficher le processus de réflexion",
+  "trace_title": "Afficher le processus",
   "feedback_comment_placeholder": "Qu'est-ce qui a fonctionné ou non ?",
   "feedback_send": "Envoyer le feedback",
   "feedback_saved": "Commentaire enregistré",
