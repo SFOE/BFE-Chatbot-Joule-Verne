@@ -1,7 +1,16 @@
 <script setup lang="ts">
+import { ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-const { t } = useI18n()
+interface SpecificKb {
+  id: string
+  // Stable config slug (e.g. "gebaeudeprogramm", "interne-weisungen"); used to
+  // resolve per-KB help texts. The id is the dynamic Bedrock KB id.
+  slug?: string
+  names: { de: string; fr: string; it: string; en: string }
+}
+
+const { t, te, locale } = useI18n()
 
 // Search modes shown in the "How the assistant searches" section.
 const searchModes = [
@@ -24,6 +33,50 @@ const sourceUrls = {
   gebaeudeprogramm: 'https://www.dasgebaeudeprogramm.ch',
   i14y: 'https://www.i14y.admin.ch',
 } as const
+
+// Source placeholders that a KB description may reference (e.g. {gebaeudeprogramm},
+// {i14y}). Each is rendered as a real link via <i18n-t>; a description only
+// consumes the placeholders it actually mentions, so passing all of them is safe.
+const SOURCE_KEYS = Object.keys(sourceUrls) as (keyof typeof sourceUrls)[]
+
+// Specific (personal/group) KBs actually available on the backend. Fetched from
+// the same endpoint the chat mode selector uses, so the help list always
+// reflects the configured KBs instead of a hardcoded set.
+const specificKbs = ref<SpecificKb[]>([])
+
+onMounted(async () => {
+  try {
+    const response = await fetch('/v1/kbs/specific')
+    if (response.ok) {
+      specificKbs.value = await response.json()
+    }
+  } catch {
+    // Silently ignore — specific KBs are optional.
+  }
+})
+
+// Localized display name of a KB, mirroring the chat mode selector.
+function kbName(kb: SpecificKb): string {
+  const loc = locale.value as keyof SpecificKb['names']
+  return kb.names[loc] || kb.names.de || kb.id
+}
+
+// Normalise the backend slug to the underscore style used by locale keys
+// (help_kb_<slug>_desc), e.g. "interne-weisungen" -> "interne_weisungen".
+function kbKeySlug(kb: SpecificKb): string {
+  return (kb.slug ?? '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+}
+
+// Translation key for a KB's description, or '' when none exists.
+function kbDescKey(kb: SpecificKb): string {
+  const slug = kbKeySlug(kb)
+  if (!slug) return ''
+  const key = `help_kb_${slug}_desc`
+  return te(key) ? key : ''
+}
 </script>
 
 <template>
@@ -81,35 +134,18 @@ const sourceUrls = {
           </i18n-t>
         </li>
       </ul>
-      <p class="help-tools-intro">{{ t('help_specific_kbs_intro') }}</p>
-      <ul class="help-tools">
-        <li>
-          <strong>{{ t('help_kb_gebaeudeprogramm') }}</strong>{{ ': ' }}
-          <i18n-t keypath="help_kb_gebaeudeprogramm_desc" scope="global" tag="span">
-            <template #gebaeudeprogramm>
-              <a :href="sourceUrls.gebaeudeprogramm" target="_blank" rel="noopener noreferrer">{{ t('help_source_gebaeudeprogramm') }}</a>
-            </template>
-          </i18n-t>
-        </li>
-        <li>
-          <strong>{{ t('help_kb_medienarchiv') }}</strong>{{ ': ' }}{{ t('help_kb_medienarchiv_desc') }}
-        </li>
-        <li>
-          <strong>{{ t('help_kb_interne_weisungen') }}</strong>{{ ': ' }}{{ t('help_kb_interne_weisungen_desc') }}
-        </li>
-        <li>
-          <strong>{{ t('help_kb_i14y') }}</strong>{{ ': ' }}
-          <i18n-t keypath="help_kb_i14y_desc" scope="global" tag="span">
-            <template #i14y>
-              <a :href="sourceUrls.i14y" target="_blank" rel="noopener noreferrer">{{ t('help_source_i14y') }}</a>
-            </template>
-          </i18n-t>
-        </li>
-        <li>
-          <strong>{{ t('help_kb_ee_verkehr') }}</strong>{{ ': ' }}{{ t('help_kb_ee_verkehr_desc') }}
-        </li>
-        <li>
-          <strong>{{ t('help_kb_service_point') }}</strong>{{ ': ' }}{{ t('help_kb_service_point_desc') }}
+      <p v-if="specificKbs.length" class="help-tools-intro">{{ t('help_specific_kbs_intro') }}</p>
+      <ul v-if="specificKbs.length" class="help-tools">
+        <li v-for="kb in specificKbs" :key="kb.id">
+          <strong>{{ kbName(kb) }}</strong>
+          <template v-if="kbDescKey(kb)">
+            {{ ': ' }}
+            <i18n-t :keypath="kbDescKey(kb)" scope="global" tag="span">
+              <template v-for="src in SOURCE_KEYS" :key="src" #[src]>
+                <a :href="sourceUrls[src]" target="_blank" rel="noopener noreferrer">{{ t(`help_source_${src}`) }}</a>
+              </template>
+            </i18n-t>
+          </template>
         </li>
       </ul>
             <p class="help-tools-intro">{{ t('help_other_intro') }}</p>

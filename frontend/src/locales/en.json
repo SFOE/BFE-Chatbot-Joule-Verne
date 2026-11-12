@@ -53,7 +53,7 @@
   "doc_tip_table": "The assistant can load the table for calculations.",
   "upload_disabled_web_search": "Document upload is not available when web search is enabled.",
   "upload_remove_all": "Remove all documents",
-  "trace_title": "Show reasoning process",
+  "trace_title": "Show process",
   "feedback_comment_placeholder": "What worked or didn't work?",
   "feedback_send": "Send feedback",
   "feedback_saved": "Comment saved",
