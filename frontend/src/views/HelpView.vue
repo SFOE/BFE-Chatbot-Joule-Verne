@@ -153,9 +153,6 @@ function kbDescKey(kb: SpecificKb): string {
         <li>
           <strong>{{ t('tool_web_search') }}</strong>{{ ': ' }}{{ t('help_tool_web_search_desc') }}
         </li>
-        <li>
-          <strong>{{ t('help_tool_sensitive_docs') }}</strong>{{ ': ' }}{{ t('help_tool_sensitive_docs_desc') }}
-        </li>
       </ul>
     </section>
 
