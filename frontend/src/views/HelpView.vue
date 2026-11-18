@@ -159,6 +159,7 @@ function kbDescKey(kb: SpecificKb): string {
     <section class="help-section">
       <h3>{{ t('help_features_title') }}</h3>
       <ul>
+        <li>{{ t('help_feature_save_chats') }}</li>
         <li>{{ t('help_feature_sources') }}</li>
         <li>{{ t('help_feature_upload') }}</li>
         <li>{{ t('help_feature_language') }}</li>
