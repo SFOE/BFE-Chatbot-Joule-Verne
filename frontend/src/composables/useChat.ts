@@ -28,29 +28,56 @@ export function useChat() {
     const citations: Citation[] = []
     let fullText = ''
 
-    // Build session attributes from uploaded docs
-    const sessionAttributes: Record<string, string> | undefined =
-      store.textDocs.length > 0 || store.codeInterpreterDocs.length > 0
-        ? {
-            uploaded_document: store.textDocs.length > 0
-              ? store.textDocs.map((d) => d.context).join('\n\n---\n\n')
-              : '[Documents sent to Code Interpreter for analysis]',
-            document_name: [
-              ...store.textDocs.map((d) => d.name),
-              ...store.codeInterpreterDocs.map((d) => d.name),
-            ].join(', '),
-            context_mode: store.codeInterpreterDocs.length > 0 && store.textDocs.length === 0
-              ? 'code_interpreter'
-              : store.textDocs.length > 1 ? 'multi' : store.textDocs[0]?.context_mode ?? 'full',
-          }
-        : undefined
+    // Build session attributes from uploaded docs. Set when there is anything
+    // the agent needs to know about: inline text, Code Interpreter files, or
+    // indexed ("teilweise") documents surfaced only via the summary.
+    const hasInlineOrCi = store.textDocs.length > 0 || store.codeInterpreterDocs.length > 0
+    const hasIndexed = store.indexedDocs.length > 0 || !!store.documentSummary
 
-    // Build Code Interpreter files payload
-    const files = store.codeInterpreterDocs.length > 0
-      ? store.codeInterpreterDocs.map((d) => ({
+    let sessionAttributes: Record<string, string> | undefined
+    if (hasInlineOrCi || hasIndexed) {
+      sessionAttributes = {}
+      if (hasInlineOrCi) {
+        sessionAttributes.uploaded_document = store.textDocs.length > 0
+          ? store.textDocs.map((d) => d.context).join('\n\n---\n\n')
+          : '[Documents sent to Code Interpreter for analysis]'
+        sessionAttributes.document_name = [
+          ...store.textDocs.map((d) => d.name),
+          ...store.codeInterpreterDocs.map((d) => d.name),
+        ].join(', ')
+        sessionAttributes.context_mode =
+          store.codeInterpreterDocs.length > 0 && store.textDocs.length === 0
+            ? 'code_interpreter'
+            : store.textDocs.length > 1
+              ? 'multi'
+              : store.textDocs[0]?.context_mode ?? 'full'
+      }
+      // Agent-facing metadata for indexed documents whose text is not inlined.
+      if (store.documentSummary) {
+        sessionAttributes.document_summary = store.documentSummary
+      }
+    }
+
+    // Build Code Interpreter payload. Prefer references (file_id) so the file
+    // is loaded from S3 on demand instead of shipped every turn. Files without
+    // a file_id (e.g. no persistence) fall back to sending base64 bytes.
+    const ciDocs = store.codeInterpreterDocs
+    const refDocs = ciDocs.filter((d) => d.file_id)
+    const byteDocs = ciDocs.filter((d) => !d.file_id)
+
+    const fileRefs = refDocs.length > 0
+      ? refDocs.map((d) => ({
+          file_id: d.file_id as string,
           name: d.name,
           media_type: d.media_type,
-          data: d.data,
+        }))
+      : undefined
+
+    const files = byteDocs.length > 0
+      ? byteDocs.map((d) => ({
+          name: d.name,
+          media_type: d.media_type,
+          data: d.data ?? '',
         }))
       : undefined
 
@@ -75,6 +102,7 @@ export function useChat() {
           locale: i18n.global.locale.value,
           session_attributes: sessionAttributes,
           files,
+          file_refs: fileRefs,
         }),
       })
 
@@ -131,9 +159,14 @@ export function useChat() {
         }
       }
 
-      // Auto-save interaction to S3 (with rating=null) so all interactions are logged
+      // Auto-save interaction to S3 (with rating=null) so all interactions are
+      // logged — unless the chat is marked "Sensible Dokumente", in which case
+      // nothing is logged for this interaction.
       const msgIndex = store.messages.length - 1
-      if (fullText) {
+      // Auto-save the interaction (rating=null) so all interactions are logged.
+      // Skipped entirely when the chat is "Sensible Dokumente" — nothing is sent
+      // or stored for this interaction.
+      if (fullText && !store.sensitiveDocs) {
         try {
           const payload: FeedbackPayload = {
             session_id: store.sessionId,
@@ -164,6 +197,12 @@ export function useChat() {
         } catch {
           // Silent fail — auto-save is best-effort
         }
+      }
+
+      // Persist the conversation for later continuation (opt-in, best-effort).
+      // Independent of the feedback auto-save above.
+      if (fullText) {
+        await store.persistConversation()
       }
     } catch (error) {
       store.updateLastAssistantMessage(i18n.global.t('error_connection'))

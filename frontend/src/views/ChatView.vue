@@ -7,6 +7,7 @@ import ChatInput from '@/components/ChatInput.vue'
 import SearchModeToggle from '@/components/SearchModeToggle.vue'
 import DocumentUpload from '@/components/DocumentUpload.vue'
 import SourcesSidebar from '@/components/SourcesSidebar.vue'
+import ConversationList from '@/components/ConversationList.vue'
 
 interface ExternalLink {
   label: string
@@ -51,16 +52,13 @@ onMounted(async () => {
       </div>
 
       <div class="sidebar-section">
-        <button class="clear-chat-btn" @click="store.clearChat()">
-          {{ t('clear_chat') }}
-        </button>
+        <ConversationList />
       </div>
-
-      <SourcesSidebar />
+      
     </aside>
 
     <section class="chat-main">
-      <p class="disclaimer">{{ t('disclaimer') }}</p>
+      <p v-if="!store.sensitiveDocs" class="disclaimer">{{ t('disclaimer') }}</p>
       <ChatWindow />
       <ChatInput />
     </section>

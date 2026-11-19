@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import type { ChatMessage } from '@/types/chat'
 import { useChatStore } from '@/stores/chatStore'
 import TraceExpander from '@/components/TraceExpander.vue'
+import MessageSources from '@/components/MessageSources.vue'
 import FeedbackWidget from '@/components/FeedbackWidget.vue'
 
 const props = defineProps<{
@@ -38,6 +39,7 @@ const isLastMessage = computed(() => props.index === store.messages.length - 1)
 
     <template v-if="message.role === 'assistant' && message.content && !store.isStreaming">
       <TraceExpander v-if="message.traceSteps?.length" :steps="message.traceSteps" />
+      <MessageSources v-if="message.citations?.length" :citations="message.citations" />
       <FeedbackWidget :message-index="index" />
     </template>
   </div>

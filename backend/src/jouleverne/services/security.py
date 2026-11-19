@@ -58,27 +58,60 @@ def _extract_cognito_groups(request: Request) -> set[str]:
         return set()
 
 
-def extract_user_email(request: Request) -> str | None:
-    """Extract the user's email from the ALB-injected OIDC data token.
+def _decode_oidc_data(request: Request) -> dict:
+    """Decode the ALB-injected OIDC data token payload.
 
-    The x-amzn-oidc-data header contains a JWT whose payload includes
-    user claims (email, sub, etc.). The ALB has already verified the
-    signature, so we only need to decode the payload.
-
-    Returns the email address or None if unavailable.
+    The x-amzn-oidc-data header contains a JWT whose payload includes user
+    claims (email, sub, etc.). The ALB (authenticate-oidc) has already verified
+    the signature, so we only decode the payload. Returns {} on any failure.
     """
     oidc_data = request.headers.get("x-amzn-oidc-data", "")
     if not oidc_data:
-        return None
+        return {}
 
     try:
         payload_b64 = oidc_data.split(".")[1]
         payload_b64 += "=" * (4 - len(payload_b64) % 4)
-        payload = json.loads(base64.urlsafe_b64decode(payload_b64))
-        return payload.get("email")
+        return json.loads(base64.urlsafe_b64decode(payload_b64))
     except Exception:
-        logger.warning("Failed to decode OIDC data token for user email")
-        return None
+        logger.warning("Failed to decode OIDC data token")
+        return {}
+
+
+def extract_user_email(request: Request) -> str | None:
+    """Extract the user's email from the ALB-injected OIDC data token.
+
+    Returns the email address or None if unavailable.
+    """
+    return _decode_oidc_data(request).get("email")
+
+
+def extract_user_sub(request: Request) -> str | None:
+    """Extract the user's stable pseudonymous id (`sub`) from the OIDC token.
+
+    `sub` is the Cognito/EIAM subject identifier: stable per person and free of
+    plaintext PII, so it is the key we use to scope stored conversations. Never
+    log or persist the e-mail/name alongside it.
+
+    Returns the sub or None if unavailable.
+    """
+    return _decode_oidc_data(request).get("sub")
+
+
+def require_user_sub(request: Request) -> str:
+    """FastAPI dependency that returns the authenticated user's `sub`.
+
+    Raises 401 when no sub is present. In local dev (no ALB headers) this means
+    conversation endpoints are unavailable unless an OIDC data header is faked —
+    acceptable because persistence is inherently user-scoped.
+    """
+    sub = extract_user_sub(request)
+    if not sub:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required: no user identity in request",
+        )
+    return sub
 
 
 async def verify_cognito_auth(request: Request) -> None:

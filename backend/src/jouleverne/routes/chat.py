@@ -7,7 +7,13 @@ from sse_starlette.sse import EventSourceResponse
 
 from ..models.chat import ChatRequest
 from ..services.agent import stream_agent_response
-from ..services.security import limiter, verify_cognito_auth, extract_user_email
+from ..services.security import (
+    limiter,
+    verify_cognito_auth,
+    extract_user_email,
+    extract_user_sub,
+)
+from ..services import conversations as convo
 from ..services.usage import log_usage
 from ..config import settings
 
@@ -52,12 +58,25 @@ async def chat(
     """
     log_usage(extract_user_email(request), locale=body.locale, web_search=body.web_search)
 
+    # Pseudonymous user id scopes the agent's stored transcript to the person.
+    # None in local dev (no ALB headers) => agent uses the legacy un-scoped
+    # layout, so chat keeps working without an identity.
+    user_id = extract_user_sub(request)
+
+    # Honour the save opt-in: when the user has NOT opted in, the agent stores
+    # the transcript in the short-lived ephemeral prefix (full in-session memory
+    # preserved, but cleaned up within a day). Unknown user => treat as opt-out.
+    save_history = bool(user_id) and convo.get_save_enabled(user_id)
+
     agent_files = _build_agent_files(body)
+    file_refs = [r.model_dump() for r in body.file_refs] if body.file_refs else None
 
     def event_generator():
         for event_type, data in stream_agent_response(
             message=body.message,
             session_id=body.session_id,
+            user_id=user_id,
+            save_history=save_history,
             web_search=body.web_search,
             agent_type=body.agent_type,
             specific_kb_id=body.specific_kb_id,
@@ -65,6 +84,7 @@ async def chat(
             locale=body.locale,
             session_attributes=body.session_attributes,
             files=agent_files,
+            file_refs=file_refs,
         ):
             yield {"event": event_type, "data": data}
 
