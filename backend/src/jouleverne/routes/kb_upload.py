@@ -15,6 +15,7 @@ from pydantic import BaseModel
 from ..services.clients import s3_client
 from ..services.security import limiter, verify_cognito_auth, verify_kb_write_permission
 from ..config import settings
+from ..services import kb_instructions
 from .kbs import get_prefix_for_kb
 
 router = APIRouter(prefix="/v1", tags=["kb_upload"])
@@ -201,6 +202,68 @@ async def delete_kb_file(
         raise HTTPException(status_code=500, detail="Failed to delete file.")
 
     return {"deleted": body.key}
+
+
+class InstructionRequest(BaseModel):
+    instruction: str
+
+
+@router.get("/kbs/{kb_id}/instructions")
+@limiter.limit(settings.RATE_LIMIT)
+async def get_kb_instruction(
+    kb_id: str,
+    request: Request,
+    _auth: None = Depends(verify_cognito_auth),
+):
+    """Return the agent instruction for a specific KB and whether the caller may edit it."""
+    if get_prefix_for_kb(kb_id) is None:
+        raise HTTPException(status_code=403, detail="Unknown or not-allowed knowledge base.")
+
+    try:
+        verify_kb_write_permission(kb_id, request)
+        can_edit = kb_instructions.is_configured()
+    except HTTPException:
+        can_edit = False
+
+    return {
+        "instruction": kb_instructions.get_instruction(kb_id),
+        "can_edit": can_edit,
+        "max_length": kb_instructions.MAX_INSTRUCTION_CHARS,
+    }
+
+
+@router.put("/kbs/{kb_id}/instructions")
+@limiter.limit(settings.RATE_LIMIT)
+async def set_kb_instruction(
+    kb_id: str,
+    body: InstructionRequest,
+    request: Request,
+    _auth: None = Depends(verify_cognito_auth),
+):
+    """Save the agent instruction for a specific KB (empty text removes it)."""
+    if not kb_instructions.is_configured():
+        raise HTTPException(status_code=500, detail="Instructions are not configured.")
+
+    if get_prefix_for_kb(kb_id) is None:
+        raise HTTPException(status_code=403, detail="Unknown or not-allowed knowledge base.")
+
+    # Same per-KB write allowlist as upload/delete.
+    verify_kb_write_permission(kb_id, request)
+
+    text = body.instruction.strip()
+    if len(text) > kb_instructions.MAX_INSTRUCTION_CHARS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Instruction is too long (max {kb_instructions.MAX_INSTRUCTION_CHARS} characters).",
+        )
+
+    try:
+        kb_instructions.put_instruction(kb_id, text)
+    except Exception as e:
+        logger.error("Failed to save instruction for KB %s: %s", kb_id, e)
+        raise HTTPException(status_code=500, detail="Failed to save instruction.")
+
+    return {"instruction": text}
 
 
 class DownloadUrlRequest(BaseModel):
