@@ -58,11 +58,11 @@ function confirmRemoveDocument(fileId: string) {
         ref="fileInput"
         type="file"
         multiple
-        accept=".pdf,.txt,.docx,.xlsx,.csv"
+        accept=".pdf,.txt,.docx,.xlsx,.csv,.xml,.json,.yaml,.yml,.md,.html"
         class="file-input-hidden"
         @change="handleFileChange"
       />
-      <p class="upload-hint">{{ t('upload_hint') }}</p>
+      <p class="upload-hint" :title="t('upload_tooltip')">{{ t('upload_hint') }}</p>
 
       <p v-if="uploading" class="upload-status">⏳ {{ t('upload_processing') }}</p>
 
