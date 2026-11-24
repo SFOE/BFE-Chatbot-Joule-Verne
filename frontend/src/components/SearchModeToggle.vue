@@ -81,6 +81,12 @@ function kbName(kb: SpecificKb): string {
   return kb.names[loc] || kb.names.de || kb.id
 }
 
+// The "Support" KB gets a dedicated top-level radio (between "Allgemeines
+// BFE-Wissen" and "Websuche"), in addition to still appearing as a checkbox
+// under "Spezifisches BFE-Wissen" for combining with other sources. Identified
+// by the stable config slug ("support"); the id is a dynamic Bedrock KB id.
+const supportKb = computed(() => specificKbs.value.find((kb) => kb.slug === 'support'))
+
 // Tooltip description for a specific KB, keyed on help_kb_<slug>_desc. The
 // backend sends a stable `slug` (the configured prefix, e.g. "interne-weisungen");
 // the `id` is a dynamic Bedrock KB id and must not be used for the lookup.
@@ -101,11 +107,22 @@ const isKbMode = computed(
 
 const isWebMode = computed(() => store.webSearchEnabled)
 
+// Support is active when its (dynamic) KB id is the single selected specific KB.
+const isSupportMode = computed(
+  () => !!supportKb.value && store.specificKbId === supportKb.value.id,
+)
+
 function selectKbMode() {
   if (store.searchModeLocked) return
   store.disableCustomMode()
   store.setSpecificKb(null)
   store.setWebSearch(false)
+}
+
+function selectSupportMode() {
+  if (store.searchModeLocked || !supportKb.value) return
+  // Exclusive single-KB mode (clears web/custom), mirroring selectKbMode.
+  store.setSpecificKb(supportKb.value.id)
 }
 
 function selectWebMode() {
@@ -186,6 +203,20 @@ function cancelWebSearch() {
           @change="selectKbMode"
         />
         {{ t('search_mode_kb') }}
+      </label>
+      <label
+        v-if="supportKb"
+        :title="t('help_mode_support_body')"
+        :class="{ active: isSupportMode, disabled: store.searchModeLocked }"
+      >
+        <input
+          type="radio"
+          name="searchMode"
+          :checked="isSupportMode"
+          :disabled="store.searchModeLocked"
+          @change="selectSupportMode"
+        />
+        {{ t('search_mode_support') }}
       </label>
       <label
         :title="t('help_mode_web_body')"
