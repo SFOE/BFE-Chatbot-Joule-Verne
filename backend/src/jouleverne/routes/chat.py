@@ -14,6 +14,8 @@ from ..services.security import (
     extract_user_sub,
 )
 from ..services import conversations as convo
+from ..services import kb_instructions
+from .kbs import get_prefix_for_kb
 from ..services.usage import log_usage
 from ..config import settings
 
@@ -70,6 +72,12 @@ async def chat(
 
     agent_files = _build_agent_files(body)
     file_refs = [r.model_dump() for r in body.file_refs] if body.file_refs else None
+    # Instructions for the selected specific KB(s). Only known KB ids are read.
+    selected_kb_ids = list(body.capabilities.kb_ids) if body.capabilities else []
+    if body.specific_kb_id:
+        selected_kb_ids.append(body.specific_kb_id)
+    selected_kb_ids = [k for k in selected_kb_ids if get_prefix_for_kb(k) is not None]
+    kb_instr = kb_instructions.get_instructions_for(selected_kb_ids) if selected_kb_ids else None
 
     def event_generator():
         for event_type, data in stream_agent_response(
@@ -85,6 +93,7 @@ async def chat(
             session_attributes=body.session_attributes,
             files=agent_files,
             file_refs=file_refs,
+            kb_instructions=kb_instr,
         ):
             yield {"event": event_type, "data": data}
 
