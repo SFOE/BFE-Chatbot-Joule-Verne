@@ -31,6 +31,15 @@ const results = ref<UploadResult[]>([])
 const fileInput = ref<HTMLInputElement | null>(null)
 const computeOnly = ref(false)
 
+// Agent instruction state
+const instruction = ref('')
+const savedInstruction = ref('')
+const canEditInstruction = ref(false)
+const instructionMaxLength = ref(4000)
+const savingInstruction = ref(false)
+const instructionStatus = ref<'saved' | 'error' | ''>('')
+const instructionDirty = computed(() => instruction.value !== savedInstruction.value)
+
 // File list state
 const files = ref<KbFile[]>([])
 const loadingFiles = ref(false)
@@ -69,12 +78,56 @@ onMounted(async () => {
 // Reload file list when selected KB changes
 watch(selectedKbId, (newId) => {
   currentPage.value = 1
+  instructionStatus.value = ''
   if (newId) {
     loadFiles()
+    loadInstruction()
   } else {
     files.value = []
+    instruction.value = ''
+    savedInstruction.value = ''
   }
 })
+
+async function loadInstruction() {
+  const kbId = selectedKbId.value
+  if (!kbId) return
+  try {
+    const { data } = await backendHttp.get<{
+      instruction: string
+      can_edit: boolean
+      max_length: number
+    }>(`v1/kbs/${kbId}/instructions`)
+    if (kbId !== selectedKbId.value) return
+    instruction.value = data.instruction
+    savedInstruction.value = data.instruction
+    canEditInstruction.value = data.can_edit
+    instructionMaxLength.value = data.max_length
+  } catch {
+    instruction.value = ''
+    savedInstruction.value = ''
+    canEditInstruction.value = false
+  }
+}
+
+async function saveInstruction() {
+  if (!selectedKbId.value) return
+  savingInstruction.value = true
+  instructionStatus.value = ''
+  try {
+    const { data } = await backendHttp.put<{ instruction: string }>(
+      `v1/kbs/${selectedKbId.value}/instructions`,
+      { instruction: instruction.value },
+    )
+    instruction.value = data.instruction
+    savedInstruction.value = data.instruction
+    instructionStatus.value = 'saved'
+  } catch {
+    instructionStatus.value = 'error'
+  } finally {
+    savingInstruction.value = false
+  }
+}
 
 function kbName(kb: SpecificKb): string {
   const loc = locale.value as keyof SpecificKb['names']
@@ -254,6 +307,36 @@ async function uploadFiles(fileList: File[]) {
         </p>
       </div>
 
+      <!-- Agent instructions -->
+      <div v-if="selectedKbId" class="kb-instr-section">
+        <h3>{{ t('kb_instr_title') }}</h3>
+        <p class="kb-upload-hint">{{ t('kb_instr_intro') }}</p>
+        <textarea
+          v-model="instruction"
+          class="kb-instr-textarea"
+          rows="6"
+          :maxlength="instructionMaxLength"
+          :placeholder="t('kb_instr_placeholder')"
+          :readonly="!canEditInstruction"
+          :aria-label="t('kb_instr_title')"
+          @input="instructionStatus = ''"
+        ></textarea>
+        <div class="kb-instr-actions">
+          <button
+            v-if="canEditInstruction"
+            class="file-select-btn"
+            :disabled="savingInstruction || !instructionDirty"
+            @click="saveInstruction"
+          >
+            {{ t('kb_instr_save') }}
+          </button>
+          <span class="kb-upload-hint">{{ instruction.length }} / {{ instructionMaxLength }}</span>
+          <span v-if="instructionStatus === 'saved'" class="doc-success" role="status">✅ {{ t('kb_instr_saved') }}</span>
+          <span v-else-if="instructionStatus === 'error'" class="doc-error" role="alert">❌ {{ t('kb_instr_error') }}</span>
+        </div>
+        <p v-if="!canEditInstruction" class="kb-upload-hint">{{ t('kb_instr_readonly') }}</p>
+      </div>
+
       <!-- File list -->
       <div v-if="selectedKbId" class="kb-files-section">
         <h3>{{ t('kb_files_title', { name: selectedKbName }) }}</h3>
@@ -375,6 +458,28 @@ async function uploadFiles(fileList: File[]) {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
+}
+
+.kb-instr-section {
+  margin-top: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.kb-instr-textarea {
+  width: 100%;
+  padding: 0.5rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--color-border);
+  font-family: inherit;
+  resize: vertical;
+}
+
+.kb-instr-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
 }
 
 .kb-files-section {
