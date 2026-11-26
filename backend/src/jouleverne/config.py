@@ -36,6 +36,10 @@ class Settings(BaseSettings):
     # case-insensitive on the e-mail. Empty setting = current behaviour (open).
     UPLOAD_ALLOWED_EMAILS_BY_KB: str = ""
 
+    # E-mails allowed to open the prompt admin page and edit the agent's system
+    # prompts (comma- or pipe-separated, case-insensitive). Empty = nobody.
+    PROMPT_ADMIN_EMAILS: str = ""
+
     # Knowledge base display names — comma-separated pairs
     # Multi-language: "id:DE_Name|FR_Name|IT_Name|EN_Name"
     # Single name (all locales): "id:Name"

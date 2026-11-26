@@ -17,6 +17,7 @@ from .routes import (
     kbs,
     kb_upload,
     conversations,
+    admin_prompts,
 )
 from .services.security import limiter, rate_limit_handler, RateLimitExceeded
 
@@ -76,6 +77,7 @@ app.include_router(links.router)
 app.include_router(kbs.router)
 app.include_router(kb_upload.router)
 app.include_router(conversations.router)
+app.include_router(admin_prompts.router)
 
 
 # ---------------------------------------------------------------------------

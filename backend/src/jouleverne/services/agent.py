@@ -260,6 +260,7 @@ def invoke_agent(
     files: list[dict] | None = None,
     file_refs: list[dict] | None = None,
     kb_instructions: dict[str, str] | None = None,
+    prompt_overrides: dict[str, str] | None = None,
 ) -> dict:
     """Call AgentCore invoke_agent_runtime and return the raw streaming response.
 
@@ -311,6 +312,10 @@ def invoke_agent(
     # chat route (never taken from the client) and appended to the agent prompt.
     if kb_instructions:
         payload["kb_instructions"] = kb_instructions
+    # Admin-edited system prompt overrides ({part key: text}); loaded
+    # server-side, never taken from the client.
+    if prompt_overrides:
+        payload["prompt_overrides"] = prompt_overrides
 
     # Document context (replaces Classic's sessionState.promptSessionAttributes)
     if session_attributes:
@@ -362,6 +367,7 @@ def stream_agent_response(
     files: list[dict] | None = None,
     file_refs: list[dict] | None = None,
     kb_instructions: dict[str, str] | None = None,
+    prompt_overrides: dict[str, str] | None = None,
 ) -> Generator[tuple[str, str], None, None]:
     """Invoke the agent and yield (event_type, json_data) tuples.
 
@@ -385,6 +391,7 @@ def stream_agent_response(
             files=files,
             file_refs=file_refs,
             kb_instructions=kb_instructions,
+            prompt_overrides=prompt_overrides,
         )
     except Exception as e:
         logger.error("Failed to invoke agent: %s", e)
