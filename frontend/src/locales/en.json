@@ -126,6 +126,7 @@
   "kb_upload_select_placeholder": "Select a knowledge base...",
   "kb_upload_select_files": "Select files",
   "kb_upload_hint": "Supported formats: PDF, TXT, MD, HTML, DOC, DOCX, CSV, XLS, XLSX, JSON, XML, YAML, YML, JPEG, PNG, MSG. Max 50 MB (images: 3.75 MB).",
+  "kb_upload_hint_compute": "Supported formats: CSV, XLS, XLSX, JSON, XML, YAML, YML. Max 50 MB.",
   "kb_upload_compute_label": "Store only, retrievable via Code Interpreter (not searchable)",
   "kb_upload_compute_hint": "Files are not indexed and do not appear in knowledge base search. The assistant can open them on demand and analyse them with the Code Interpreter. Allowed: CSV, XLS, XLSX, JSON, XML, YAML, YML.",
   "kb_upload_error_compute_type": "This file type is not allowed for this option (allowed: CSV, XLS, XLSX, JSON, XML, YAML, YML).",

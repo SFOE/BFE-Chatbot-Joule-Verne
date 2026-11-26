@@ -292,7 +292,9 @@ async function uploadFiles(fileList: File[]) {
         class="file-input-hidden"
         @change="handleFileChange"
       />
-      <p class="kb-upload-hint">{{ t('kb_upload_hint') }}</p>
+      <p class="kb-upload-hint">
+        {{ computeOnly ? t('kb_upload_hint_compute') : t('kb_upload_hint') }}
+      </p>
 
       <p v-if="uploading" class="kb-upload-status">⏳ {{ t('kb_upload_uploading') }}</p>
 
