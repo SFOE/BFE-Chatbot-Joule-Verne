@@ -126,6 +126,7 @@
   "kb_upload_select_placeholder": "Wissensdatenbank auswählen...",
   "kb_upload_select_files": "Dateien auswählen",
   "kb_upload_hint": "Unterstützte Formate: PDF, TXT, MD, HTML, DOC, DOCX, CSV, XLS, XLSX, JSON, XML, YAML, YML, JPEG, PNG, MSG. Max. 50 MB (Bilder: 3.75 MB).",
+  "kb_upload_hint_compute": "Unterstützte Formate: CSV, XLS, XLSX, JSON, XML, YAML, YML. Max. 50 MB.",
   "kb_upload_compute_label": "Nur speichern, per Code Interpreter abrufbar (nicht durchsuchbar)",
   "kb_upload_compute_hint": "Die Dateien werden nicht indexiert und erscheinen nicht in der Wissensdatenbank-Suche. Der Assistent kann sie bei Bedarf öffnen und mit dem Code Interpreter auswerten. Erlaubt: CSV, XLS, XLSX, JSON, XML, YAML, YML.",
   "kb_upload_error_compute_type": "Dieser Dateityp ist für diese Option nicht erlaubt (erlaubt: CSV, XLS, XLSX, JSON, XML, YAML, YML).",
