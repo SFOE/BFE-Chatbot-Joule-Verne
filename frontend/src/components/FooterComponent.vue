@@ -26,6 +26,9 @@
           <li>
             <router-link to="/kb-upload">{{ t('kb_upload_link') }}</router-link>
           </li>
+          <li v-if="promptAdmin">
+            <router-link to="/prompt-admin">{{ t('prompt_admin_link') }}</router-link>
+          </li>
         </ul>
       </div>
 
@@ -37,9 +40,24 @@
 </template>
 
 <script setup lang="ts">
+import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { backendHttp } from '@/services/http'
 
 const { t } = useI18n()
+
+// The link is only a convenience: the backend enforces the e-mail allowlist on
+// every prompt-admin request, so hiding it here is not what protects the page.
+const promptAdmin = ref(false)
+
+onMounted(async () => {
+  try {
+    const { data } = await backendHttp.get<{ allowed: boolean }>('v1/admin/prompts/access')
+    promptAdmin.value = data.allowed === true
+  } catch {
+    promptAdmin.value = false
+  }
+})
 </script>
 
 <style scoped>

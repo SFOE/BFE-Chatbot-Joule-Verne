@@ -191,3 +191,30 @@ def verify_kb_write_permission(kb_id: str, request: Request) -> None:
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access denied: not allowed to modify this knowledge base",
         )
+
+
+# ---------------------------------------------------------------------------
+# Prompt admin authorization (edit agent system prompts)
+# ---------------------------------------------------------------------------
+
+_prompt_admin_emails: set[str] = {
+    e.strip().lower()
+    for e in settings.PROMPT_ADMIN_EMAILS.replace("|", ",").split(",")
+    if e.strip()
+}
+
+
+def is_prompt_admin(request: Request) -> bool:
+    """True when the signed-in user's e-mail is in PROMPT_ADMIN_EMAILS."""
+    email = (extract_user_email(request) or "").strip().lower()
+    return bool(email) and email in _prompt_admin_emails
+
+
+def verify_prompt_admin(request: Request) -> str:
+    """FastAPI dependency: only prompt admins pass. Returns the admin's e-mail."""
+    if not is_prompt_admin(request):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: not allowed to edit agent prompts",
+        )
+    return (extract_user_email(request) or "").strip().lower()

@@ -20,6 +20,10 @@ const router = createRouter({
       path: '/kb-upload',
       component: () => import('@/views/KbUploadView.vue'),
     },
+    {
+      path: '/prompt-admin',
+      component: () => import('@/views/PromptAdminView.vue'),
+    },
   ],
 })
 

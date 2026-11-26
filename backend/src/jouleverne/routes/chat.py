@@ -15,6 +15,7 @@ from ..services.security import (
 )
 from ..services import conversations as convo
 from ..services import kb_instructions
+from ..services import prompt_overrides as prompt_overrides_service
 from .kbs import get_prefix_for_kb
 from ..services.usage import log_usage
 from ..config import settings
@@ -78,6 +79,8 @@ async def chat(
         selected_kb_ids.append(body.specific_kb_id)
     selected_kb_ids = [k for k in selected_kb_ids if get_prefix_for_kb(k) is not None]
     kb_instr = kb_instructions.get_instructions_for(selected_kb_ids) if selected_kb_ids else None
+    # Admin-edited prompt overrides (global, cached for a few seconds).
+    prompt_overrides = prompt_overrides_service.get_overrides() or None
 
     def event_generator():
         for event_type, data in stream_agent_response(
@@ -94,6 +97,7 @@ async def chat(
             files=agent_files,
             file_refs=file_refs,
             kb_instructions=kb_instr,
+            prompt_overrides=prompt_overrides,
         ):
             yield {"event": event_type, "data": data}
 

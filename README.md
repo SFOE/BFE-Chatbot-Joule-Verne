@@ -349,6 +349,7 @@ The following environment variables are required (set in `.env` locally, or in t
 |----------|-------------|
 | `ALLOWED_COGNITO_GROUPS` | Comma-separated Cognito group names allowed to access the app (empty = open) |
 | `KB_DISPLAY_NAMES` | Knowledge base display names for the UI (format: `id:DE\|FR\|IT\|EN`, or `id:Name` for all locales) |
+| `PROMPT_ADMIN_EMAILS` | E-mails (`\|`-separated) allowed to open the footer page "Agent prompts" and edit/version the agent's system prompts (empty = nobody) |
 | `UPLOAD_ALLOWED_EMAILS_BY_KB` | Per-KB upload/delete allowlist by email (format: `kb_id:email1\|email2, kb_id2:email3`; empty = open) |
 
 **Personal/group knowledge bases**
