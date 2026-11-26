@@ -25,8 +25,18 @@ logger = logging.getLogger(__name__)
 ALLOWED_EXTENSIONS = {
     ".txt", ".md", ".html", ".doc", ".docx",
     ".csv", ".xls", ".xlsx", ".pdf",
+    ".json", ".xml", ".yaml", ".yml",
     ".jpeg", ".jpg", ".png",
     ".msg",
+}
+
+# "Compute-only" uploads are stored under "<kb-prefix>/_compute/" and are NOT
+# processed into the KB (never indexed / never returned by KB search). The agent
+# lists and loads them into the Code Interpreter on demand. Keep this list in
+# sync with COMPUTE_EXTENSIONS in the agent's tools/kb_compute_files.py.
+COMPUTE_SEGMENT = "_compute"
+COMPUTE_ONLY_EXTENSIONS = {
+    ".csv", ".xls", ".xlsx", ".json", ".xml", ".yaml", ".yml",
 }
 
 CONTENT_TYPES = {
@@ -38,6 +48,10 @@ CONTENT_TYPES = {
     ".csv": "text/csv",
     ".xls": "application/vnd.ms-excel",
     ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ".json": "application/json",
+    ".xml": "application/xml",
+    ".yaml": "application/yaml",
+    ".yml": "application/yaml",
     ".pdf": "application/pdf",
     ".jpeg": "image/jpeg",
     ".jpg": "image/jpeg",
@@ -49,6 +63,8 @@ CONTENT_TYPES = {
 class UploadUrlRequest(BaseModel):
     kb_id: str
     filename: str
+    # Store the file for the Code Interpreter only: not indexed, not searchable.
+    compute_only: bool = False
 
 
 @router.post("/kbs/upload-url")
@@ -96,8 +112,21 @@ async def create_upload_url(
             detail=f"File type '{ext}' is not supported.",
         )
 
+    if body.compute_only and ext not in COMPUTE_ONLY_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"File type '{ext}' cannot be stored as compute-only. "
+                f"Allowed: {', '.join(sorted(COMPUTE_ONLY_EXTENSIONS))}."
+            ),
+        )
+
     content_type = CONTENT_TYPES.get(ext, "application/octet-stream")
-    key = f"{prefix}/{filename}"
+    key = (
+        f"{prefix}/{COMPUTE_SEGMENT}/{filename}"
+        if body.compute_only
+        else f"{prefix}/{filename}"
+    )
 
     try:
         url = s3_client.generate_presigned_url(
@@ -117,6 +146,7 @@ async def create_upload_url(
         "upload_url": url,
         "key": key,
         "content_type": content_type,
+        "compute_only": body.compute_only,
         "expires_in": settings.UPLOAD_URL_EXPIRATION,
     }
 
@@ -139,26 +169,32 @@ async def list_kb_files(
     try:
         files = []
         paginator = s3_client.get_paginator("list_objects_v2")
-        # Delimiter="/" keeps the listing flat: objects directly under the
+        # Delimiter="/" keeps each listing flat: objects directly under the
         # prefix land in "Contents", while anything inside a subdirectory is
         # rolled up into "CommonPrefixes" (which we ignore). This mirrors the
         # upload endpoint, which only ever writes flat "{prefix}/{filename}"
-        # keys.
-        for page in paginator.paginate(
-            Bucket=settings.SPECIFIC_KBS_BUCKET,
-            Prefix=f"{prefix}/",
-            Delimiter="/",
+        # keys. Compute-only files live in the "_compute/" subfolder, so they
+        # are listed with a second flat pass and flagged.
+        for folder, compute_only in (
+            (f"{prefix}/", False),
+            (f"{prefix}/{COMPUTE_SEGMENT}/", True),
         ):
-            for obj in page.get("Contents", []):
-                name = obj["Key"].split("/")[-1]
-                if not name:
-                    continue
-                files.append({
-                    "key": obj["Key"],
-                    "name": name,
-                    "size": obj["Size"],
-                    "last_modified": obj["LastModified"].isoformat(),
-                })
+            for page in paginator.paginate(
+                Bucket=settings.SPECIFIC_KBS_BUCKET,
+                Prefix=folder,
+                Delimiter="/",
+            ):
+                for obj in page.get("Contents", []):
+                    name = obj["Key"].split("/")[-1]
+                    if not name:
+                        continue
+                    files.append({
+                        "key": obj["Key"],
+                        "name": name,
+                        "size": obj["Size"],
+                        "last_modified": obj["LastModified"].isoformat(),
+                        "compute_only": compute_only,
+                    })
         return files
     except Exception as e:
         logger.error("Failed to list objects for KB %s: %s", kb_id, e)

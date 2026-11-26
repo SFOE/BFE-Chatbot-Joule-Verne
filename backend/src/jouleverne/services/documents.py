@@ -45,7 +45,10 @@ SESSION_ATTR_MAX_CHARS = 24_000
 MAX_UPLOAD_FILES = 50
 MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024  # 10 MB
 
-ALLOWED_EXTENSIONS = {"pdf", "txt", "docx", "xlsx", "csv"}
+ALLOWED_EXTENSIONS = {"pdf", "txt", "docx", "xlsx", "csv", "xml", "json", "yaml", "yml", "md", "html"}
+# Structured text formats: truncated (beginning only) when too long, instead
+# of being indexed.
+TRUNCATABLE_EXTENSIONS = {"xml", "json", "yaml", "yml", "md", "html"}
 MEDIA_TYPES = {
     "csv": "text/csv",
     "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -243,6 +246,12 @@ def extract_text(file_bytes: bytes, filename: str) -> tuple[str, int]:
         "docx": _extract_docx,
         "xlsx": _extract_xlsx,
         "csv": _extract_csv,
+        "xml": _extract_structured,
+        "json": _extract_structured,
+        "yaml": _extract_structured,
+        "yml": _extract_structured,
+        "md": _extract_structured,
+        "html": _extract_html,
     }
 
     extractor = extractors.get(ext)
@@ -251,8 +260,8 @@ def extract_text(file_bytes: bytes, filename: str) -> tuple[str, int]:
 
     text, pages = extractor(file_bytes)
 
-    # Skip quality check for tabular files
-    if ext not in ("xlsx", "csv") and not _text_quality_ok(text):
+    # Skip quality check for tabular and structured files
+    if ext not in ("xlsx", "csv") and ext not in TRUNCATABLE_EXTENSIONS and not _text_quality_ok(text):
         raise ValueError(
             "Extracted text appears low quality (possibly a scanned PDF). "
             "Please upload a text-based document."
@@ -295,6 +304,24 @@ def _extract_xlsx(file_bytes: bytes) -> tuple[str, int]:
             sheets_text.append(f"--- Sheet: {sheet_name} ---\n" + "\n".join(rows))
     wb.close()
     return _clean_text("\n\n".join(sheets_text)), sheet_count
+
+
+def _extract_structured(file_bytes: bytes) -> tuple[str, int]:
+    """XML/JSON: keep markup verbatim (no tag stripping), only strip BOM/whitespace."""
+    text = file_bytes.decode("utf-8-sig", errors="replace").strip()
+    if not text:
+        raise ValueError("File is empty.")
+    return text, 1
+
+
+def _extract_html(file_bytes: bytes) -> tuple[str, int]:
+    """HTML: drop script/style blocks and tags, keep the readable text."""
+    text = file_bytes.decode("utf-8-sig", errors="replace")
+    text = re.sub(r"<(script|style)[^>]*>.*?</\1>", "", text, flags=re.DOTALL | re.IGNORECASE)
+    text = _clean_text(text)
+    if not text:
+        raise ValueError("File is empty.")
+    return text, 1
 
 
 def _extract_csv(file_bytes: bytes) -> tuple[str, int]:
@@ -400,6 +427,16 @@ def prepare_document_context(
             f"[Large tabular document — {len(extracted_text):,} characters. "
             f"File will be sent to Code Interpreter for analysis.]"
         ), "code_interpreter"
+
+    if file_ext in TRUNCATABLE_EXTENSIONS:
+        limit = max(0, min(SESSION_ATTR_MAX_CHARS, PROMPT_CHAR_BUDGET - current_prompt_size))
+        if len(extracted_text) <= limit:
+            return extracted_text, "full"
+        note = (
+            f"\n[... truncated: showing the first {limit:,} of "
+            f"{len(extracted_text):,} characters ...]"
+        )
+        return extracted_text[:limit] + note, "full"
 
     fits_inline_size = len(extracted_text) <= SESSION_ATTR_MAX_CHARS
     fits_budget = current_prompt_size + len(extracted_text) <= PROMPT_CHAR_BUDGET

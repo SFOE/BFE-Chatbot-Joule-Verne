@@ -19,6 +19,7 @@ interface KbFile {
   name: string
   size: number
   last_modified: string
+  compute_only?: boolean
 }
 
 const { t, locale } = useI18n()
@@ -28,6 +29,7 @@ const selectedKbId = ref<string>('')
 const uploading = ref(false)
 const results = ref<UploadResult[]>([])
 const fileInput = ref<HTMLInputElement | null>(null)
+const computeOnly = ref(false)
 
 // Agent instruction state
 const instruction = ref('')
@@ -55,7 +57,11 @@ const selectedKbName = computed(() => {
   return kb ? kbName(kb) : ''
 })
 
-const ACCEPT = '.pdf,.txt,.md,.html,.doc,.docx,.csv,.xls,.xlsx,.jpeg,.jpg,.png,.msg'
+const ACCEPT = '.pdf,.txt,.md,.html,.doc,.docx,.csv,.xls,.xlsx,.json,.xml,.yaml,.yml,.jpeg,.jpg,.png,.msg'
+// Compute-only files are not indexed; the agent opens them with the Code
+// Interpreter. Keep in sync with COMPUTE_ONLY_EXTENSIONS in the backend.
+const COMPUTE_ONLY_EXTENSIONS = ['.csv', '.xls', '.xlsx', '.json', '.xml', '.yaml', '.yml']
+const ACCEPT_COMPUTE = COMPUTE_ONLY_EXTENSIONS.join(',')
 const MAX_DOC_SIZE = 50 * 1024 * 1024 // 50 MB for documents
 const MAX_IMAGE_SIZE = 3.75 * 1024 * 1024 // 3.75 MB for images
 const IMAGE_EXTENSIONS = ['.jpeg', '.jpg', '.png']
@@ -206,6 +212,15 @@ async function uploadFiles(fileList: File[]) {
       const maxSize = isImage ? MAX_IMAGE_SIZE : MAX_DOC_SIZE
       const maxLabel = isImage ? '3.75 MB' : '50 MB'
 
+      if (computeOnly.value && !COMPUTE_ONLY_EXTENSIONS.includes(ext)) {
+        results.value.push({
+          name: file.name,
+          status: 'error',
+          message: t('kb_upload_error_compute_type'),
+        })
+        continue
+      }
+
       if (file.size > maxSize) {
         results.value.push({
           name: file.name,
@@ -218,7 +233,7 @@ async function uploadFiles(fileList: File[]) {
       // 1. Get a presigned URL from the backend
       const { data } = await backendHttp.post<{ upload_url: string; content_type: string }>(
         'v1/kbs/upload-url',
-        { kb_id: selectedKbId.value, filename: file.name },
+        { kb_id: selectedKbId.value, filename: file.name, compute_only: computeOnly.value },
       )
 
       // 2. Upload the file directly to S3
@@ -261,6 +276,11 @@ async function uploadFiles(fileList: File[]) {
         <option v-for="kb in kbs" :key="kb.id" :value="kb.id">{{ kbName(kb) }}</option>
       </select>
 
+      <label class="compute-toggle" :title="t('kb_upload_compute_hint')">
+        <input v-model="computeOnly" type="checkbox" :disabled="uploading" />
+        {{ t('kb_upload_compute_label') }}
+      </label>
+
       <button class="file-select-btn" :disabled="uploading || !selectedKbId" @click="triggerFileSelect">
         {{ t('kb_upload_select_files') }}
       </button>
@@ -268,11 +288,13 @@ async function uploadFiles(fileList: File[]) {
         ref="fileInput"
         type="file"
         multiple
-        :accept="ACCEPT"
+        :accept="computeOnly ? ACCEPT_COMPUTE : ACCEPT"
         class="file-input-hidden"
         @change="handleFileChange"
       />
-      <p class="kb-upload-hint">{{ t('kb_upload_hint') }}</p>
+      <p class="kb-upload-hint">
+        {{ computeOnly ? t('kb_upload_hint_compute') : t('kb_upload_hint') }}
+      </p>
 
       <p v-if="uploading" class="kb-upload-status">⏳ {{ t('kb_upload_uploading') }}</p>
 
@@ -333,7 +355,12 @@ async function uploadFiles(fileList: File[]) {
           </thead>
           <tbody>
             <tr v-for="file in paginatedFiles" :key="file.key">
-              <td class="file-name">{{ file.name }}</td>
+              <td class="file-name">
+                {{ file.name }}
+                <span v-if="file.compute_only" class="compute-badge" :title="t('kb_files_badge_compute_tip')">
+                  {{ t('kb_files_badge_compute') }}
+                </span>
+              </td>
               <td>{{ formatSize(file.size) }}</td>
               <td>{{ formatDate(file.last_modified) }}</td>
               <td>
@@ -401,6 +428,26 @@ async function uploadFiles(fileList: File[]) {
 
 .file-input-hidden {
   display: none;
+}
+
+.compute-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+.compute-badge {
+  display: inline-block;
+  margin-left: 0.5rem;
+  padding: 0 0.4rem;
+  font-size: 0.75em;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-muted);
+  white-space: nowrap;
+  cursor: help;
 }
 
 .kb-upload-hint {
